@@ -1,46 +1,139 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="AWAtv — premium IPTV player for M3U / Xtream playlists, with EPG, TMDB metadata, and smooth buffered playback.">
+  <meta name="theme-color" content="#6C5CE7" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#6C5CE7">
 
-  <!-- iOS meta tags & icons -->
+  <!-- Open Graph / social previews -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="AWAtv — IPTV Player">
+  <meta property="og:description" content="Premium IPTV player. Bring your playlist; we bring the player.">
+  <meta property="og:image" content="icons/Icon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <!-- iOS / Apple PWA tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="awatv_mobile">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AWAtv">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/Icon-512.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="shortcut icon" href="favicon.png">
 
-  <title>awatv_mobile</title>
+  <!-- PWA manifest -->
   <link rel="manifest" href="manifest.json">
+
+  <title>AWAtv — IPTV Player</title>
+
+  <style>
+    /* Splash shown until Flutter mounts. Matches the in-app dark theme so
+       the transition is invisible. */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #0A0D14;
+      color: #E8EAF0;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro", system-ui, sans-serif;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-text-size-adjust: 100%;
+    }
+    #awatv-splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      background:
+        radial-gradient(ellipse at top, rgba(108, 92, 231, 0.18), transparent 60%),
+        radial-gradient(ellipse at bottom, rgba(0, 212, 255, 0.10), transparent 60%),
+        #0A0D14;
+      z-index: 9999;
+      transition: opacity 350ms ease;
+    }
+    #awatv-splash.hidden { opacity: 0; pointer-events: none; }
+    .awatv-mark {
+      width: 96px;
+      height: 96px;
+      border-radius: 28px;
+      background: linear-gradient(135deg, #6C5CE7 0%, #00D4FF 100%);
+      display: grid;
+      place-items: center;
+      font-size: 52px;
+      font-weight: 800;
+      color: white;
+      letter-spacing: -2px;
+      box-shadow:
+        0 20px 60px -20px rgba(108, 92, 231, 0.6),
+        0 8px 24px -8px rgba(0, 212, 255, 0.45);
+      animation: awatv-float 3s ease-in-out infinite;
+    }
+    @keyframes awatv-float {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-6px) scale(1.02); }
+    }
+    .awatv-spinner {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.08);
+      border-top-color: #00D4FF;
+      animation: awatv-spin 0.9s linear infinite;
+    }
+    @keyframes awatv-spin {
+      to { transform: rotate(360deg); }
+    }
+    .awatv-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .awatv-tag {
+      font-size: 13px;
+      color: rgba(232, 234, 240, 0.55);
+      font-weight: 500;
+      letter-spacing: 0.2px;
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="awatv-splash">
+    <div class="awatv-mark">A</div>
+    <div>
+      <div class="awatv-title" style="text-align:center">AWAtv</div>
+      <div class="awatv-tag">Loading your library…</div>
+    </div>
+    <div class="awatv-spinner"></div>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <script>
+    // Dismiss splash when Flutter signals first frame.
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('awatv-splash');
+      if (!s) return;
+      s.classList.add('hidden');
+      setTimeout(function () { s.remove(); }, 400);
+    });
+    // Safety net — hide splash after 8s even if Flutter is slow.
+    setTimeout(function () {
+      var s = document.getElementById('awatv-splash');
+      if (s) { s.classList.add('hidden'); setTimeout(function () { s.remove(); }, 400); }
+    }, 8000);
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -83,18 +83,15 @@ additional_redirect_urls = [
 # JWT expiry in seconds. 1 hour is a sane default; the SDK refreshes silently.
 jwt_expiry = 3600
 # How long a refresh token stays valid before the user must re-auth.
-refresh_token_rotation_enabled = true
 # Disallow signing up unauthenticated users via the API. Email is the only
 # enabled provider until OAuth keys are configured.
 enable_signup = true
 # Require users to verify their email before they can sign in.
-enable_confirmations = false
 
 # Email provider (magic links + OTP).
 [auth.email]
 enable_signup = true
 double_confirm_changes = true
-enable_confirmations = false
 # Min password length when password auth is enabled. Magic-link is preferred.
 [auth.email.template.invite]
 subject = "You're invited to AWAtv"

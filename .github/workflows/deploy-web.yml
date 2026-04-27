@@ -1,0 +1,92 @@
+name: deploy-web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.41.7
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://tv.awastats.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+
+      - name: Inject TMDB key into .env
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: |
+          cd apps/mobile
+          {
+            echo "TMDB_API_KEY=${TMDB_API_KEY}"
+            cat .env.example | grep -v '^TMDB_API_KEY=' | grep -v '^$'
+          } > .env
+
+      - name: Build web (release, offline-first PWA)
+        run: |
+          cd apps/mobile
+          flutter build web \
+            --release \
+            --pwa-strategy=offline-first \
+            --no-tree-shake-icons \
+            --base-href=/
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv-awastats-web
+          path: apps/mobile/build/web
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Rsync to tv.awastats.com web root
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          rsync -azh --delete \
+            --exclude='.git' \
+            apps/mobile/build/web/ \
+            "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
+
+      - name: Smoke check
+        run: |
+          sleep 5
+          curl -fsSL --max-time 15 https://tv.awastats.com/ | grep -q "AWAtv" || \
+            (echo "Smoke check failed — site does not show AWAtv title" && exit 1)

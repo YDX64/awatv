@@ -62,3 +62,6 @@ coverage/
 
 # Logs
 *.log
+
+# Build artifacts and release tarballs — use GitHub releases instead of committing
+awatv-web-*.tar.gz

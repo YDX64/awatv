@@ -1,0 +1,1 @@
+iptv,m3u,xtream,player,epg,streaming,live tv,vod,series,movies,tmdb,android tv,apple tv,smart tv,channel,playlist,broadcast,satellite,cable

@@ -1,0 +1,125 @@
+{
+  "app": {
+    "name": "AWAtv",
+    "tagline": "Bring your playlist. We bring the player."
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "save": "Save",
+    "retry": "Retry",
+    "loading": "Loading…",
+    "search": "Search",
+    "more": "More",
+    "settings": "Settings",
+    "back": "Back",
+    "close": "Close",
+    "next": "Next",
+    "skip": "Skip",
+    "done": "Done"
+  },
+  "tabs": {
+    "live": "Live",
+    "movies": "Movies",
+    "series": "Series",
+    "search": "Search",
+    "settings": "Settings"
+  },
+  "onboarding": {
+    "welcome_title": "Welcome to AWAtv",
+    "welcome_subtitle": "Your premium IPTV player. Add a playlist to begin.",
+    "add_playlist_cta": "Add your first playlist"
+  },
+  "playlists": {
+    "title": "Playlists",
+    "empty_title": "No playlists yet",
+    "empty_message": "Add an M3U URL or Xtream account to get started.",
+    "add": "Add playlist",
+    "refresh": "Refresh",
+    "delete_confirm_title": "Delete this playlist?",
+    "delete_confirm_message": "Channels, movies, and series from this source will be removed.",
+    "kind_m3u": "M3U / M3U8",
+    "kind_xtream": "Xtream Codes",
+    "field_name": "Display name",
+    "field_url": "URL",
+    "field_username": "Username",
+    "field_password": "Password",
+    "field_epg_url": "EPG URL (optional)",
+    "validation_url_required": "URL is required",
+    "validation_credentials_required": "Username and password required for Xtream"
+  },
+  "channels": {
+    "groups_filter": "All groups",
+    "empty_title": "No channels found",
+    "empty_message": "Pull to refresh or check the playlist source."
+  },
+  "vod": {
+    "empty_title": "No movies in this playlist",
+    "play": "Play",
+    "trailer": "Trailer",
+    "watchlist": "Add to Watchlist"
+  },
+  "series": {
+    "empty_title": "No series in this playlist",
+    "season": "Season {n}",
+    "episode_short": "S{s}E{e}",
+    "watched": "Watched"
+  },
+  "player": {
+    "loading": "Loading stream…",
+    "error_open_failed": "Couldn't open this stream",
+    "live": "LIVE",
+    "pip": "Picture-in-picture",
+    "engine_native": "Native engine",
+    "engine_vlc": "VLC engine"
+  },
+  "premium": {
+    "title": "Premium",
+    "subtitle": "Unlock the full AWAtv experience",
+    "active_status": "Active until {date}",
+    "lifetime_status": "Lifetime",
+    "plan_monthly": "Monthly",
+    "plan_yearly": "Yearly",
+    "plan_lifetime": "Lifetime",
+    "save_badge": "SAVE {pct}%",
+    "subscribe": "Subscribe",
+    "restore": "Restore purchases",
+    "lock_sheet_title": "Premium feature",
+    "lock_sheet_see_plans": "See plans",
+    "lock_sheet_maybe_later": "Maybe later",
+    "feature_unlimited_playlists": "Unlimited playlists",
+    "feature_multi_screen": "Watch on multiple devices",
+    "feature_pip": "Picture-in-picture",
+    "feature_vlc": "VLC engine",
+    "feature_extended_epg": "Extended EPG history (14 days)",
+    "feature_cloud_sync": "Cloud sync of favourites and history",
+    "feature_parental": "Parental controls",
+    "feature_themes": "Custom themes",
+    "feature_no_ads": "No ads",
+    "free_playlist_quota": "{used} of {limit} playlists used"
+  },
+  "settings": {
+    "appearance": "Appearance",
+    "theme_system": "System",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "language": "Language",
+    "playlists": "Manage playlists",
+    "premium": "Premium",
+    "parental": "Parental controls",
+    "cloud_sync": "Cloud sync",
+    "custom_themes": "Custom themes",
+    "about": "About",
+    "version": "Version",
+    "privacy_policy": "Privacy policy",
+    "terms_of_service": "Terms of service",
+    "open_source": "Open-source licenses"
+  },
+  "errors": {
+    "network": "Network error. Check your connection and try again.",
+    "auth": "Couldn't authenticate. Check your credentials.",
+    "parse": "Couldn't read this playlist. The format may be invalid.",
+    "unknown": "Something went wrong."
+  }
+}

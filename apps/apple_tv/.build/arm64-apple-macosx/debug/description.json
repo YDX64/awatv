@@ -1,0 +1,752 @@
+{
+  "builtTestProducts" : [
+
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.AWAtv-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "fileList" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/sources",
+      "importPath" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/AWAtvApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/BackdropHeader.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/ChannelTile.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/PosterCard.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/RatingPill.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/ContentView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/Channel.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/EpgProgramme.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/Episode.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/PlaylistSource.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/SeriesItem.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/VodItem.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/M3UParser.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/TmdbClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/XtreamClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/DetailViews/MovieDetailView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/DetailViews/SeriesDetailView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/HomeView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/LiveChannelsView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/MoviesView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/PlayerView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SearchView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SeriesView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SettingsView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Stores/PlayerStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Stores/PlaylistStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Theme/BrandColors.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Theme/Typography.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "AWAtv",
+      "moduleOutputPath" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/Modules/AWAtv.swiftmodule",
+      "objects" : [
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/AWAtvApp.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/BackdropHeader.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/ChannelTile.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PosterCard.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/RatingPill.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/ContentView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/Channel.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/EpgProgramme.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/Episode.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlaylistSource.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SeriesItem.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/VodItem.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/M3UParser.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/TmdbClient.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/XtreamClient.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/MovieDetailView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SeriesDetailView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/HomeView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/LiveChannelsView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/MoviesView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlayerView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SearchView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SeriesView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SettingsView.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlayerStore.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlaylistStore.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/BrandColors.swift.o",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/Typography.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx10.13",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "AWAtv_main",
+        "-swift-version",
+        "5",
+        "-I",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-L",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-plugin-path",
+        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "apple_tv"
+      ],
+      "outputFileMapPath" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/AWAtvApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/BackdropHeader.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/ChannelTile.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PosterCard.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/RatingPill.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/ContentView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/Channel.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/EpgProgramme.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/Episode.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlaylistSource.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SeriesItem.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/VodItem.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/M3UParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/TmdbClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/XtreamClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/MovieDetailView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SeriesDetailView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/HomeView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/LiveChannelsView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/MoviesView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlayerView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SearchView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SeriesView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SettingsView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlayerStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlaylistStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/BrandColors.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/Typography.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/Modules/AWAtv.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/AWAtvApp.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/BackdropHeader.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/ChannelTile.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/PosterCard.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/RatingPill.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/ContentView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/Channel.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/EpgProgramme.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/Episode.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/PlaylistSource.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/SeriesItem.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/VodItem.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/M3UParser.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/TmdbClient.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/XtreamClient.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/DetailViews/MovieDetailView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/DetailViews/SeriesDetailView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/HomeView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/LiveChannelsView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/MoviesView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/PlayerView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SearchView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SeriesView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SettingsView.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Stores/PlayerStore.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Stores/PlaylistStore.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Theme/BrandColors.swift",
+        "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Theme/Typography.swift"
+      ],
+      "tempsPath" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "AWAtv" : [
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "-module-name",
+      "AWAtv",
+      "-package-name",
+      "apple_tv",
+      "-c",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/AWAtvApp.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/BackdropHeader.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/ChannelTile.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/PosterCard.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/RatingPill.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/ContentView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/Channel.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/EpgProgramme.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/Episode.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/PlaylistSource.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/SeriesItem.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/VodItem.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/M3UParser.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/TmdbClient.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/XtreamClient.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/DetailViews/MovieDetailView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/DetailViews/SeriesDetailView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/HomeView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/LiveChannelsView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/MoviesView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/PlayerView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SearchView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SeriesView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SettingsView.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Stores/PlayerStore.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Stores/PlaylistStore.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Theme/BrandColors.swift",
+      "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Theme/Typography.swift",
+      "-I",
+      "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx10.13",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "AWAtv_main",
+      "-swift-version",
+      "5",
+      "-I",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-L",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-plugin-path",
+      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "apple_tv",
+      "-driver-use-frontend-path",
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "AWAtv" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv-entitlement.plist" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<entitlement-plist>"
+        },
+        {
+          "kind" : "virtual",
+          "name" : "<com.apple.security.get-task-allow>"
+        }
+      ],
+      "outputFilePath" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv-entitlement.plist"
+    },
+    "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/AWAtvApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/BackdropHeader.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/ChannelTile.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/PosterCard.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Components/RatingPill.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/ContentView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/Channel.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/EpgProgramme.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/Episode.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/PlaylistSource.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/SeriesItem.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Models/VodItem.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/M3UParser.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/TmdbClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Networking/XtreamClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/DetailViews/MovieDetailView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/DetailViews/SeriesDetailView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/HomeView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/LiveChannelsView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/MoviesView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/PlayerView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SearchView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SeriesView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Screens/SettingsView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Stores/PlayerStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Stores/PlaylistStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Theme/BrandColors.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/Sources/AWAtv/Theme/Typography.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/sources"
+    },
+    "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/AWAtvApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/BackdropHeader.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/BrandColors.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/Channel.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/ChannelTile.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/ContentView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/EpgProgramme.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/Episode.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/HomeView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/LiveChannelsView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/M3UParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/MovieDetailView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/MoviesView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlayerStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlayerView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlaylistSource.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PlaylistStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/PosterCard.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/RatingPill.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SearchView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SeriesDetailView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SeriesItem.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SeriesView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/SettingsView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/TmdbClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/Typography.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/VodItem.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.build/XtreamClient.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/AWAtv.product/Objects.LinkFileList"
+    },
+    "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/max/AWAtv/apps/apple_tv/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+    }
+  }
+}

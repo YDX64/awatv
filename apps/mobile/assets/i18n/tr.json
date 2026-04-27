@@ -1,0 +1,125 @@
+{
+  "app": {
+    "name": "AWAtv",
+    "tagline": "Siz playlist'i getirin. Biz oynatıcıyı sunalım."
+  },
+  "common": {
+    "ok": "Tamam",
+    "cancel": "İptal",
+    "delete": "Sil",
+    "save": "Kaydet",
+    "retry": "Yeniden dene",
+    "loading": "Yükleniyor…",
+    "search": "Ara",
+    "more": "Daha fazla",
+    "settings": "Ayarlar",
+    "back": "Geri",
+    "close": "Kapat",
+    "next": "İleri",
+    "skip": "Atla",
+    "done": "Tamam"
+  },
+  "tabs": {
+    "live": "Canlı",
+    "movies": "Filmler",
+    "series": "Diziler",
+    "search": "Ara",
+    "settings": "Ayarlar"
+  },
+  "onboarding": {
+    "welcome_title": "AWAtv'ye hoş geldiniz",
+    "welcome_subtitle": "Premium IPTV oynatıcınız. Başlamak için bir playlist ekleyin.",
+    "add_playlist_cta": "İlk playlist'inizi ekleyin"
+  },
+  "playlists": {
+    "title": "Playlist'ler",
+    "empty_title": "Henüz playlist yok",
+    "empty_message": "Başlamak için bir M3U URL'si veya Xtream hesabı ekleyin.",
+    "add": "Playlist ekle",
+    "refresh": "Yenile",
+    "delete_confirm_title": "Bu playlist silinsin mi?",
+    "delete_confirm_message": "Bu kaynaktan gelen kanallar, filmler ve diziler kaldırılacak.",
+    "kind_m3u": "M3U / M3U8",
+    "kind_xtream": "Xtream Codes",
+    "field_name": "Görünen ad",
+    "field_url": "URL",
+    "field_username": "Kullanıcı adı",
+    "field_password": "Şifre",
+    "field_epg_url": "EPG URL (isteğe bağlı)",
+    "validation_url_required": "URL gerekli",
+    "validation_credentials_required": "Xtream için kullanıcı adı ve şifre gerekli"
+  },
+  "channels": {
+    "groups_filter": "Tüm gruplar",
+    "empty_title": "Kanal bulunamadı",
+    "empty_message": "Yenilemek için aşağı çekin veya playlist kaynağını kontrol edin."
+  },
+  "vod": {
+    "empty_title": "Bu playlist'te film yok",
+    "play": "Oynat",
+    "trailer": "Fragman",
+    "watchlist": "İzleme listesine ekle"
+  },
+  "series": {
+    "empty_title": "Bu playlist'te dizi yok",
+    "season": "{n}. Sezon",
+    "episode_short": "S{s}B{e}",
+    "watched": "İzlendi"
+  },
+  "player": {
+    "loading": "Akış yükleniyor…",
+    "error_open_failed": "Bu akış açılamadı",
+    "live": "CANLI",
+    "pip": "Resim içinde resim",
+    "engine_native": "Yerel motor",
+    "engine_vlc": "VLC motoru"
+  },
+  "premium": {
+    "title": "Premium",
+    "subtitle": "AWAtv'nin tüm özelliklerini açın",
+    "active_status": "{date} tarihine kadar aktif",
+    "lifetime_status": "Ömür boyu",
+    "plan_monthly": "Aylık",
+    "plan_yearly": "Yıllık",
+    "plan_lifetime": "Ömür boyu",
+    "save_badge": "%{pct} TASARRUF",
+    "subscribe": "Abone ol",
+    "restore": "Satın alımları geri yükle",
+    "lock_sheet_title": "Premium özellik",
+    "lock_sheet_see_plans": "Planları gör",
+    "lock_sheet_maybe_later": "Belki sonra",
+    "feature_unlimited_playlists": "Sınırsız playlist",
+    "feature_multi_screen": "Birden fazla cihazda izleme",
+    "feature_pip": "Resim içinde resim",
+    "feature_vlc": "VLC motoru",
+    "feature_extended_epg": "Genişletilmiş EPG geçmişi (14 gün)",
+    "feature_cloud_sync": "Favoriler ve geçmiş için bulut senkronizasyonu",
+    "feature_parental": "Ebeveyn kontrolleri",
+    "feature_themes": "Özel temalar",
+    "feature_no_ads": "Reklamsız",
+    "free_playlist_quota": "{limit} playlist'ten {used} kullanıldı"
+  },
+  "settings": {
+    "appearance": "Görünüm",
+    "theme_system": "Sistem",
+    "theme_light": "Açık",
+    "theme_dark": "Koyu",
+    "language": "Dil",
+    "playlists": "Playlist'leri yönet",
+    "premium": "Premium",
+    "parental": "Ebeveyn kontrolleri",
+    "cloud_sync": "Bulut senkronizasyonu",
+    "custom_themes": "Özel temalar",
+    "about": "Hakkında",
+    "version": "Sürüm",
+    "privacy_policy": "Gizlilik politikası",
+    "terms_of_service": "Hizmet şartları",
+    "open_source": "Açık kaynak lisansları"
+  },
+  "errors": {
+    "network": "Ağ hatası. Bağlantınızı kontrol edip tekrar deneyin.",
+    "auth": "Kimlik doğrulanamadı. Bilgilerinizi kontrol edin.",
+    "parse": "Bu playlist okunamadı. Format geçersiz olabilir.",
+    "unknown": "Bir şeyler ters gitti."
+  }
+}

@@ -94,15 +94,35 @@ Translation: **No mocked data, no `// TODO` stubs that pretend to work**. Every 
 
 If something cannot ship in a session, **state it explicitly as deferred** — don't fake it.
 
-## What's deferred (NOT in current session scope)
+## Current build status (2026-04-27 — autonomous Phase 0–6 session)
 
-- Apple TV (tvOS) native app — requires separate Xcode project
-- Production store submission (App Store, Play Store) — requires accounts, certs, screenshots
-- Backend (Supabase) — placeholders only; IAP/sync/analytics wired with real keys later
-- TVDB and IMDB metadata clients — TMDB is primary; others are stubs returning `null`
-- Trailer playback — TMDB returns YouTube IDs but native YT player not embedded yet
-- Casting (Chromecast/AirPlay) — deferred to Phase 2
-- Multi-screen / picture-in-picture — deferred to Phase 2
+- `flutter analyze`: **0 errors, 0 warnings**, ~10 info-level style hints
+- `flutter test` (awatv_core): **126/126 passing**
+- `flutter build web`: succeeds
+- 3 git commits, no remote yet
+- CI workflow at `.github/workflows/flutter.yml` (analyze + 6-platform build matrix)
+
+## What's already in the repo
+
+- Mobile (iOS+Android), Android TV variant (LEANBACK_LAUNCHER + side-rail D-pad shell)
+- Desktop chrome (macOS+Windows): custom titlebar, NavigationRail @ >=1100dp, keyboard shortcuts
+- Web build target (sanity check)
+- Apple TV SwiftUI scaffold at `apps/apple_tv/` (open `Package.swift` in Xcode 15+)
+- Premium tier enforcement (sealed PremiumTier, 9 PremiumFeatures, paywall persisted to Hive)
+- Supabase backend IaC at `supabase/` (4 migrations, RLS, 3 edge functions)
+- Store assets at `store/` (en+tr metadata) + `legal/` (privacy, ToS) + `apps/mobile/assets/i18n/` (en+tr JSON)
+
+## What's deferred to a future session
+
+- **Device run not yet verified** — needs `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer` + CocoaPods install; Android needs cmdline-tools
+- **Real keys**: TMDB API key, AdMob production IDs, RevenueCat, Supabase URL+anon key — all placeholders in `apps/mobile/.env.example`
+- **Apple TV Xcode project** — open `Package.swift` in Xcode 15+ (no `.xcodeproj` checked in by design)
+- **Casting** (Chromecast/AirPlay) — Phase 7
+- **Real PiP / multi-screen impl** — gate exists, native impl deferred
+- **easy_localization wiring** — JSON strings exist, app boot doesn't load them yet
+- **Real screenshots** — `store/screenshots/README.md` lists what's needed
+- **Production store submission** — needs accounts, certs, screenshots
+- **TVDB / IMDB / OMDb** clients — TMDB is the only metadata source for now
 
 ## Dev environment notes
 

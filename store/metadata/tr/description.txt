@@ -1,0 +1,35 @@
+AWAtv, kendi playlist'inizi getirdiğiniz premium bir oynatıcıdır.
+
+Bir M3U / M3U8 dosyasını veya Xtream Codes hesabını bir kez ekleyin; AWAtv canlı kanallarınızı, filmlerinizi ve dizilerinizi şık bir kütüphane olarak düzenler — TMDB destekli zengin meta veriler (poster, arkaplan, özet, rating, fragman) ile birlikte.
+
+ÖNE ÇIKAN ÖZELLİKLER
+
+• Evrensel playlist desteği — M3U, M3U8 ve tam Xtream Codes API
+• Akıllı EPG — XMLTV içeri aktarma (gzip destekli), şimdi-sonraki şeridi, program detayları
+• Zengin meta veri — TMDB'den otomatik zenginleştirme (poster, arkaplan, özet, oyuncular, rating, fragmanlar)
+• Akıllı bölüm takibi — kaldığınız yerden devam, izlendi işaretleri, "sıradaki" önerileri
+• Kesintisiz oynatma — libmpv tabanlı motor HEVC, AV1, HLS, DASH destekler; yavaş bağlantılar için geniş buffer
+• Şık tasarım — koyu öncelikli, glassmorphism vurgular, hero animasyonlar, Material 3 motion
+• Tüm platformlar — iPhone, iPad, Android telefon, Android TV, Apple TV, macOS, Windows aynı hesap
+• Bulut senkronizasyonu (Premium) — favoriler, geçmiş, ebeveyn kontrolü tüm cihazlarda
+• Çoklu ekran (Premium) — birden fazla cihazda aynı anda izleyin
+• Reklamsız (Premium) — temiz, dikkat dağıtmayan izleme
+
+Siz playlist'i getirin. Biz oynatıcıyı sunalım.
+
+PREMIUM PLANLAR
+
+• Aylık — ₺149,99
+• Yıllık — ₺999,99 (37% tasarruf)
+• Ömür Boyu — ₺2399 (tek ödeme)
+
+Tüm ücretli planlar aynı özelliklere sahiptir. İstediğiniz zaman iptal edebilirsiniz.
+
+VERİLERİNİZ HAKKINDA
+
+AWAtv hiçbir içeriği barındırmaz veya dağıtmaz. Playlist URL'sini veya Xtream hesabınızı siz sağlarsınız. Kimlik bilgileri cihazınızın güvenli keychain'inde saklanır — sunucularımıza asla gönderilmez (premium bulut senkronizasyonu yalnızca meta verileri senkronize eder: favoriler, izleme işaretleri, tercihler).
+
+SORULARINIZ İÇİN — support@awatv.app
+
+—
+Bu uygulama yasadışı yayın veya korsan içeriği desteklemez. Yalnızca erişim hakkına sahip olduğunuz playlist'lerle kullanın. Yerel yayın ve telif hakkı yasalarına uyum sizin sorumluluğunuzdadır.

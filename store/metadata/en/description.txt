@@ -1,0 +1,35 @@
+AWAtv is the premium player you bring your own playlist to.
+
+Add any M3U / M3U8 file or Xtream Codes account once and AWAtv organises your live channels, movies, and series into a beautifully arranged library — with rich metadata, posters, ratings, plot summaries, EPG, and trailers powered by TMDB.
+
+KEY FEATURES
+
+• Universal playlist support — M3U, M3U8, and the full Xtream Codes API
+• Smart EPG — XMLTV ingestion with gzip support, now-and-next strip, programme details
+• Rich metadata — automatic enrichment from TMDB (posters, backdrops, plot, cast, ratings, trailers)
+• Smart episode tracking — resume where you left off, watched markers, next-up suggestions
+• Smooth playback — libmpv-powered engine handles HEVC, AV1, HLS, DASH; large adaptive buffer for slow connections
+• Beautiful design — dark-first interface with glassmorphism accents, hero animations, and Material 3 motion
+• Cross-platform — same account on iPhone, iPad, Android phone, Android TV, Apple TV, macOS, Windows
+• Cloud sync (Premium) — favourites, history, and parental controls across all your devices
+• Multi-screen (Premium) — watch on multiple devices simultaneously
+• No ads (Premium) — clean, distraction-free viewing
+
+You bring the playlist. We bring the player.
+
+PREMIUM PLANS
+
+• Monthly — €3.99
+• Yearly — €29.99 (save 37%)
+• Lifetime — €69.99 (one-time)
+
+All paid plans share the same feature set. Cancel anytime.
+
+ABOUT YOUR DATA
+
+AWAtv does not host or distribute any content. You provide your own playlist URL or Xtream account. Credentials are stored locally in your device's secure keychain — never on our servers (premium cloud sync syncs only metadata: favourites, watched markers, preferences).
+
+QUESTIONS? — support@awatv.app
+
+—
+This app does not support free-trial impersonation, illegal streaming, or piracy. Use only with playlists you have a right to access. Compliance with local broadcasting and copyright law is your responsibility.

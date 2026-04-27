@@ -1,4 +1,8 @@
 import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
+import 'package:awatv_mobile/src/features/premium/premium_badge.dart';
+import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
+import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
+import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,12 +10,23 @@ import 'package:go_router/go_router.dart';
 
 /// Settings landing — theme, parental control gate, links to playlists,
 /// premium and an "About" line.
+///
+/// Premium-only rows ("Cloud sync", "Parental controls", "Custom
+/// themes") render with a small lock icon while the user is on the
+/// free tier; tapping them opens the [PremiumLockSheet] instead of
+/// navigating into the (not-yet-built) feature.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(appThemeModeProvider);
+    final canParental =
+        ref.watch(canUseFeatureProvider(PremiumFeature.parentalControls));
+    final canCloud = ref.watch(canUseFeatureProvider(PremiumFeature.cloudSync));
+    final canThemes =
+        ref.watch(canUseFeatureProvider(PremiumFeature.customThemes));
+
     return Scaffold(
       appBar: AppBar(title: const Text('Ayarlar')),
       body: ListView(
@@ -22,8 +37,21 @@ class SettingsScreen extends ConsumerWidget {
             leading: const Icon(Icons.brightness_6_outlined),
             title: const Text('Tema'),
             subtitle: Text(_label(mode)),
-            onTap: () =>
-                ref.read(appThemeModeProvider.notifier).toggle(),
+            onTap: () => ref.read(appThemeModeProvider.notifier).toggle(),
+          ),
+          _GatedTile(
+            icon: Icons.palette_outlined,
+            title: 'Ozel temalar',
+            subtitle: 'Vurgu rengini ve duvar kagidini secin',
+            unlocked: canThemes,
+            feature: PremiumFeature.customThemes,
+            onUnlockedTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Ozel temalar yakinda eklenecek.'),
+                ),
+              );
+            },
           ),
           const Divider(),
           const _SectionHeader('Icerik'),
@@ -40,8 +68,22 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
+                  content: Text('Dil secimi Phase 2 te eklenecek.'),
+                ),
+              );
+            },
+          ),
+          _GatedTile(
+            icon: Icons.cloud_sync_outlined,
+            title: 'Bulut senkronizasyonu',
+            subtitle: 'Favori, gecmis ve ayarlari cihazlar arasinda esitle',
+            unlocked: canCloud,
+            feature: PremiumFeature.cloudSync,
+            onUnlockedTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
                   content: Text(
-                    'Dil secimi Phase 2 te eklenecek.',
+                    'Bulut senkronizasyonu Phase 3 te aktiflesir.',
                   ),
                 ),
               );
@@ -49,16 +91,17 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(),
           const _SectionHeader('Aile'),
-          ListTile(
-            leading: const Icon(Icons.lock_outline),
-            title: const Text('Aile koruma'),
-            subtitle: const Text('PIN ile yetiskin icerigi gizle'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
+          _GatedTile(
+            icon: Icons.lock_outline,
+            title: 'Aile koruma',
+            subtitle: 'PIN ile yetiskin icerigi gizle',
+            unlocked: canParental,
+            feature: PremiumFeature.parentalControls,
+            onUnlockedTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    'Aile koruma Premium ile birlikte aktiflesir.',
+                    'Aile koruma kurulumu yakinda eklenecek.',
                   ),
                 ),
               );
@@ -102,6 +145,50 @@ class SettingsScreen extends ConsumerWidget {
         ThemeMode.dark => 'Koyu',
         ThemeMode.light => 'Acik',
       };
+}
+
+/// List row that swaps its trailing affordance based on whether the
+/// active tier covers the linked [PremiumFeature]. Locked taps surface
+/// the [PremiumLockSheet]; unlocked taps fall through to the screen's
+/// own handler.
+class _GatedTile extends StatelessWidget {
+  const _GatedTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.unlocked,
+    required this.feature,
+    required this.onUnlockedTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool unlocked;
+  final PremiumFeature feature;
+  final VoidCallback onUnlockedTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: unlocked
+          ? const Icon(Icons.chevron_right)
+          : const Padding(
+              padding: EdgeInsets.only(right: 4),
+              child: PremiumBadge(),
+            ),
+      onTap: () {
+        if (!unlocked) {
+          PremiumLockSheet.show(context, feature);
+          return;
+        }
+        onUnlockedTap();
+      },
+    );
+  }
 }
 
 class _SectionHeader extends StatelessWidget {

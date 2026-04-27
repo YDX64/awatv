@@ -1,21 +1,92 @@
+import 'dart:developer' as developer;
+
+import 'package:awatv_mobile/src/shared/premium/premium_status_provider.dart';
+import 'package:awatv_mobile/src/shared/premium/premium_tier.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
-/// Paywall mockup. Real IAP wires in Phase 5 (RevenueCat). For now the
-/// CTAs surface a "Coming soon" SnackBar.
-class PremiumScreen extends StatefulWidget {
+/// Paywall — three plan tiles + a "Restore purchases" footer.
+///
+/// Until RevenueCat lands (Phase 5) the CTA calls
+/// `PremiumStatus.simulateActivate(plan)` so the rest of the app can
+/// be exercised end-to-end against a real persisted entitlement.
+class PremiumScreen extends ConsumerStatefulWidget {
   const PremiumScreen({super.key});
 
   @override
-  State<PremiumScreen> createState() => _PremiumScreenState();
+  ConsumerState<PremiumScreen> createState() => _PremiumScreenState();
 }
 
-class _PremiumScreenState extends State<PremiumScreen> {
-  _Plan _selected = _Plan.yearly;
+class _PremiumScreenState extends ConsumerState<PremiumScreen> {
+  PremiumPlan _selected = PremiumPlan.yearly;
+  bool _activating = false;
+
+  Future<void> _activate() async {
+    if (_activating) return;
+    setState(() => _activating = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(premiumStatusProvider.notifier)
+          .simulateActivate(_selected);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: BrandColors.success,
+          content: Text(
+            'Premium ${_planLabel(_selected)} aktif. Iyi seyirler!',
+          ),
+        ),
+      );
+      // Pop back to where the user came from so gates re-evaluate.
+      if (context.canPop()) context.pop();
+    } on Object catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Aktivasyon basarisiz: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _activating = false);
+    }
+  }
+
+  Future<void> _restorePurchases() async {
+    // No-op stub — real restore wires through RevenueCat in Phase 5.
+    developer.log(
+      'Premium restore requested (no-op until RevenueCat ships).',
+      name: 'awatv.premium',
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Satin alimlari geri yukleme magaza entegrasyonu ile aktiflesir.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _signOutPremium() async {
+    await ref.read(premiumStatusProvider.notifier).signOut();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Premium kapatildi.')),
+    );
+  }
+
+  String _planLabel(PremiumPlan p) => switch (p) {
+        PremiumPlan.monthly => 'aylik',
+        PremiumPlan.yearly => 'yillik',
+        PremiumPlan.lifetime => 'omur boyu',
+      };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tier = ref.watch(premiumStatusProvider);
+
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -58,6 +129,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
             ),
           ),
+          if (tier is PremiumTierActive)
+            SliverToBoxAdapter(
+              child: _ActiveBanner(
+                tier: tier,
+                onSignOut: _signOutPremium,
+              ),
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(DesignTokens.spaceL),
@@ -69,7 +147,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: DesignTokens.spaceM),
-                  for (final plan in _Plan.values)
+                  for (final plan in PremiumPlan.values)
                     Padding(
                       padding: const EdgeInsets.only(
                         bottom: DesignTokens.spaceM,
@@ -82,20 +160,18 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     ),
                   const SizedBox(height: DesignTokens.spaceM),
                   FilledButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Yakinda — abonelik magaza entegrasyonu Phase 5.',
+                    onPressed: _activating ? null : _activate,
+                    child: _activating
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            _selected == PremiumPlan.lifetime
+                                ? 'Tek seferlik satin al'
+                                : 'Aboneligi baslat',
                           ),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      _selected == _Plan.lifetime
-                          ? 'Tek seferlik satin al'
-                          : 'Aboneligi baslat',
-                    ),
                   ),
                   const SizedBox(height: DesignTokens.spaceL),
                   Text(
@@ -104,7 +180,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   ),
                   const SizedBox(height: DesignTokens.spaceS),
                   const _Comparison(),
-                  const SizedBox(height: DesignTokens.spaceXl),
+                  const SizedBox(height: DesignTokens.spaceL),
+                  TextButton.icon(
+                    onPressed: _restorePurchases,
+                    icon: const Icon(Icons.restore_rounded),
+                    label: const Text('Satin alimlarimi geri yukle'),
+                  ),
+                  const SizedBox(height: DesignTokens.spaceM),
                   Text(
                     'Aboneligini istediginde iptal edebilirsin. Apple App '
                     'Store / Google Play kurallari gecerlidir.',
@@ -123,7 +205,76 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 }
 
-enum _Plan { monthly, yearly, lifetime }
+/// Banner shown above the plan list when the user is already premium.
+/// Surfaces the renewal date and exposes a "sign out" link so the dev
+/// console can reset back to free without losing the rest of the app
+/// state.
+class _ActiveBanner extends StatelessWidget {
+  const _ActiveBanner({
+    required this.tier,
+    required this.onSignOut,
+  });
+
+  final PremiumTierActive tier;
+  final Future<void> Function() onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fmt = DateFormat.yMMMd();
+    final expires = tier.expiresAt;
+    final subtitle = switch (tier.plan) {
+      PremiumPlan.lifetime => 'Omur boyu — sonsuza kadar.',
+      PremiumPlan.monthly when expires != null =>
+        'Aylik abonelik — yenileme: ${fmt.format(expires)}',
+      PremiumPlan.yearly when expires != null =>
+        'Yillik abonelik — yenileme: ${fmt.format(expires)}',
+      _ => 'Premium aktif.',
+    };
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        DesignTokens.spaceL,
+        DesignTokens.spaceL,
+        DesignTokens.spaceL,
+        0,
+      ),
+      padding: const EdgeInsets.all(DesignTokens.spaceM),
+      decoration: BoxDecoration(
+        color: BrandColors.success.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(DesignTokens.radiusL),
+        border: Border.all(
+          color: BrandColors.success.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: BrandColors.success),
+          const SizedBox(width: DesignTokens.spaceM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Premium aktif',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(subtitle, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onSignOut,
+            child: const Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _PlanCard extends StatelessWidget {
   const _PlanCard({
@@ -132,7 +283,7 @@ class _PlanCard extends StatelessWidget {
     required this.onTap,
   });
 
-  final _Plan plan;
+  final PremiumPlan plan;
   final bool selected;
   final VoidCallback onTap;
 
@@ -142,9 +293,9 @@ class _PlanCard extends StatelessWidget {
     final cs = theme.colorScheme;
 
     final (String title, String price, String? badge) = switch (plan) {
-      _Plan.monthly => ('Aylik', 'EUR 3,99 / ay', null),
-      _Plan.yearly => ('Yillik', 'EUR 29,99 / yil', '%37 indirim'),
-      _Plan.lifetime => ('Omur boyu', 'EUR 69,99', 'Tek seferlik'),
+      PremiumPlan.monthly => ('Aylik', 'EUR 3,99 / ay', null),
+      PremiumPlan.yearly => ('Yillik', 'EUR 29,99 / yil', '%37 indirim'),
+      PremiumPlan.lifetime => ('Omur boyu', 'EUR 69,99', 'Tek seferlik'),
     };
 
     return InkWell(

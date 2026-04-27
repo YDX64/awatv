@@ -1,6 +1,9 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/playlists/playlist_providers.dart';
+import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
+import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
+import 'package:awatv_mobile/src/shared/premium/premium_quotas.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +20,28 @@ class PlaylistsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playlists = ref.watch(playlistsProvider);
+    final quota = ref.watch(playlistQuotaProvider);
+
+    // Resolve the current count synchronously when the source list is
+    // already loaded; otherwise treat as unknown and let the gate
+    // re-check at tap time.
+    final currentCount = playlists.value?.length ?? 0;
+    final atQuota = currentCount >= quota;
+
+    void onAddTap() {
+      // Re-read at the moment of tap so a refresh-in-flight cannot
+      // race past the gate.
+      final live = ref.read(playlistsProvider).value?.length ?? 0;
+      final liveQuota = ref.read(playlistQuotaProvider);
+      if (live >= liveQuota) {
+        PremiumLockSheet.show(
+          context,
+          PremiumFeature.unlimitedPlaylists,
+        );
+        return;
+      }
+      context.push('/playlists/add');
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -25,7 +50,7 @@ class PlaylistsScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Yeni liste ekle',
             icon: const Icon(Icons.add),
-            onPressed: () => context.push('/playlists/add'),
+            onPressed: onAddTap,
           ),
         ],
       ),
@@ -42,7 +67,7 @@ class PlaylistsScreen extends ConsumerWidget {
               title: 'Henuz liste yok',
               message: 'Bir M3U veya Xtream Codes hesabi ekleyerek basla.',
               actionLabel: 'Ekle',
-              onAction: () => context.push('/playlists/add'),
+              onAction: onAddTap,
             );
           }
           return RefreshIndicator(
@@ -52,10 +77,18 @@ class PlaylistsScreen extends ConsumerWidget {
             },
             child: ListView.separated(
               padding: const EdgeInsets.all(DesignTokens.spaceM),
-              itemCount: sources.length,
+              itemCount: sources.length + (atQuota ? 1 : 0),
               separatorBuilder: (_, __) =>
                   const SizedBox(height: DesignTokens.spaceS),
               itemBuilder: (BuildContext context, int i) {
+                if (i == sources.length) {
+                  // Trailing quota notice — visible only when the user
+                  // is at the free-tier ceiling.
+                  return _QuotaNotice(
+                    used: sources.length,
+                    quota: quota,
+                  );
+                }
                 final source = sources[i];
                 return _PlaylistTile(source: source);
               },
@@ -64,9 +97,67 @@ class PlaylistsScreen extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/playlists/add'),
-        icon: const Icon(Icons.add),
+        onPressed: onAddTap,
+        icon: Icon(atQuota ? Icons.lock_rounded : Icons.add),
         label: const Text('Liste ekle'),
+      ),
+    );
+  }
+}
+
+/// Trailing card surfaced when the free tier ceiling has been reached.
+/// Tapping it routes to the paywall via the lock sheet.
+class _QuotaNotice extends StatelessWidget {
+  const _QuotaNotice({required this.used, required this.quota});
+  final int used;
+  final int quota;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(DesignTokens.radiusL),
+      onTap: () => PremiumLockSheet.show(
+        context,
+        PremiumFeature.unlimitedPlaylists,
+      ),
+      child: Ink(
+        padding: const EdgeInsets.all(DesignTokens.spaceM),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(DesignTokens.radiusL),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.45),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.workspace_premium_rounded,
+              color: BrandColors.primary,
+            ),
+            const SizedBox(width: DesignTokens.spaceM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ucretsiz tier limiti: $used / $quota',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Premium ile sinirsiz liste ekleyebilirsin.',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
       ),
     );
   }

@@ -1,5 +1,7 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/app/awa_tv_app.dart';
+import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
+import 'package:awatv_mobile/src/desktop/desktop_window.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:flutter/material.dart';
@@ -34,6 +36,13 @@ Future<void> main() async {
   await Hive.initFlutter('awatv');
   await AwaPlayerController.ensureInitialized();
   await AwatvStorage.instance.init(subDir: docsDir.path);
+
+  // Desktop only: take over the OS window before runApp so the first
+  // frame already has the right size and (on macOS) a hidden titlebar.
+  // Pure no-op on iOS / Android / web.
+  if (isDesktopRuntime()) {
+    await initialiseDesktopWindow();
+  }
 
   // One-shot form-factor probe. The same APK is shipped to phones and
   // Android TV; a heuristic on `PlatformDispatcher.views.first` decides

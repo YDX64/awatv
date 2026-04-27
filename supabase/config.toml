@@ -1,0 +1,132 @@
+# Supabase project configuration for AWAtv
+#
+# Reference: https://supabase.com/docs/guides/cli/config
+# This file is committed to the repo. The CLI uses it for `supabase start`
+# (local Docker stack) and as the source of truth when linking to a remote
+# project (`supabase link`).
+
+# A string used to distinguish different Supabase projects on the same machine.
+# Not used in production.
+project_id = "awatv"
+
+[api]
+enabled = true
+# Port the API gateway listens on locally.
+port = 54321
+# Schemas exposed by PostgREST. Tables outside these schemas are inaccessible
+# over the auto-generated REST API regardless of RLS.
+schemas = ["public", "graphql_public"]
+# Schemas added to the search_path of every request. Public should be first.
+extra_search_path = ["public", "extensions"]
+# Maximum rows returned by a single PostgREST request.
+max_rows = 1000
+
+[db]
+# Local Postgres port.
+port = 54322
+# Postgres major version. Supabase production runs 15+; 16 is the modern target.
+major_version = 16
+
+[db.pooler]
+enabled = false
+# Pooler port (used in production at Supabase, mirrored here for parity).
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+# IP version for binding the WS server.
+ip_version = "IPv4"
+# Maximum payload size for realtime broadcast.
+max_header_length = 4096
+
+[studio]
+enabled = true
+# Studio (web admin UI) port locally.
+port = 54323
+# Override the default API URL used inside Studio. Leave empty for default.
+api_url = "http://127.0.0.1"
+# OpenAI key for SQL-AI features in Studio (optional, dev only).
+openai_api_key = "env(OPENAI_API_KEY)"
+
+# Inbucket is the local SMTP catcher used by `supabase start`. Magic-link / OTP
+# emails land in its web UI.
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[storage]
+enabled = true
+# 50 MiB ceiling for any single uploaded object. Avatars are tiny; this is a
+# safety belt for arbitrary files.
+file_size_limit = "50MiB"
+
+# Image transformation service for storage (resize/crop on the fly).
+[storage.image_transformation]
+enabled = true
+
+[auth]
+enabled = true
+# The frontend URL that confirmation/magic-link redirects bounce back to.
+# In production, replace with the deployed app URL or a custom scheme
+# (e.g. "awatv://auth/callback").
+site_url = "http://localhost:3000"
+# Allow-list of redirect URLs. Add deep-link schemes here when they exist.
+additional_redirect_urls = [
+  "http://localhost:3000",
+  "awatv://auth/callback",
+]
+# JWT expiry in seconds. 1 hour is a sane default; the SDK refreshes silently.
+jwt_expiry = 3600
+# How long a refresh token stays valid before the user must re-auth.
+refresh_token_rotation_enabled = true
+# Disallow signing up unauthenticated users via the API. Email is the only
+# enabled provider until OAuth keys are configured.
+enable_signup = true
+# Require users to verify their email before they can sign in.
+enable_confirmations = false
+
+# Email provider (magic links + OTP).
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+# Min password length when password auth is enabled. Magic-link is preferred.
+[auth.email.template.invite]
+subject = "You're invited to AWAtv"
+content_path = "./supabase/templates/invite.html"
+
+# OAuth providers — keys come from environment variables; never commit secrets.
+[auth.external.apple]
+enabled = false
+client_id = "env(APPLE_CLIENT_ID)"
+secret   = "env(APPLE_CLIENT_SECRET)"
+redirect_uri = ""
+
+[auth.external.google]
+enabled = false
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret   = "env(GOOGLE_CLIENT_SECRET)"
+redirect_uri = ""
+
+# Edge Functions (Deno). One block per function; the bundler picks up the
+# directory under supabase/functions/<name>/.
+[functions.revenuecat-webhook]
+verify_jwt = false       # the webhook authenticates via shared secret header
+import_map = "./functions/revenuecat-webhook/deno.json"
+
+[functions.tmdb-proxy]
+verify_jwt = true        # only authenticated users can hit the proxy
+import_map = "./functions/tmdb-proxy/deno.json"
+
+[functions.sync-snapshot]
+verify_jwt = true
+import_map = "./functions/sync-snapshot/deno.json"
+
+# Analytics — disabled locally; enable in production if PostHog/Plausible.
+[analytics]
+enabled = false

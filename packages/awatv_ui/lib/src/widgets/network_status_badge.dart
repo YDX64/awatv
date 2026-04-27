@@ -105,7 +105,7 @@ class _NetworkStatusBadgeState extends State<NetworkStatusBadge>
       children: <Widget>[
         if (_isPulsing)
           _PulseDot(
-            color: spec.dotColor,
+            color: spec.dotColor ?? spec.foreground,
             controller: _pulse!,
           )
         else

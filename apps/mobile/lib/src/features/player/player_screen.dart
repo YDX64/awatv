@@ -1,6 +1,11 @@
 import 'dart:async';
 
+import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
+import 'package:awatv_mobile/src/desktop/keyboard_shortcuts.dart';
+import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
+import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
@@ -179,6 +184,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _scheduleHide();
   }
 
+  /// Picture-in-picture handoff. Surfaces the paywall lock sheet on
+  /// the free tier; on premium it would call out to a platform channel
+  /// — that wiring lands with multi-screen in Phase 2 (see
+  /// `docs/ROADMAP.md`).
+  void _onPipRequested() {
+    final allowed =
+        ref.read(canUseFeatureProvider(PremiumFeature.pictureInPicture));
+    if (!allowed) {
+      PremiumLockSheet.show(context, PremiumFeature.pictureInPicture);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'PiP destegi Phase 2 te platform kanali ile aktiflesir.',
+        ),
+      ),
+    );
+  }
+
+  /// VLC backend toggle. Same gate semantics as PiP.
+  void _onBackendToggleRequested() {
+    final allowed =
+        ref.read(canUseFeatureProvider(PremiumFeature.vlcBackend));
+    if (!allowed) {
+      PremiumLockSheet.show(context, PremiumFeature.vlcBackend);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Oynatici motor secimi yakinda eklenecek.'),
+      ),
+    );
+  }
+
+  /// Used by desktop keyboard shortcuts (arrow keys, J/L) to nudge the
+  /// playback position by a relative amount. Live streams ignore the
+  /// seek but still flash the controls so the user gets feedback.
+  Future<void> _seekRelative(Duration delta) async {
+    if (widget.args.isLive) {
+      setState(() => _showControls = true);
+      _scheduleHide();
+      return;
+    }
+    final total = _total;
+    final next = _position + delta;
+    final clamped = next < Duration.zero
+        ? Duration.zero
+        : (total != null && next > total ? total : next);
+    await _seekTo(clamped);
+  }
+
   @override
   void dispose() {
     _historyTimer?.cancel();
@@ -202,48 +259,66 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
+    final isDesktop = ref.watch(isDesktopFormProvider);
+
+    final scaffold = Scaffold(
+      backgroundColor: Colors.black,
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _toggleControls,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (controller != null)
+              AwaPlayerView(controller: controller)
+            else
+              const ColoredBox(color: Colors.black),
+            if (_errorMessage != null) _ErrorPanel(message: _errorMessage!),
+            AnimatedOpacity(
+              opacity: _showControls ? 1 : 0,
+              duration: DesignTokens.motionFast,
+              child: IgnorePointer(
+                ignoring: !_showControls,
+                child: _ControlsLayer(
+                  title: widget.args.title ?? '',
+                  subtitle: widget.args.subtitle,
+                  isLive: widget.args.isLive,
+                  isPaused: _isPaused,
+                  position: _position,
+                  total: _total,
+                  onTogglePlay: _togglePlay,
+                  onSeek: _seekTo,
+                  onClose: () {
+                    if (context.canPop()) context.pop();
+                  },
+                  onPipRequested: _onPipRequested,
+                  onBackendToggleRequested: _onBackendToggleRequested,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final body = isDesktop
+        ? DesktopPlayerShortcuts(
+            controller: controller,
+            onTogglePlay: _togglePlay,
+            onSeekRelative: _seekRelative,
+            onToggleFullscreen: toggleDesktopFullscreen,
+            onExit: () {
+              if (context.canPop()) context.pop();
+            },
+            child: scaffold,
+          )
+        : scaffold;
 
     return PopScope(
       onPopInvokedWithResult: (bool didPop, Object? _) async {
         if (didPop) await _exitImmersive();
       },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _toggleControls,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (controller != null)
-                AwaPlayerView(controller: controller)
-              else
-                const ColoredBox(color: Colors.black),
-              if (_errorMessage != null) _ErrorPanel(message: _errorMessage!),
-              AnimatedOpacity(
-                opacity: _showControls ? 1 : 0,
-                duration: DesignTokens.motionFast,
-                child: IgnorePointer(
-                  ignoring: !_showControls,
-                  child: _ControlsLayer(
-                    title: widget.args.title ?? '',
-                    subtitle: widget.args.subtitle,
-                    isLive: widget.args.isLive,
-                    isPaused: _isPaused,
-                    position: _position,
-                    total: _total,
-                    onTogglePlay: _togglePlay,
-                    onSeek: _seekTo,
-                    onClose: () {
-                      if (context.canPop()) context.pop();
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: body,
     );
   }
 }
@@ -292,6 +367,8 @@ class _ControlsLayer extends StatelessWidget {
     required this.onTogglePlay,
     required this.onSeek,
     required this.onClose,
+    required this.onPipRequested,
+    required this.onBackendToggleRequested,
     this.subtitle,
   });
 
@@ -304,6 +381,8 @@ class _ControlsLayer extends StatelessWidget {
   final VoidCallback onTogglePlay;
   final ValueChanged<Duration> onSeek;
   final VoidCallback onClose;
+  final VoidCallback onPipRequested;
+  final VoidCallback onBackendToggleRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -381,6 +460,22 @@ class _ControlsLayer extends StatelessWidget {
                           ),
                         ),
                       ),
+                    IconButton(
+                      tooltip: 'Picture in picture',
+                      onPressed: onPipRequested,
+                      icon: const Icon(
+                        Icons.picture_in_picture_alt_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Oynatici motoru',
+                      onPressed: onBackendToggleRequested,
+                      icon: const Icon(
+                        Icons.tune_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
                   ],
                 ),
               ),

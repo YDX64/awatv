@@ -1,4 +1,6 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/desktop/desktop_home_shell.dart';
+import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/features/channels/channels_screen.dart';
 import 'package:awatv_mobile/src/features/onboarding/welcome_screen.dart';
 import 'package:awatv_mobile/src/features/player/player_screen.dart';
@@ -116,14 +118,19 @@ GoRouter appRouter(Ref ref) {
         builder: (BuildContext context, GoRouterState state) =>
             const PremiumScreen(),
       ),
-      // Bottom-nav shell.
+      // Bottom-nav shell. On desktop the same `StatefulNavigationShell`
+      // is reused but rendered through `DesktopHomeShell` which adapts to
+      // a left-rail layout above 1100dp.
       StatefulShellRoute.indexedStack(
         builder: (
           BuildContext context,
           GoRouterState state,
           StatefulNavigationShell navigationShell,
         ) {
-          return HomeShell(navigationShell: navigationShell);
+          final isDesktop = ref.watch(isDesktopFormProvider);
+          return isDesktop
+              ? DesktopHomeShell(navigationShell: navigationShell)
+              : HomeShell(navigationShell: navigationShell);
         },
         branches: <StatefulShellBranch>[
           StatefulShellBranch(

@@ -49,6 +49,10 @@ dependencies:
   collection: ^1.18.0
   cupertino_icons: ^1.0.8
 
+  # Desktop window control (macOS / Windows / Linux). Mobile platforms do
+  # not link this; Flutter's conditional plugin tooling handles it.
+  window_manager: ^0.4.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

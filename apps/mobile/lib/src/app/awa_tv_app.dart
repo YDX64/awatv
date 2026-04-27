@@ -1,4 +1,6 @@
 import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
+import 'package:awatv_mobile/src/desktop/desktop_chrome.dart';
+import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/tv/tv_router.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
@@ -26,6 +28,7 @@ class AwaTvApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isTv = ref.watch(isTvFormProvider);
+    final isDesktop = ref.watch(isDesktopFormProvider);
     final router = isTv
         ? ref.watch(appTvRouterProvider)
         : ref.watch(appRouterProvider);
@@ -40,6 +43,15 @@ class AwaTvApp extends ConsumerWidget {
       // user flows live in the dark. Force dark when running on a TV.
       themeMode: isTv ? ThemeMode.dark : themeMode,
       routerConfig: router,
+      // Wrap the entire app shell with the desktop chrome on macOS /
+      // Windows / Linux. On TV and mobile this is a no-op pass-through.
+      builder: (BuildContext context, Widget? child) {
+        final body = child ?? const SizedBox.shrink();
+        if (isDesktop && !isTv) {
+          return DesktopChrome(child: body);
+        }
+        return body;
+      },
       // Default Material localizations — full i18n is wired in Phase 2 via
       // easy_localization (see ROADMAP.md).
       localizationsDelegates: const <LocalizationsDelegate<Object>>[

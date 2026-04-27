@@ -1,0 +1,41 @@
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.7
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+      - name: Build web (release, PWA offline-first)
+        run: cd apps/mobile && flutter build web --release --pwa-strategy=offline-first --no-tree-shake-icons --base-href=/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/mobile/build/web
+      - id: deployment
+        uses: actions/deploy-pages@v4

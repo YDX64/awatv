@@ -95,6 +95,30 @@ class AuthController extends _$AuthController {
     );
   }
 
+  /// Sign in with email + password. Faster than magic link for the
+  /// initial private-beta period where every user has a hand-provisioned
+  /// account. The login screen falls back to this when the user picks
+  /// "Sign in with password" instead of "Send magic link".
+  Future<void> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    if (!Env.hasSupabase) {
+      throw const AuthBackendNotConfiguredException();
+    }
+    final trimmed = email.trim();
+    if (trimmed.isEmpty) {
+      throw const AuthBackendNotConfiguredException('Email is required');
+    }
+    if (password.isEmpty) {
+      throw const AuthBackendNotConfiguredException('Password is required');
+    }
+    await supa.Supabase.instance.client.auth.signInWithPassword(
+      email: trimmed,
+      password: password,
+    );
+  }
+
   /// Sign the current user out. Idempotent — calling while already
   /// guest is a no-op so the settings screen doesn't have to branch
   /// on state before showing the action.

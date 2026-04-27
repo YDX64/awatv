@@ -36,13 +36,17 @@ enum _LoginPhase { entering, sending, sent }
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   _LoginPhase _phase = _LoginPhase.entering;
   String? _error;
   String _sentTo = '';
+  bool _passwordMode = true;        // Default to password — magic link is opt-in.
+  bool _passwordVisible = false;
 
   @override
   void dispose() {
     _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -78,6 +82,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _phase = _LoginPhase.entering;
         _error = 'Couldn\'t send the link. Please try again.\n$e';
+      });
+    }
+  }
+
+  Future<void> _signInWithPassword() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final email = _emailController.text.trim();
+    final pw = _passwordController.text;
+    setState(() {
+      _phase = _LoginPhase.sending;
+      _error = null;
+    });
+    try {
+      await ref.read(authControllerProvider.notifier).signInWithPassword(
+            email: email,
+            password: pw,
+          );
+      if (!mounted) return;
+      // Auth state listener will route us; reset form just in case.
+      setState(() => _phase = _LoginPhase.entering);
+      final next = widget.next ?? '/';
+      if (!next.startsWith('/login') && !next.startsWith('/auth')) {
+        context.go(next);
+      } else {
+        context.go('/');
+      }
+    } on AuthBackendNotConfiguredException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _phase = _LoginPhase.entering;
+        _error = e.message ?? 'Cloud sync is not configured for this build.';
+      });
+    } on supa.AuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _phase = _LoginPhase.entering;
+        _error = e.message;
+      });
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _phase = _LoginPhase.entering;
+        _error = 'Sign-in failed. Please check your credentials.\n$e';
       });
     }
   }
@@ -162,10 +209,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     _LoginForm(
                       formKey: _formKey,
                       emailController: _emailController,
+                      passwordController: _passwordController,
+                      passwordMode: _passwordMode,
+                      passwordVisible: _passwordVisible,
                       enabled: _phase != _LoginPhase.sending,
                       sending: _phase == _LoginPhase.sending,
                       error: _error,
-                      onSubmit: _send,
+                      onSubmit: _passwordMode ? _signInWithPassword : _send,
+                      onTogglePasswordMode: () => setState(() {
+                        _passwordMode = !_passwordMode;
+                        _error = null;
+                      }),
+                      onTogglePasswordVisible: () => setState(() {
+                        _passwordVisible = !_passwordVisible;
+                      }),
                     ),
                   const SizedBox(height: DesignTokens.spaceL),
                   TextButton.icon(
@@ -226,18 +283,28 @@ class _LoginForm extends StatelessWidget {
   const _LoginForm({
     required this.formKey,
     required this.emailController,
+    required this.passwordController,
+    required this.passwordMode,
+    required this.passwordVisible,
     required this.enabled,
     required this.sending,
     required this.error,
     required this.onSubmit,
+    required this.onTogglePasswordMode,
+    required this.onTogglePasswordVisible,
   });
 
   final GlobalKey<FormState> formKey;
   final TextEditingController emailController;
+  final TextEditingController passwordController;
+  final bool passwordMode;
+  final bool passwordVisible;
   final bool enabled;
   final bool sending;
   final String? error;
   final VoidCallback onSubmit;
+  final VoidCallback onTogglePasswordMode;
+  final VoidCallback onTogglePasswordVisible;
 
   @override
   Widget build(BuildContext context) {
@@ -302,6 +369,35 @@ class _LoginForm extends StatelessWidget {
               ),
             ),
           ],
+          if (passwordMode) ...<Widget>[
+            const SizedBox(height: DesignTokens.spaceM),
+            TextFormField(
+              controller: passwordController,
+              enabled: enabled,
+              obscureText: !passwordVisible,
+              autofillHints: const <String>[AutofillHints.password],
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    passwordVisible
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                  ),
+                  onPressed: onTogglePasswordVisible,
+                ),
+                border: const OutlineInputBorder(),
+              ),
+              validator: (String? value) {
+                if (!passwordMode) return null;
+                if ((value ?? '').isEmpty) return 'Enter your password.';
+                return null;
+              },
+              onFieldSubmitted: (_) => enabled ? onSubmit() : null,
+            ),
+          ],
           const SizedBox(height: DesignTokens.spaceM),
           FilledButton.icon(
             onPressed: enabled ? onSubmit : null,
@@ -311,8 +407,21 @@ class _LoginForm extends StatelessWidget {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.send_rounded),
-            label: Text(sending ? 'Sending…' : 'Send magic link'),
+                : Icon(passwordMode
+                    ? Icons.login_rounded
+                    : Icons.send_rounded),
+            label: Text(sending
+                ? (passwordMode ? 'Signing in…' : 'Sending…')
+                : (passwordMode ? 'Sign in' : 'Send magic link')),
+          ),
+          const SizedBox(height: DesignTokens.spaceS),
+          TextButton(
+            onPressed: enabled ? onTogglePasswordMode : null,
+            child: Text(
+              passwordMode
+                  ? 'Use magic link instead'
+                  : 'Use password instead',
+            ),
           ),
         ],
       ),

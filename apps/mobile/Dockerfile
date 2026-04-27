@@ -9,11 +9,26 @@
 # ----------------------------------------------------------------------------
 FROM ghcr.io/cirruslabs/flutter:3.41.7 AS builder
 
+# Build-time configuration. Coolify passes these via --build-arg when the
+# env vars are flagged is_buildtime=true in the project settings. They
+# are stamped into apps/mobile/.env so flutter_dotenv finds them at the
+# *web runtime* (web's "runtime" is the browser, after the build).
+ARG SUPABASE_URL=""
+ARG SUPABASE_ANON_KEY=""
+ARG WEB_PROXY_URL=""
+ARG TMDB_API_KEY=""
+
 # Coolify clones the repo at /app — match that.
 WORKDIR /app
 COPY . /app
 
-# Resolve workspace deps + run codegen + build release web with PWA strategy.
+# Stamp the .env file consumed by flutter_dotenv. flutter_dotenv reads
+# this at *web runtime* (in the browser, after the build), so it must
+# exist before `flutter build web`.
+RUN printf 'SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\nWEB_PROXY_URL=%s\nTMDB_API_KEY=%s\n' \
+      "$SUPABASE_URL" "$SUPABASE_ANON_KEY" "$WEB_PROXY_URL" "$TMDB_API_KEY" \
+    > apps/mobile/.env
+
 RUN flutter pub get \
  && (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs) \
  && (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs) \

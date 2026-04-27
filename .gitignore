@@ -1,0 +1,64 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.fvm/
+pubspec.lock      # apps yes, libs no — keep at workspace root
+**/generated_plugin_registrant.*
+*.g.dart.dart_tool
+
+# Code-gen
+**/*.g.dart
+**/*.freezed.dart
+# (we DO commit these in CI — but locally regenerate)
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.local
+*.keystore
+key.properties
+GoogleService-Info.plist
+google-services.json
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+**/Pods/
+**/*.xcworkspace/xcuserdata/
+**/*.xcodeproj/xcuserdata/
+**/*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Android
+**/local.properties
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/app/release/
+**/android/app/debug/
+**/android/key.jks
+
+# macOS / Windows / Linux desktop builds
+**/macos/Pods/
+**/macos/Flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/linux/flutter/ephemeral/
+
+# Coverage
+coverage/
+.lcov_info
+
+# Logs
+*.log

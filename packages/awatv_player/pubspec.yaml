@@ -1,0 +1,24 @@
+name: awatv_player
+description: AWAtv unified video-player abstraction. Wraps media_kit (libmpv) for broad codec support including HEVC/AV1 and HLS/DASH.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+  flutter: ^3.41.0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  awatv_core:
+    path: ../awatv_core
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^7.0.0

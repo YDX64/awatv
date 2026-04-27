@@ -1,0 +1,13 @@
+name: _awatv_workspace
+publish_to: none
+description: AWAtv monorepo workspace root.
+
+environment:
+  sdk: ^3.11.0
+  flutter: ^3.41.0
+
+workspace:
+  - packages/awatv_core
+  - packages/awatv_ui
+  - packages/awatv_player
+  - apps/mobile

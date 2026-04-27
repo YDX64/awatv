@@ -1,0 +1,27 @@
+# Workspace-wide analysis options. Each member can extend or override.
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/build/**"
+    - "**/.dart_tool/**"
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    invalid_annotation_target: ignore
+    missing_required_param: error
+    missing_return: error
+    todo: ignore
+
+linter:
+  rules:
+    public_member_api_docs: false
+    lines_longer_than_80_chars: false
+    one_member_abstracts: false
+    sort_pub_dependencies: false
+    avoid_classes_with_only_static_members: false
+    flutter_style_todos: false

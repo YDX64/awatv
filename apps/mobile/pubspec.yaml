@@ -1,0 +1,65 @@
+name: awatv_mobile
+description: AWAtv mobile app (iOS + Android — Phase 1).
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.0
+  flutter: ^3.41.0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Workspace packages
+  awatv_core:
+    path: ../../packages/awatv_core
+  awatv_ui:
+    path: ../../packages/awatv_ui
+  awatv_player:
+    path: ../../packages/awatv_player
+
+  # State management & routing
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+  go_router: ^14.6.2
+
+  # Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  flutter_secure_storage: ^9.2.2
+  path_provider: ^2.1.5
+  shared_preferences: ^2.3.3
+
+  # Network & images
+  dio: ^5.7.0
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+
+  # Env / i18n
+  flutter_dotenv: ^5.2.1
+  intl: ^0.20.0
+
+  # Utils
+  uuid: ^4.5.1
+  collection: ^1.18.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.6.4
+  flutter_lints: ^6.0.0
+  very_good_analysis: ^7.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/
+  # Custom fonts can be added here later (Inter / Manrope recommended for sleek UI)

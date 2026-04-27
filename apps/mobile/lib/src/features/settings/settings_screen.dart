@@ -1,6 +1,9 @@
 import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
 import 'package:awatv_mobile/src/features/premium/premium_badge.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
+import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
+import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
+import 'package:awatv_mobile/src/shared/auth/cloud_sync_gate.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_ui/awatv_ui.dart';
@@ -23,15 +26,22 @@ class SettingsScreen extends ConsumerWidget {
     final mode = ref.watch(appThemeModeProvider);
     final canParental =
         ref.watch(canUseFeatureProvider(PremiumFeature.parentalControls));
-    final canCloud = ref.watch(canUseFeatureProvider(PremiumFeature.cloudSync));
+    // Cloud sync requires BOTH premium AND signed-in. The dedicated
+    // gate provider keeps the auth-coupling in one place — when only
+    // premium is true, the row still shows "sign in to enable".
+    final canCloud = ref.watch(canUseCloudSyncProvider);
     final canThemes =
         ref.watch(canUseFeatureProvider(PremiumFeature.customThemes));
+    final auth = ref.watch(authControllerProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ayarlar')),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: DesignTokens.spaceS),
         children: [
+          const _SectionHeader('Hesap'),
+          _AccountRow(auth: auth),
+          const Divider(),
           const _SectionHeader('Gorunum'),
           ListTile(
             leading: const Icon(Icons.brightness_6_outlined),
@@ -73,21 +83,12 @@ class SettingsScreen extends ConsumerWidget {
               );
             },
           ),
-          _GatedTile(
-            icon: Icons.cloud_sync_outlined,
-            title: 'Bulut senkronizasyonu',
-            subtitle: 'Favori, gecmis ve ayarlari cihazlar arasinda esitle',
+          // Cloud sync is the one feature gated by BOTH premium AND
+          // auth — handled inline because the lock sheet should bounce
+          // premium-but-signed-out users to /login instead of /premium.
+          _CloudSyncRow(
             unlocked: canCloud,
-            feature: PremiumFeature.cloudSync,
-            onUnlockedTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Bulut senkronizasyonu Phase 3 te aktiflesir.',
-                  ),
-                ),
-              );
-            },
+            isSignedIn: auth is AuthSignedIn,
           ),
           const Divider(),
           const _SectionHeader('Aile'),
@@ -108,7 +109,7 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
           const Divider(),
-          const _SectionHeader('Hesap'),
+          const _SectionHeader('Abonelik'),
           ListTile(
             leading: const Icon(Icons.workspace_premium_outlined),
             title: const Text('Premium'),
@@ -187,6 +188,154 @@ class _GatedTile extends StatelessWidget {
         }
         onUnlockedTap();
       },
+    );
+  }
+}
+
+/// Single-row entry for the auth state at the top of settings.
+///
+/// Three modes:
+///   - signed-in: name + email, taps to /account
+///   - guest:     "Not signed in", taps to /login
+///   - loading:   skeleton placeholder while the controller boots
+class _AccountRow extends StatelessWidget {
+  const _AccountRow({required this.auth});
+
+  final AuthState? auth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (auth is AuthSignedIn) {
+      final signedIn = auth! as AuthSignedIn;
+      final name = signedIn.displayName ?? signedIn.email.split('@').first;
+      return ListTile(
+        leading: _MiniAvatar(initials: _initialsOf(name)),
+        title: Text(name),
+        subtitle: Text(signedIn.email),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/account'),
+      );
+    }
+
+    if (auth == null || auth is AuthLoading) {
+      return ListTile(
+        leading: const CircleAvatar(
+          radius: 20,
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+        title: Text(
+          'Yukleniyor…',
+          style: theme.textTheme.bodyMedium,
+        ),
+      );
+    }
+
+    // AuthGuest or AuthError — both bounce to /login. Errors are
+    // rendered inline by the login screen if present.
+    return ListTile(
+      leading: const Icon(Icons.account_circle_outlined),
+      title: const Text('Giris yap'),
+      subtitle: const Text(
+        'Bulut senkronizasyonu icin opsiyonel hesap aciniz',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/login'),
+    );
+  }
+
+  static String _initialsOf(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
+  }
+}
+
+/// Cloud sync row — distinct from `_GatedTile` because the locked
+/// state has two distinct fixes (sign in vs upgrade) and we want to
+/// route the user to the closer one first.
+class _CloudSyncRow extends StatelessWidget {
+  const _CloudSyncRow({
+    required this.unlocked,
+    required this.isSignedIn,
+  });
+
+  final bool unlocked;
+  final bool isSignedIn;
+
+  @override
+  Widget build(BuildContext context) {
+    String subtitle;
+    Widget trailing;
+    VoidCallback onTap;
+
+    if (unlocked) {
+      subtitle = 'Favori, gecmis ve ayarlari cihazlar arasinda esitle';
+      trailing = const Icon(Icons.chevron_right);
+      onTap = () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Bulut senkronizasyonu Phase 3 te aktiflesir.',
+            ),
+          ),
+        );
+      };
+    } else if (!isSignedIn) {
+      subtitle = 'Hesap aciniz, sonra premium ile aktiflesir';
+      trailing = const Padding(
+        padding: EdgeInsets.only(right: 4),
+        child: PremiumBadge(),
+      );
+      onTap = () => context.push('/login');
+    } else {
+      subtitle = 'Premium ile cihazlar arasi esitleme';
+      trailing = const Padding(
+        padding: EdgeInsets.only(right: 4),
+        child: PremiumBadge(),
+      );
+      onTap = () =>
+          PremiumLockSheet.show(context, PremiumFeature.cloudSync);
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.cloud_sync_outlined),
+      title: const Text('Bulut senkronizasyonu'),
+      subtitle: Text(subtitle),
+      trailing: trailing,
+      onTap: onTap,
+    );
+  }
+}
+
+class _MiniAvatar extends StatelessWidget {
+  const _MiniAvatar({required this.initials});
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: BrandColors.brandGradient,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

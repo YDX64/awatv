@@ -59,9 +59,60 @@ class WelcomeScreen extends StatelessWidget {
                 label: const Text('Ilk listeni ekle'),
               ),
               const SizedBox(height: DesignTokens.spaceM),
-              TextButton(
-                onPressed: () => context.push('/premium'),
-                child: const Text('Premium ozelliklere goz at'),
+              // Privacy reassurance — addresses the "where does my
+              // data go?" question before users have to ask.
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: DesignTokens.spaceM,
+                  vertical: DesignTokens.spaceS,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.24),
+                  ),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.lock_outline,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: DesignTokens.spaceS),
+                    Expanded(
+                      child: Text(
+                        'Listen bu cihazda kalir. Birden fazla cihazda '
+                        'kullanmak istersen giris yapabilirsin.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.78),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: DesignTokens.spaceS),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  TextButton(
+                    onPressed: () => context.push('/login'),
+                    child: const Text('Hesabin var mi? Giris yap'),
+                  ),
+                  Text(
+                    '·',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.push('/premium'),
+                    child: const Text('Premium'),
+                  ),
+                ],
               ),
               const SizedBox(height: DesignTokens.spaceM),
             ],

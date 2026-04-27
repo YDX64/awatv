@@ -1,15 +1,17 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/app/awa_tv_app.dart';
+import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/desktop_window.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_player/awatv_player.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// AWAtv mobile entry point.
 ///
@@ -61,6 +63,22 @@ Future<void> main() async {
   } on Object {
     // Storage failure means most features won't persist — surface that
     // via the home screen instead of crashing here.
+  }
+
+  // Supabase: optional cloud-sync backend. The app remains fully usable
+  // (guest mode, on-device only) when these env vars are blank or when
+  // initialise itself throws — a misconfigured backend never blocks boot.
+  if (Env.hasSupabase) {
+    try {
+      await Supabase.initialize(
+        url: Env.supabaseUrl,
+        anonKey: Env.supabaseAnonKey,
+        debug: kDebugMode,
+      );
+    } on Object {
+      // Init failure → app continues in guest mode. AuthController
+      // detects the absence of a live client and emits AuthGuest.
+    }
   }
 
   // Desktop only: take over the OS window before runApp so the first

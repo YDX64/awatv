@@ -119,6 +119,53 @@
     <div class="awatv-spinner"></div>
   </div>
 
+  <!-- hls.js: enables HLS (.m3u8) playback in Chrome / Firefox / Edge.
+       Safari and iOS WebKit have native HLS so the polyfill no-ops there.
+       MUST load BEFORE the Flutter bootstrap so any <video> element the
+       app creates can be hooked. ~100KB gzipped. -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+  <script>
+    // Patch HTMLMediaElement so when Flutter web's video player sets a
+    // .m3u8 src on a <video>, we transparently swap in hls.js. Native
+    // HLS browsers (Safari) keep using the platform parser.
+    (function () {
+      if (!window.Hls || !Hls.isSupported()) return;
+      var canNative = document.createElement('video')
+        .canPlayType('application/vnd.apple.mpegurl');
+      if (canNative) return;  // Safari path — native HLS, no shim needed.
+
+      var origDescriptor = Object.getOwnPropertyDescriptor(
+        HTMLMediaElement.prototype, 'src',
+      );
+      Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+        get: function () { return origDescriptor.get.call(this); },
+        set: function (value) {
+          // Detach any prior hls.js instance attached to this element.
+          if (this._awatvHls) {
+            try { this._awatvHls.destroy(); } catch (_) {}
+            this._awatvHls = null;
+          }
+          if (typeof value === 'string' &&
+              /\.m3u8(\?|$)/i.test(value)) {
+            var hls = new Hls({
+              // Modest live-edge cushion; matches AwaPlayerController's
+              // 32 MiB buffer mindset on the native side.
+              maxBufferLength: 30,
+              backBufferLength: 30,
+              enableWorker: true,
+              lowLatencyMode: false,
+            });
+            this._awatvHls = hls;
+            hls.loadSource(value);
+            hls.attachMedia(this);
+            return;
+          }
+          origDescriptor.set.call(this, value);
+        },
+      });
+    })();
+  </script>
+
   <script>
     // Dismiss splash when Flutter signals first frame.
     window.addEventListener('flutter-first-frame', function () {

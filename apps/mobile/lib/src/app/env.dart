@@ -35,6 +35,13 @@ class Env {
   /// it (poster lookup, trailers, …) can early-out otherwise.
   static bool get hasTmdb => tmdbApiKey.isNotEmpty;
 
+  /// True when both Supabase URL and anon key are configured. Auth and
+  /// cloud-sync features key off this — when false the auth controller
+  /// permanently emits guest, the login screen surfaces a "not configured"
+  /// banner, and cloud-sync gates stay locked.
+  static bool get hasSupabase =>
+      supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+
   // -------------------------------------------------------------------------
   static String _read(String key) {
     // `dotenv.maybeGet` returns null when the key is missing; we treat that

@@ -1,6 +1,9 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/desktop/desktop_home_shell.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
+import 'package:awatv_mobile/src/features/auth/account_screen.dart';
+import 'package:awatv_mobile/src/features/auth/login_screen.dart';
+import 'package:awatv_mobile/src/features/auth/magic_link_callback_screen.dart';
 import 'package:awatv_mobile/src/features/channels/channels_screen.dart';
 import 'package:awatv_mobile/src/features/onboarding/welcome_screen.dart';
 import 'package:awatv_mobile/src/features/player/player_screen.dart';
@@ -13,6 +16,7 @@ import 'package:awatv_mobile/src/features/series/series_screen.dart';
 import 'package:awatv_mobile/src/features/settings/settings_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_detail_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_screen.dart';
+import 'package:awatv_mobile/src/shared/auth/auth_guard.dart';
 import 'package:awatv_mobile/src/shared/home_shell.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
@@ -39,10 +43,23 @@ GoRouter appRouter(Ref ref) {
   return GoRouter(
     initialLocation: '/live',
     redirect: (BuildContext context, GoRouterState state) async {
-      // Skip onboarding redirect for the onboarding/playlist routes
-      // themselves — otherwise we'd loop.
       final loc = state.uri.path;
-      if (loc.startsWith('/onboarding') || loc.startsWith('/playlists')) {
+
+      // Auth-protected routes first — redirect to /login with the
+      // intended destination as `?next=` so the login flow can bounce
+      // the user back after a successful magic-link confirmation.
+      if (loc.startsWith('/account')) {
+        final guarded = authGuard(state, ref);
+        if (guarded != null) return guarded;
+      }
+
+      // Skip onboarding redirect for the onboarding / playlist / auth
+      // routes themselves — otherwise we'd loop.
+      if (loc.startsWith('/onboarding') ||
+          loc.startsWith('/playlists') ||
+          loc.startsWith('/login') ||
+          loc.startsWith('/auth') ||
+          loc.startsWith('/account')) {
         return null;
       }
       try {
@@ -117,6 +134,37 @@ GoRouter appRouter(Ref ref) {
         name: 'premium',
         builder: (BuildContext context, GoRouterState state) =>
             const PremiumScreen(),
+      ),
+      // Auth: magic-link sign-in. Pure additive — guests can ignore
+      // this route entirely and the rest of the app continues to work.
+      GoRoute(
+        path: '/login',
+        name: 'login',
+        builder: (BuildContext context, GoRouterState state) {
+          final next = state.uri.queryParameters['next'];
+          return LoginScreen(next: next);
+        },
+      ),
+      // Magic-link redirect target — Supabase appends `?code=…` (or
+      // `?error_description=…`) once the user clicks the email link.
+      GoRoute(
+        path: '/auth/callback',
+        name: 'authCallback',
+        builder: (BuildContext context, GoRouterState state) {
+          final params = state.uri.queryParameters;
+          return MagicLinkCallbackScreen(
+            code: params['code'],
+            next: params['next'],
+            error: params['error_description'] ?? params['error'],
+          );
+        },
+      ),
+      // Account dashboard — protected by the redirect above.
+      GoRoute(
+        path: '/account',
+        name: 'account',
+        builder: (BuildContext context, GoRouterState state) =>
+            const AccountScreen(),
       ),
       // Bottom-nav shell. On desktop the same `StatefulNavigationShell`
       // is reused but rendered through `DesktopHomeShell` which adapts to

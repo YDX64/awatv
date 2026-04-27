@@ -4,6 +4,7 @@ import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/desktop_window.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,33 +16,62 @@ import 'package:path_provider/path_provider.dart';
 /// Boots in this order — order matters:
 /// 1. Flutter binding (so `WidgetsBinding` is available pre-`runApp`).
 /// 2. `.env` file (TMDB key, AdMob ids, …) via `flutter_dotenv`.
-/// 3. Hive (file-backed key/value store) under the app's documents dir.
-/// 4. The video-player engine (`media_kit` registration in awatv_player).
+/// 3. Hive — uses IndexedDB on web, file system elsewhere.
+/// 4. Optional: video-player engine (skipped on web; media_kit needs libmpv).
 /// 5. `AwatvStorage` — opens all the typed Hive boxes the services need.
 /// 6. `runApp` wrapped in a `ProviderScope`.
 ///
-/// `dotenv.load` tolerates a missing `.env` file in dev / test by catching
-/// the load error so the app still boots when the developer hasn't filled
-/// in their secrets yet.
+/// Every external init step is wrapped in try/catch so a misconfigured
+/// platform never produces a blank black screen — the app boots and the
+/// degraded feature surfaces a friendly error instead.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
     await dotenv.load();
   } on Object {
-    // .env not yet provided — keys default to empty strings via `Env`.
+    // .env missing in dev / web — keys default to empty strings via `Env`.
   }
 
-  final docsDir = await getApplicationDocumentsDirectory();
+  // Hive: on web this maps to IndexedDB; subDir is ignored. On native we
+  // pass a writable application-documents path so boxes survive restarts.
+  String? subDir;
+  if (!kIsWeb) {
+    try {
+      final docsDir = await getApplicationDocumentsDirectory();
+      subDir = docsDir.path;
+    } on Object {
+      // Fall back to platform default (`Hive.initFlutter` cwd).
+    }
+  }
+
   await Hive.initFlutter('awatv');
-  await AwaPlayerController.ensureInitialized();
-  await AwatvStorage.instance.init(subDir: docsDir.path);
+
+  // media_kit: native libmpv on iOS/Android/desktop, HTML5 video on web.
+  // Wrap so a web fallback that lacks codec support never bricks the boot.
+  try {
+    await AwaPlayerController.ensureInitialized();
+  } on Object {
+    // Player will still create on demand; web users may see a "couldn't
+    // play this stream" surface for HEVC/AV1 but the app boots.
+  }
+
+  try {
+    await AwatvStorage.instance.init(subDir: subDir);
+  } on Object {
+    // Storage failure means most features won't persist — surface that
+    // via the home screen instead of crashing here.
+  }
 
   // Desktop only: take over the OS window before runApp so the first
   // frame already has the right size and (on macOS) a hidden titlebar.
   // Pure no-op on iOS / Android / web.
-  if (isDesktopRuntime()) {
-    await initialiseDesktopWindow();
+  if (!kIsWeb && isDesktopRuntime()) {
+    try {
+      await initialiseDesktopWindow();
+    } on Object {
+      // Window init is cosmetic; ignore failures.
+    }
   }
 
   // One-shot form-factor probe. The same APK is shipped to phones and

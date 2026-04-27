@@ -1,0 +1,47 @@
+# Big artifacts — Flutter rebuilds from source inside the image.
+**/build/
+**/.dart_tool/
+**/.idea/
+**/.vscode/
+**/.fvm/
+**/*.iml
+
+# Generated, regenerated inside the image
+**/*.g.dart
+**/*.freezed.dart
+
+# Native platform folders not needed for web builds
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/macos/
+apps/mobile/windows/
+apps/mobile/linux/
+
+# Apple TV — separate Xcode project, not needed in web image
+apps/apple_tv/
+
+# Workers — separate deploy, not part of web image
+workers/
+
+# Local env / secrets
+**/.env
+**/.env.local
+**/*.keystore
+
+# Git internals (Coolify clones cleanly)
+.git/
+.github/
+
+# Documentation that doesn't ship in the runtime image
+docs/
+legal/
+store/
+*.md
+!README.md
+
+# Release artifacts
+awatv-web-*.tar.gz
+
+# OS / IDE
+.DS_Store
+Thumbs.db

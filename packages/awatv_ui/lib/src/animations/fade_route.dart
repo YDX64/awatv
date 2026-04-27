@@ -73,13 +73,13 @@ class FadeRoute<T> extends PageRoute<T> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final CurvedAnimation curved = CurvedAnimation(
+    final curved = CurvedAnimation(
       parent: animation,
       curve: curve,
       reverseCurve: curve.flipped,
     );
 
-    final Animation<Offset> slide = Tween<Offset>(
+    final slide = Tween<Offset>(
       begin: const Offset(0, 0.012), // ~4px on a typical viewport
       end: Offset.zero,
     ).animate(curved);

@@ -61,7 +61,12 @@ http://stream.example.com/movie/matrix.mp4
       expect(matrix.logoUrl, isNull);
     });
 
-    test('skips malformed EXTINF and continues parsing', () {
+    test('continues parsing past malformed EXTINF (URL is kept as bare entry)',
+        () {
+      // Real-world IPTV providers occasionally emit broken EXTINF tags.
+      // We treat the orphan URL as a bare entry (no metadata) rather than
+      // dropping it — losing channels silently is worse than naming one
+      // after its file segment.
       const body = '''
 #EXTM3U
 #EXTINF
@@ -70,8 +75,11 @@ http://example.com/ignored.ts
 http://example.com/good.ts
 ''';
       final channels = M3uParser.parse(body, 'src1');
-      expect(channels, hasLength(1));
-      expect(channels.first.name, 'Good Channel');
+      expect(channels, hasLength(2));
+      expect(
+        channels.firstWhere((c) => c.tvgId == 'ok').name,
+        'Good Channel',
+      );
     });
 
     test('handles bare URLs without EXTINF', () {

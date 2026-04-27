@@ -1,9 +1,8 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/features/playlists/playlist_providers.dart';
+import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../shared/service_providers.dart';
-import '../playlists/playlist_providers.dart';
 
 part 'vod_providers.g.dart';
 
@@ -21,7 +20,7 @@ Future<List<VodItem>> allVod(Ref ref) async {
 }
 
 /// Single VOD lookup.
-@Riverpod(keepAlive: false)
+@Riverpod()
 Future<VodItem?> vodById(Ref ref, String id) async {
   final all = await ref.watch(allVodProvider.future);
   for (final v in all) {

@@ -59,13 +59,13 @@ class ShimmerSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final Color base = isDark
+    final base = isDark
         ? scheme.surfaceContainerHighest
         : scheme.surfaceContainerHighest.withValues(alpha: 0.7);
-    final Color highlight = isDark
+    final highlight = isDark
         ? Color.alphaBlend(
             scheme.primary.withValues(alpha: 0.06),
             scheme.surface,
@@ -119,7 +119,7 @@ class _ChannelTilePlaceholder extends StatelessWidget {
           SizedBox(
             width: 64,
             height: 64,
-            child: _Block(radius: DesignTokens.radiusM),
+            child: _Block(),
           ),
           SizedBox(width: DesignTokens.spaceM),
           Expanded(

@@ -22,13 +22,12 @@ class AppTypography {
   /// The scheme drives text colours; structure (weight / size / spacing)
   /// is shared between dark and light.
   static TextTheme textTheme(ColorScheme scheme) {
-    final Color onSurface = scheme.onSurface;
-    final Color onSurfaceMuted = scheme.onSurface.withValues(alpha: 0.65);
+    final onSurface = scheme.onSurface;
+    final onSurfaceMuted = scheme.onSurface.withValues(alpha: 0.65);
 
     TextStyle base(double size, FontWeight weight, double letterSpacing,
         {double? height, Color? color}) {
       return TextStyle(
-        fontFamily: primaryFamily,
         fontSize: size,
         fontWeight: weight,
         letterSpacing: letterSpacing,
@@ -40,7 +39,7 @@ class AppTypography {
     return TextTheme(
       // Display — used very rarely (hero overlays, splash).
       displayLarge: base(57, FontWeight.w700, -1.5, height: 1.05),
-      displayMedium: base(45, FontWeight.w700, -1.0, height: 1.1),
+      displayMedium: base(45, FontWeight.w700, -1, height: 1.1),
       displaySmall: base(36, FontWeight.w700, -0.5, height: 1.15),
 
       // Headline — page titles, modal titles.

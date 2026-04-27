@@ -1,8 +1,7 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/features/playlists/playlist_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../playlists/playlist_providers.dart';
 
 part 'channels_providers.g.dart';
 
@@ -44,7 +43,7 @@ Future<List<Channel>> filteredLiveChannels(Ref ref) async {
 }
 
 /// Channel by id — small convenience for `/channel/:id` and `/play`.
-@Riverpod(keepAlive: false)
+@Riverpod()
 Future<Channel?> channelById(Ref ref, String id) async {
   final all = await ref.watch(allChannelsProvider.future);
   for (final c in all) {

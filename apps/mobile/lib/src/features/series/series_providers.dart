@@ -1,9 +1,8 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/features/playlists/playlist_providers.dart';
+import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../shared/service_providers.dart';
-import '../playlists/playlist_providers.dart';
 
 part 'series_providers.g.dart';
 
@@ -20,7 +19,7 @@ Future<List<SeriesItem>> allSeries(Ref ref) async {
   return out;
 }
 
-@Riverpod(keepAlive: false)
+@Riverpod()
 Future<SeriesItem?> seriesById(Ref ref, String id) async {
   final all = await ref.watch(allSeriesProvider.future);
   for (final s in all) {
@@ -30,7 +29,7 @@ Future<SeriesItem?> seriesById(Ref ref, String id) async {
 }
 
 /// Episodes for a given series + season number.
-@Riverpod(keepAlive: false)
+@Riverpod()
 Future<List<Episode>> seriesEpisodes(
   Ref ref,
   String seriesId,

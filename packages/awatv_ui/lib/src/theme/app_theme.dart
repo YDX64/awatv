@@ -20,9 +20,9 @@ class AppTheme {
 
   // -------------------------------------------------------------------------
   static ThemeData _build(Brightness brightness) {
-    final bool isDark = brightness == Brightness.dark;
+    final isDark = brightness == Brightness.dark;
 
-    final ColorScheme scheme = ColorScheme.fromSeed(
+    final scheme = ColorScheme.fromSeed(
       seedColor: BrandColors.primary,
       brightness: brightness,
       primary: BrandColors.primary,
@@ -36,9 +36,9 @@ class AppTheme {
       outline: isDark ? BrandColors.outline : BrandColors.lightOutline,
     );
 
-    final TextTheme textTheme = AppTypography.textTheme(scheme);
+    final textTheme = AppTypography.textTheme(scheme);
 
-    final Color scaffoldBackground =
+    final scaffoldBackground =
         isDark ? BrandColors.background : BrandColors.lightBackground;
 
     return ThemeData(
@@ -196,7 +196,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         indicatorColor: scheme.primary.withValues(alpha: 0.18),
         iconTheme: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
-          final bool selected = states.contains(WidgetState.selected);
+          final selected = states.contains(WidgetState.selected);
           return IconThemeData(
             color: selected ? scheme.primary : scheme.onSurface,
             size: 24,
@@ -204,7 +204,7 @@ class AppTheme {
         }),
         labelTextStyle:
             WidgetStateProperty.resolveWith((Set<WidgetState> states) {
-          final bool selected = states.contains(WidgetState.selected);
+          final selected = states.contains(WidgetState.selected);
           return (textTheme.labelMedium ?? const TextStyle()).copyWith(
             color: selected
                 ? scheme.primary

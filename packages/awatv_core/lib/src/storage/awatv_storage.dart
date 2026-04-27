@@ -314,7 +314,11 @@ class AwatvStorage {
 
   Future<void> _safeDeleteBox(String name) async {
     try {
-      if (Hive.isBoxOpen(name)) await Hive.box<dynamic>(name).close();
+      if (Hive.isBoxOpen(name)) {
+        // All channels/vod/series boxes are opened as Box<String>; close
+        // with the same type to avoid Hive's type-mismatch guard.
+        await Hive.box<String>(name).close();
+      }
       await Hive.deleteBoxFromDisk(name);
     } on Exception catch (e) {
       _log.warn('could not delete box $name: $e');

@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 /// own back-stack. The shell itself is responsible for the tab's content;
 /// this widget only paints the chrome around it.
 class HomeShell extends StatelessWidget {
-  const HomeShell({super.key, required this.navigationShell});
+  const HomeShell({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 

@@ -1,7 +1,6 @@
+import 'package:awatv_player/src/awa_player_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-
-import 'awa_player_controller.dart';
 
 /// Renders the video frame for an [AwaPlayerController].
 ///
@@ -13,8 +12,7 @@ import 'awa_player_controller.dart';
 /// chrome along.
 class AwaPlayerView extends StatelessWidget {
   const AwaPlayerView({
-    super.key,
-    required this.controller,
+    required this.controller, super.key,
     this.fit = BoxFit.contain,
     this.backgroundColor = Colors.black,
   });
@@ -41,13 +39,6 @@ class AwaPlayerView extends StatelessWidget {
         // Spelled out as a builder to dodge a typing-quirk where the bare
         // `NoVideoControls` constant resolves to dynamic in some lints.
         controls: (VideoState state) => const SizedBox.shrink(),
-        // Keep the screen awake during playback, mirroring native player
-        // behaviour. Cheap to leave on; libmpv handles the platform call.
-        wakelock: true,
-        // Auto-pause on background, auto-resume is the host app's call
-        // (some flows want PiP-like continuation).
-        pauseUponEnteringBackgroundMode: true,
-        resumeUponEnteringForegroundMode: false,
       ),
     );
   }

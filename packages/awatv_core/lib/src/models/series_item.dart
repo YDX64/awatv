@@ -1,3 +1,5 @@
+import 'package:awatv_core/awatv_core.dart' show Episode;
+import 'package:awatv_core/src/models/episode.dart' show Episode;
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'series_item.freezed.dart';

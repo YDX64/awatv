@@ -50,20 +50,20 @@ class GradientScrim extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double clamped = intensity.clamp(0.0, 2.0);
-    final List<Color> resolved = colors ??
+    final clamped = intensity.clamp(0.0, 2.0);
+    final resolved = colors ??
         <Color>[
           const Color(0x00000000),
           Color.fromRGBO(0, 0, 0, (0.45 * clamped).clamp(0.0, 0.85)),
           Color.fromRGBO(0, 0, 0, (0.85 * clamped).clamp(0.0, 0.95)),
         ];
 
-    final List<double> resolvedStops =
-        stops ?? const <double>[0.0, 0.6, 1.0];
+    final resolvedStops =
+        stops ?? const <double>[0, 0.6, 1];
 
     // Resolve LinearGradient-style aliases when supplied.
-    final Alignment effectiveBegin = begin ?? from;
-    final Alignment effectiveEnd = end ?? to;
+    final effectiveBegin = begin ?? from;
+    final effectiveEnd = end ?? to;
 
     final Widget gradient = Positioned.fill(
       child: IgnorePointer(
@@ -80,7 +80,7 @@ class GradientScrim extends StatelessWidget {
       ),
     );
 
-    final Widget? c = child;
+    final c = child;
     if (c == null) {
       // No child: render only the gradient — caller stacks us themselves.
       return gradient;

@@ -69,7 +69,6 @@ class _PosterCardState extends State<PosterCard>
   late final AnimationController _press = AnimationController(
     vsync: this,
     duration: DesignTokens.motionFast,
-    lowerBound: 0,
     upperBound: 0.04,
   );
 
@@ -91,8 +90,8 @@ class _PosterCardState extends State<PosterCard>
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     Widget artwork = AspectRatio(
       aspectRatio: DesignTokens.posterAspect,
@@ -266,7 +265,7 @@ class _Placeholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String initial = title.isNotEmpty
+    final initial = title.isNotEmpty
         ? title.characters.first.toUpperCase()
         : '?';
     return DecoratedBox(

@@ -1,14 +1,13 @@
 import 'dart:async';
 
+import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../../routing/app_router.dart';
-import '../../shared/service_providers.dart';
 
 /// Full-screen player with custom overlay controls.
 ///
@@ -23,7 +22,7 @@ import '../../shared/service_providers.dart';
 ///   - top: title + close.
 ///   - auto-hide after 3 s of no interaction; tap toggles.
 class PlayerScreen extends ConsumerStatefulWidget {
-  const PlayerScreen({super.key, required this.args});
+  const PlayerScreen({required this.args, super.key});
 
   final PlayerLaunchArgs args;
 
@@ -205,7 +204,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final controller = _controller;
 
     return PopScope(
-      canPop: true,
       onPopInvokedWithResult: (bool didPop, Object? _) async {
         if (didPop) await _exitImmersive();
       },

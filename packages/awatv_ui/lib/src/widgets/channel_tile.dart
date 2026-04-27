@@ -73,7 +73,6 @@ class _ChannelTileState extends State<ChannelTile>
   late final AnimationController _press = AnimationController(
     vsync: this,
     duration: DesignTokens.motionFast,
-    lowerBound: 0,
     upperBound: 0.03,
   );
 
@@ -95,12 +94,12 @@ class _ChannelTileState extends State<ChannelTile>
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final TextTheme text = theme.textTheme;
-    final bool isDark = theme.brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final text = theme.textTheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-    final Color glassBase = isDark
+    final glassBase = isDark
         ? scheme.surfaceContainerHighest.withValues(alpha: 0.55)
         : scheme.surfaceContainerHighest.withValues(alpha: 0.85);
 
@@ -168,7 +167,6 @@ class _ChannelTileState extends State<ChannelTile>
                         DesignTokens.spaceS,
                       ),
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: <Widget>[
                           SizedBox(width: 96, child: logo),
                           const SizedBox(width: DesignTokens.spaceM),
@@ -272,7 +270,7 @@ class _LogoPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String initials = _initials(name);
+    final initials = _initials(name);
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -299,7 +297,7 @@ class _LogoPlaceholder extends StatelessWidget {
   }
 
   static String _initials(String value) {
-    final List<String> tokens = value
+    final tokens = value
         .trim()
         .split(RegExp(r'\s+'))
         .where((String s) => s.isNotEmpty)
@@ -405,7 +403,7 @@ class _LivePulseState extends State<_LivePulse>
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext _, Widget? __) {
-        final double t = _controller.value;
+        final t = _controller.value;
         return Container(
           width: 8,
           height: 8,
@@ -442,7 +440,7 @@ class _ProgressStrip extends StatelessWidget {
     if (value == null) {
       return const SizedBox(height: DesignTokens.spaceXs);
     }
-    final double clamped = value!.clamp(0.0, 1.0);
+    final clamped = value!.clamp(0.0, 1.0);
     return SizedBox(
       height: 3,
       child: LayoutBuilder(

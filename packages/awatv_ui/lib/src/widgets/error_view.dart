@@ -33,10 +33,10 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final TextTheme text = theme.textTheme;
-    final String resolvedTitle = title ?? 'Something went wrong';
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final text = theme.textTheme;
+    final resolvedTitle = title ?? 'Something went wrong';
 
     return Padding(
       padding: padding ??
@@ -47,7 +47,6 @@ class ErrorView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           Container(
             width: 96,
@@ -57,7 +56,6 @@ class ErrorView extends StatelessWidget {
               color: scheme.error.withValues(alpha: 0.12),
               border: Border.all(
                 color: scheme.error.withValues(alpha: 0.4),
-                width: 1,
               ),
             ),
             child: Icon(

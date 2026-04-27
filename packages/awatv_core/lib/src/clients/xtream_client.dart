@@ -38,7 +38,6 @@ class XtreamClient {
         BaseOptions(
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 30),
-          responseType: ResponseType.json,
         ),
       );
 

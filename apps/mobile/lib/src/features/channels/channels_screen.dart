@@ -1,13 +1,12 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
+import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../../routing/app_router.dart';
-import '../../shared/loading_view.dart';
-import 'channels_providers.dart';
 
 /// Live-channel grid.
 ///
@@ -175,7 +174,7 @@ class ChannelsScreen extends ConsumerWidget {
 /// Detail screen for a single channel — EPG + favorite + play CTA. Reached
 /// via `/channel/:id` (long-press from the grid).
 class ChannelDetailScreen extends ConsumerWidget {
-  const ChannelDetailScreen({super.key, required this.channelId});
+  const ChannelDetailScreen({required this.channelId, super.key});
 
   final String channelId;
 

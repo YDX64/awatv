@@ -49,9 +49,9 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final TextTheme text = theme.textTheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final text = theme.textTheme;
 
     return Padding(
       padding: padding ??
@@ -62,7 +62,6 @@ class EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           _Halo(
             icon: icon,
@@ -119,7 +118,7 @@ class _Halo extends StatelessWidget {
           colors: <Color>[
             primary.withValues(alpha: 0.30),
             secondary.withValues(alpha: 0.08),
-            BrandColors.background.withValues(alpha: 0.0),
+            BrandColors.background.withValues(alpha: 0),
           ],
         ),
       ),
@@ -132,7 +131,6 @@ class _Halo extends StatelessWidget {
             color: primary.withValues(alpha: 0.12),
             border: Border.all(
               color: primary.withValues(alpha: 0.35),
-              width: 1,
             ),
           ),
           child: Icon(

@@ -1,0 +1,143 @@
+name: flutter
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: 3.41.7
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+
+      - name: Static analysis
+        run: flutter analyze --fatal-warnings
+
+      - name: Unit tests (awatv_core)
+        run: cd packages/awatv_core && flutter test --coverage
+
+      - name: Mobile widget tests
+        run: cd apps/mobile && flutter test
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: packages/awatv_core/coverage/lcov.info
+
+  build-web:
+    needs: analyze-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+      - name: Build web
+        run: cd apps/mobile && flutter build web --no-tree-shake-icons
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: apps/mobile/build/web
+
+  build-android:
+    needs: analyze-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+      - name: Build APK (debug)
+        run: cd apps/mobile && flutter build apk --debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-debug
+          path: apps/mobile/build/app/outputs/apk/debug/app-debug.apk
+
+  build-ios:
+    needs: analyze-and-test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+      - name: Build iOS (no codesign)
+        run: cd apps/mobile && flutter build ios --no-codesign --debug
+
+  build-macos:
+    needs: analyze-and-test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+      - name: Build macOS
+        run: cd apps/mobile && flutter build macos --debug
+
+  build-windows:
+    needs: analyze-and-test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - shell: pwsh
+        run: |
+          cd packages/awatv_core; dart run build_runner build --delete-conflicting-outputs
+          cd ../../apps/mobile; dart run build_runner build --delete-conflicting-outputs
+      - name: Build Windows
+        run: cd apps/mobile && flutter build windows --debug

@@ -30,10 +30,10 @@ class RatingPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final theme = Theme.of(context);
     final double fontSize = compact ? 11 : 13;
     final double iconSize = compact ? 12 : 14;
-    final EdgeInsets padding = EdgeInsets.symmetric(
+    final padding = EdgeInsets.symmetric(
       horizontal: compact ? DesignTokens.spaceS : DesignTokens.spaceS + 2,
       vertical: compact ? 2 : 4,
     );

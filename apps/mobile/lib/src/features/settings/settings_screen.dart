@@ -1,9 +1,8 @@
+import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../../app/theme_mode_provider.dart';
 
 /// Settings landing — theme, parental control gate, links to playlists,
 /// premium and an "About" line.
@@ -18,7 +17,7 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: DesignTokens.spaceS),
         children: [
-          _SectionHeader('Gorunum'),
+          const _SectionHeader('Gorunum'),
           ListTile(
             leading: const Icon(Icons.brightness_6_outlined),
             title: const Text('Tema'),
@@ -27,7 +26,7 @@ class SettingsScreen extends ConsumerWidget {
                 ref.read(appThemeModeProvider.notifier).toggle(),
           ),
           const Divider(),
-          _SectionHeader('Icerik'),
+          const _SectionHeader('Icerik'),
           ListTile(
             leading: const Icon(Icons.queue_music_outlined),
             title: const Text('Listelerim'),
@@ -49,7 +48,7 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
           const Divider(),
-          _SectionHeader('Aile'),
+          const _SectionHeader('Aile'),
           ListTile(
             leading: const Icon(Icons.lock_outline),
             title: const Text('Aile koruma'),
@@ -66,7 +65,7 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
           const Divider(),
-          _SectionHeader('Hesap'),
+          const _SectionHeader('Hesap'),
           ListTile(
             leading: const Icon(Icons.workspace_premium_outlined),
             title: const Text('Premium'),

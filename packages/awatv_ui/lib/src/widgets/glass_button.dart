@@ -49,7 +49,6 @@ class _GlassButtonState extends State<GlassButton>
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: DesignTokens.motionFast,
-    lowerBound: 0,
     upperBound: 0.06,
   );
 
@@ -71,12 +70,12 @@ class _GlassButtonState extends State<GlassButton>
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool enabled = widget.onPressed != null;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final enabled = widget.onPressed != null;
 
-    final Color tint = widget.tint ?? scheme.primary;
-    final Color labelColor = enabled
+    final tint = widget.tint ?? scheme.primary;
+    final labelColor = enabled
         ? scheme.onSurface
         : scheme.onSurface.withValues(alpha: 0.4);
 
@@ -87,7 +86,7 @@ class _GlassButtonState extends State<GlassButton>
       child: AnimatedBuilder(
         animation: _controller,
         builder: (BuildContext _, Widget? __) {
-          final double t = _controller.value;
+          final t = _controller.value;
           return Transform.scale(
             scale: 1 - t,
             child: Opacity(
@@ -123,13 +122,12 @@ class _GlassButtonState extends State<GlassButton>
                             tint.withValues(alpha: 0.12),
                             Colors.white.withValues(alpha: 0.04),
                           ],
-                          stops: const <double>[0.0, 0.55, 1.0],
+                          stops: const <double>[0, 0.55, 1],
                         ),
                         borderRadius:
                             BorderRadius.circular(DesignTokens.radiusXL),
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.18),
-                          width: 1,
                         ),
                         boxShadow: <BoxShadow>[
                           BoxShadow(

@@ -1,11 +1,10 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/features/vod/vod_providers.dart';
+import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../../shared/loading_view.dart';
-import 'vod_providers.dart';
 
 /// Movies grid — poster cards. Tap navigates to `/movie/:id`.
 class VodScreen extends ConsumerWidget {

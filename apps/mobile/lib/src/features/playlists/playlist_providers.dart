@@ -1,8 +1,7 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../shared/service_providers.dart';
 
 part 'playlist_providers.g.dart';
 

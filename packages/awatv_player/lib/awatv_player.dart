@@ -1,5 +1,5 @@
 /// AWAtv unified video player.
-library awatv_player;
+library;
 
 export 'src/awa_player_controller.dart';
 export 'src/awa_player_view.dart';

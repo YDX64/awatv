@@ -1,22 +1,34 @@
+import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
+import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/tv/tv_router.dart';
+import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../routing/app_router.dart';
-import 'theme_mode_provider.dart';
-
 /// Root MaterialApp.
 ///
 /// Reads the current `ThemeMode` from Riverpod, hands the dark/light
-/// `ThemeData` from `awatv_ui`'s `AppTheme`, and delegates routing to the
-/// `appRouterProvider`.
+/// `ThemeData` from `awatv_ui`'s `AppTheme`, and delegates routing to one
+/// of two routers:
+///
+///   * `appRouterProvider`     — phone / tablet shell (bottom nav).
+///   * `appTvRouterProvider`   — Android TV shell (left rail, D-pad).
+///
+/// The pick is driven by `isTvFormProvider`, which is overridden once at
+/// boot in `main.dart` after a one-time form-factor probe. Switching the
+/// override at runtime would force a full app rebuild — fine for tests,
+/// not used in production.
 class AwaTvApp extends ConsumerWidget {
   const AwaTvApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(appRouterProvider);
+    final isTv = ref.watch(isTvFormProvider);
+    final router = isTv
+        ? ref.watch(appTvRouterProvider)
+        : ref.watch(appRouterProvider);
     final themeMode = ref.watch(appThemeModeProvider);
 
     return MaterialApp.router(
@@ -24,7 +36,9 @@ class AwaTvApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: themeMode,
+      // TVs have no light theme — leanback launchers and most Android-TV
+      // user flows live in the dark. Force dark when running on a TV.
+      themeMode: isTv ? ThemeMode.dark : themeMode,
       routerConfig: router,
       // Default Material localizations — full i18n is wired in Phase 2 via
       // easy_localization (see ROADMAP.md).

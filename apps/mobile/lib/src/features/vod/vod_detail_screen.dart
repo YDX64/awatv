@@ -1,4 +1,7 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/features/vod/vod_providers.dart';
+import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -6,13 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../routing/app_router.dart';
-import '../../shared/loading_view.dart';
-import 'vod_providers.dart';
-
 /// Movie detail with backdrop hero, plot, rating, play & trailer buttons.
 class VodDetailScreen extends ConsumerWidget {
-  const VodDetailScreen({super.key, required this.vodId});
+  const VodDetailScreen({required this.vodId, super.key});
 
   final String vodId;
 

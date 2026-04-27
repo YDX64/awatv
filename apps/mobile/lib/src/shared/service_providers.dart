@@ -1,9 +1,8 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/app/env.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../app/env.dart';
 
 part 'service_providers.g.dart';
 

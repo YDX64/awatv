@@ -1,3 +1,6 @@
+import 'package:awatv_player/awatv_player.dart' show AwaPlayerController;
+import 'package:awatv_player/src/awa_player_controller.dart' show AwaPlayerController;
+
 /// Unified player state surface emitted by [AwaPlayerController.states].
 ///
 /// Modelled as a Dart 3 sealed hierarchy so callers can switch exhaustively.

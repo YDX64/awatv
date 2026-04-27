@@ -39,9 +39,8 @@ class Channel with _$Channel {
   /// Compute the canonical id from its parts.
   static String buildId({
     required String sourceId,
-    String? tvgId,
+    required String name, String? tvgId,
     String? streamId,
-    required String name,
   }) {
     final tail = (tvgId != null && tvgId.isNotEmpty)
         ? tvgId

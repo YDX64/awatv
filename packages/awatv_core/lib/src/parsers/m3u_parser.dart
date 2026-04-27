@@ -1,4 +1,6 @@
+import 'package:awatv_core/awatv_core.dart' show PlaylistSource;
 import 'package:awatv_core/src/models/channel.dart';
+import 'package:awatv_core/src/models/playlist_source.dart' show PlaylistSource;
 import 'package:awatv_core/src/utils/awatv_exceptions.dart';
 import 'package:awatv_core/src/utils/awatv_logger.dart';
 
@@ -109,7 +111,7 @@ abstract class M3uParser {
     }
 
     if (result.isEmpty && !sawExtinf) {
-      throw PlaylistParseException(
+      throw const PlaylistParseException(
         'No #EXTINF entries and no playable URLs found',
       );
     }
@@ -235,7 +237,7 @@ abstract class M3uParser {
 
   static List<String> _splitGroups(String raw) {
     return raw
-        .split(RegExp(r'[/;]'))
+        .split(RegExp('[/;]'))
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toList(growable: false);

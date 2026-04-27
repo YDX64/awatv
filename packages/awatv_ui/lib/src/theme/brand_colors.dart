@@ -1,3 +1,5 @@
+import 'package:awatv_ui/awatv_ui.dart' show AppTheme;
+import 'package:awatv_ui/src/theme/app_theme.dart' show AppTheme;
 import 'package:flutter/material.dart';
 
 /// AWAtv brand palette.

@@ -35,12 +35,12 @@ class HeroPoster {
       BuildContext fromHeroContext,
       BuildContext toHeroContext,
     ) {
-      final Widget toHero = toHeroContext.widget;
+      final toHero = toHeroContext.widget;
       // Always render the destination's child so the shuttle matches
       // what the user is about to see.
-      final Widget child = toHero is Hero ? toHero.child : toHero;
+      final child = toHero is Hero ? toHero.child : toHero;
 
-      final CurvedAnimation curved = CurvedAnimation(
+      final curved = CurvedAnimation(
         parent: animation,
         curve: DesignTokens.motionEmphasized,
         reverseCurve: DesignTokens.motionStandard.flipped,
@@ -50,12 +50,12 @@ class HeroPoster {
         animation: curved,
         builder: (BuildContext _, Widget? built) {
           // 0 = from, 1 = to.
-          final double t = curved.value;
-          final double radius =
+          final t = curved.value;
+          final radius =
               fromRadius + (toRadius - fromRadius) * t;
           // Bell-curve elevation: peaks mid-flight, lands flush.
-          final double bell = (4 * t * (1 - t)).clamp(0.0, 1.0);
-          final double elevation = bell * maxElevation;
+          final bell = (4 * t * (1 - t)).clamp(0.0, 1.0);
+          final elevation = bell * maxElevation;
           return Material(
             color: Colors.transparent,
             elevation: elevation,

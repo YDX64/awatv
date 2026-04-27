@@ -82,7 +82,7 @@ class EpgClient {
 
   static List<int> _gunzip(List<int> bytes) {
     try {
-      return GZipDecoder().decodeBytes(bytes);
+      return const GZipDecoder().decodeBytes(bytes);
     } on Exception catch (e) {
       throw NetworkException('Failed to gunzip EPG: $e');
     }

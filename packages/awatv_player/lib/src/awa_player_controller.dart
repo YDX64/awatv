@@ -1,11 +1,10 @@
 import 'dart:async';
 
 // Hide media_kit's `PlayerState` so our sealed class wins inside this file.
+import 'package:awatv_player/src/media_source.dart';
+import 'package:awatv_player/src/player_state.dart';
 import 'package:media_kit/media_kit.dart' hide PlayerState;
 import 'package:media_kit_video/media_kit_video.dart';
-
-import 'media_source.dart';
-import 'player_state.dart';
 
 /// Thrown for unrecoverable player errors that should bubble up to the
 /// caller rather than be reported via the state stream (e.g. illegal API
@@ -28,6 +27,20 @@ class PlayerException implements Exception {
 /// `awatv_core`'s expectations. The widget layer is in
 /// [AwaPlayerView]; controls/overlays are the host app's responsibility.
 class AwaPlayerController {
+
+  AwaPlayerController._() {
+    ensureInitialized();
+    // 32 MiB buffer is a sweet spot for IPTV: large enough to ride out
+    // brief network blips on slow mobile connections, small enough to
+    // keep memory pressure modest on low-end Android TV boxes.
+    _player = Player(
+      configuration: const PlayerConfiguration(
+        title: 'AWAtv',
+      ),
+    );
+    _videoController = VideoController(_player);
+    _wireUpStreams();
+  }
   /// Builds a controller and immediately opens [source] with autoplay.
   factory AwaPlayerController.fromSource(MediaSource source) {
     final controller = AwaPlayerController._();
@@ -40,21 +53,6 @@ class AwaPlayerController {
   /// the mobile app coded against `create()` per AGENT.md's draft contract.
   static AwaPlayerController create(MediaSource source) =>
       AwaPlayerController.fromSource(source);
-
-  AwaPlayerController._() {
-    ensureInitialized();
-    // 32 MiB buffer is a sweet spot for IPTV: large enough to ride out
-    // brief network blips on slow mobile connections, small enough to
-    // keep memory pressure modest on low-end Android TV boxes.
-    _player = Player(
-      configuration: const PlayerConfiguration(
-        bufferSize: 32 * 1024 * 1024,
-        title: 'AWAtv',
-      ),
-    );
-    _videoController = VideoController(_player);
-    _wireUpStreams();
-  }
 
   static bool _initialized = false;
 
@@ -149,7 +147,7 @@ class AwaPlayerController {
         Media(
           source.url,
           httpHeaders: headers.isEmpty ? null : headers,
-          extras: source.title == null ? null : {'title': source.title!},
+          extras: source.title == null ? null : {'title': source.title},
         ),
         play: autoPlay,
       );
@@ -192,7 +190,7 @@ class AwaPlayerController {
   /// Sets volume on a 0..100 scale (matches libmpv's native range).
   Future<void> setVolume(double volume) async {
     _ensureAlive();
-    final clamped = volume.clamp(0.0, 100.0).toDouble();
+    final clamped = volume.clamp(0.0, 100.0);
     await _player.setVolume(clamped);
   }
 
@@ -200,7 +198,7 @@ class AwaPlayerController {
   /// but we clamp to a sane UX range.
   Future<void> setSpeed(double speed) async {
     _ensureAlive();
-    final clamped = speed.clamp(0.25, 4.0).toDouble();
+    final clamped = speed.clamp(0.25, 4.0);
     await _player.setRate(clamped);
   }
 

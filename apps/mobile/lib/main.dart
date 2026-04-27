@@ -1,12 +1,12 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/app/awa_tv_app.dart';
+import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
-
-import 'src/app/awa_tv_app.dart';
 
 /// AWAtv mobile entry point.
 ///
@@ -35,5 +35,17 @@ Future<void> main() async {
   await AwaPlayerController.ensureInitialized();
   await AwatvStorage.instance.init(subDir: docsDir.path);
 
-  runApp(const ProviderScope(child: AwaTvApp()));
+  // One-shot form-factor probe. The same APK is shipped to phones and
+  // Android TV; a heuristic on `PlatformDispatcher.views.first` decides
+  // which shell renders. See `TvRuntime.detectFromPlatform`.
+  final isTv = TvRuntime.detectFromPlatform();
+
+  runApp(
+    ProviderScope(
+      overrides: <Override>[
+        isTvFormProvider.overrideWithValue(isTv),
+      ],
+      child: const AwaTvApp(),
+    ),
+  );
 }

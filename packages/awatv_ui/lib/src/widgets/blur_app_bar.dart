@@ -55,11 +55,11 @@ class BlurAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool isDark = theme.brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-    final Color veil = isDark
+    final veil = isDark
         ? scheme.surface.withValues(alpha: 0.55)
         : scheme.surface.withValues(alpha: 0.7);
 
@@ -85,7 +85,6 @@ class BlurAppBar extends StatelessWidget {
               StretchMode.zoomBackground,
               StretchMode.fadeTitle,
             ],
-            collapseMode: CollapseMode.parallax,
             titlePadding: const EdgeInsetsDirectional.fromSTEB(
               DesignTokens.spaceM,
               0,
@@ -110,9 +109,9 @@ class BlurAppBar extends StatelessWidget {
                         end: Alignment.bottomCenter,
                         colors: <Color>[
                           veil,
-                          veil.withValues(alpha: 0.0),
+                          veil.withValues(alpha: 0),
                         ],
-                        stops: const <double>[0.0, 0.6],
+                        stops: const <double>[0, 0.6],
                       ),
                     ),
                   ),
@@ -139,7 +138,7 @@ class _CollapsedTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TextTheme text = Theme.of(context).textTheme;
+    final text = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment:
           centerTitle ? CrossAxisAlignment.center : CrossAxisAlignment.start,

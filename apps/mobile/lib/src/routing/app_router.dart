@@ -1,24 +1,23 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/features/channels/channels_screen.dart';
+import 'package:awatv_mobile/src/features/onboarding/welcome_screen.dart';
+import 'package:awatv_mobile/src/features/player/player_screen.dart';
+import 'package:awatv_mobile/src/features/playlists/add_playlist_screen.dart';
+import 'package:awatv_mobile/src/features/playlists/playlists_screen.dart';
+import 'package:awatv_mobile/src/features/premium/premium_screen.dart';
+import 'package:awatv_mobile/src/features/search/search_screen.dart';
+import 'package:awatv_mobile/src/features/series/series_detail_screen.dart';
+import 'package:awatv_mobile/src/features/series/series_screen.dart';
+import 'package:awatv_mobile/src/features/settings/settings_screen.dart';
+import 'package:awatv_mobile/src/features/vod/vod_detail_screen.dart';
+import 'package:awatv_mobile/src/features/vod/vod_screen.dart';
+import 'package:awatv_mobile/src/shared/home_shell.dart';
+import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../features/channels/channels_screen.dart';
-import '../features/onboarding/welcome_screen.dart';
-import '../features/player/player_screen.dart';
-import '../features/playlists/add_playlist_screen.dart';
-import '../features/playlists/playlists_screen.dart';
-import '../features/premium/premium_screen.dart';
-import '../features/search/search_screen.dart';
-import '../features/series/series_detail_screen.dart';
-import '../features/series/series_screen.dart';
-import '../features/settings/settings_screen.dart';
-import '../features/vod/vod_detail_screen.dart';
-import '../features/vod/vod_screen.dart';
-import '../shared/home_shell.dart';
-import '../shared/service_providers.dart';
 
 part 'app_router.g.dart';
 
@@ -37,7 +36,6 @@ GoRouter appRouter(Ref ref) {
 
   return GoRouter(
     initialLocation: '/live',
-    debugLogDiagnostics: false,
     redirect: (BuildContext context, GoRouterState state) async {
       // Skip onboarding redirect for the onboarding/playlist routes
       // themselves — otherwise we'd loop.

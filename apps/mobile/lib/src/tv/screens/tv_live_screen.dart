@@ -4,6 +4,7 @@ import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/tv/d_pad.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -135,7 +136,7 @@ class TvLiveScreen extends ConsumerWidget {
       headers['Referer'] = referer;
     }
     final source = MediaSource(
-      url: channel.streamUrl,
+      url: proxify(channel.streamUrl),
       title: channel.name,
       userAgent: ua,
       headers: headers.isEmpty ? null : headers,

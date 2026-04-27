@@ -5,6 +5,7 @@ import 'package:awatv_mobile/src/features/vod/vod_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/tv/d_pad.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -158,7 +159,7 @@ class _TvSearchScreenState extends ConsumerState<TvSearchScreen> {
                               '/play',
                               extra: PlayerLaunchArgs(
                                 source: MediaSource(
-                                  url: c.streamUrl,
+                                  url: proxify(c.streamUrl),
                                   title: c.name,
                                 ),
                                 title: c.name,

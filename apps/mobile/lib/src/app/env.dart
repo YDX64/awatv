@@ -31,6 +31,16 @@ class Env {
   static String get supabaseUrl => _read('SUPABASE_URL');
   static String get supabaseAnonKey => _read('SUPABASE_ANON_KEY');
 
+  // --- Web proxy (CORS + HTTPS + HLS rewrite) -----------------------------
+  /// On web the browser blocks mixed-content (HTTPS page → HTTP server) and
+  /// most IPTV panels don't return CORS headers. We tunnel every outbound
+  /// request through a Cloudflare Worker that adds the headers and rewrites
+  /// HLS segment URIs. Compile-time default falls back to the public Worker;
+  /// override per-environment via `.env`.
+  static String get webProxyUrl => _read('WEB_PROXY_URL').isNotEmpty
+      ? _read('WEB_PROXY_URL')
+      : 'https://awa-proxy.awadigitalinteractive.workers.dev';
+
   /// True when the user has configured a TMDB key — features that depend on
   /// it (poster lookup, trailers, …) can early-out otherwise.
   static bool get hasTmdb => tmdbApiKey.isNotEmpty;

@@ -3,6 +3,7 @@ import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -152,7 +153,7 @@ class ChannelsScreen extends ConsumerWidget {
     }
 
     final source = MediaSource(
-      url: channel.streamUrl,
+      url: proxify(channel.streamUrl),
       title: channel.name,
       userAgent: ua,
       headers: headers.isEmpty ? null : headers,
@@ -219,7 +220,7 @@ class ChannelDetailScreen extends ConsumerWidget {
                   onPressed: () {
                     final args = PlayerLaunchArgs(
                       source: MediaSource(
-                        url: c.streamUrl,
+                        url: proxify(c.streamUrl),
                         title: c.name,
                         userAgent: c.extras['http-user-agent'],
                       ),

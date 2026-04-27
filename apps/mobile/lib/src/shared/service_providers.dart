@@ -1,5 +1,6 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/app/env.dart';
+import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -28,6 +29,9 @@ Dio dio(Ref ref) {
       },
     ),
   );
+  // On web, route every http(s) request through the AWAtv proxy Worker so
+  // mixed-content and missing-CORS-headers stop bricking IPTV API calls.
+  d.interceptors.add(const WebProxyInterceptor());
   ref.onDispose(d.close);
   return d;
 }

@@ -89,7 +89,7 @@ void main() {
 
     test('returns null when results array is empty', () async {
       when(() => dio.getUri<dynamic>(any())).thenAnswer(
-        (_) async => ok({'page': 1, 'results': []}),
+        (_) async => ok({'page': 1, 'results': <Map<String, dynamic>>[]}),
       );
       expect(await client.searchMovie('Nonexistent'), isNull);
     });
@@ -256,7 +256,7 @@ void main() {
 
     test('searchSeries returns null when results empty', () async {
       when(() => dio.getUri<dynamic>(any())).thenAnswer(
-        (_) async => ok({'results': []}),
+        (_) async => ok({'results': <Map<String, dynamic>>[]}),
       );
       expect(await client.searchSeries('Unknown'), isNull);
     });
@@ -265,7 +265,7 @@ void main() {
       Uri? captured;
       when(() => dio.getUri<dynamic>(captureAny())).thenAnswer((inv) async {
         captured = inv.positionalArguments.first as Uri;
-        return ok({'results': []});
+        return ok({'results': <Map<String, dynamic>>[]});
       });
       await client.searchSeries('anything');
       expect(captured!.path, contains('/search/tv'));
@@ -342,7 +342,7 @@ void main() {
       Uri? captured;
       when(() => dio.getUri<dynamic>(captureAny())).thenAnswer((inv) async {
         captured = inv.positionalArguments.first as Uri;
-        return ok({'results': []});
+        return ok({'results': <Map<String, dynamic>>[]});
       });
       await client.seriesTrailerYoutubeId(1396);
       expect(captured!.path, contains('/tv/1396/videos'));

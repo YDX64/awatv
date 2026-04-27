@@ -23,7 +23,7 @@ const String _xmltvBody = '''
 ''';
 
 List<int> _gzipped(String body) =>
-    const GZipEncoder().encode(utf8.encode(body))!;
+    const GZipEncoder().encode(utf8.encode(body));
 
 Response<List<int>> _resp(
   List<int> bytes, {

@@ -206,7 +206,7 @@ http://example.com/only.ts
               },
             ]);
         }
-        return _ok([]);
+        return _ok(<dynamic>[]);
       });
 
       final src = PlaylistSource(
@@ -322,9 +322,9 @@ http://example.com/only.ts
         final action = uri.queryParameters['action'];
         switch (action) {
           case null:
-            return _ok({
+            return _ok(<String, dynamic>{
               'user_info': {'auth': 1},
-              'server_info': {},
+              'server_info': <String, dynamic>{},
             });
           case 'get_live_streams':
             return _ok(<dynamic>[]);
@@ -369,7 +369,7 @@ http://example.com/only.ts
               },
             });
         }
-        return _ok([]);
+        return _ok(<dynamic>[]);
       });
 
       final src = PlaylistSource(

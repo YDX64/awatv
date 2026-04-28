@@ -4,6 +4,7 @@ import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/device_fingerprint.dart';
+import 'package:awatv_mobile/src/shared/updater/update_boot_check.dart';
 import 'package:awatv_mobile/src/tv/tv_router.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_ui/awatv_ui.dart';
@@ -53,12 +54,16 @@ class AwaTvApp extends ConsumerWidget {
       routerConfig: router,
       // Wrap the entire app shell with the desktop chrome on macOS /
       // Windows / Linux. On TV and mobile this is a no-op pass-through.
+      // The `UpdateBootCheck` wrapper kicks off a silent auto-update
+      // probe ~5s after first frame on desktop builds and renders a
+      // snackbar when a newer release is on offer.
       builder: (BuildContext context, Widget? child) {
         final body = child ?? const SizedBox.shrink();
+        final wrapped = UpdateBootCheck(child: body);
         if (isDesktop && !isTv) {
-          return DesktopChrome(child: body);
+          return DesktopChrome(child: wrapped);
         }
-        return body;
+        return wrapped;
       },
       // Default Material localizations — full i18n is wired in Phase 2 via
       // easy_localization (see ROADMAP.md).

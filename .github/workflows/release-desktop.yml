@@ -196,3 +196,67 @@ jobs:
           $files = @("dist/awatv-windows.zip")
           if (Test-Path "dist/awatv-setup.exe") { $files += "dist/awatv-setup.exe" }
           gh release upload $env:RELEASE_TAG $files --clobber
+
+  # ---------------------------------------------------------------------------
+  # publish-manifest: builds latest.json after both platform jobs finish.
+  # Runs on macOS so the build-update-manifest.sh script can use bash + shasum.
+  # Skipped unless this run is triggered by a `release: published` event —
+  # the manifest is meaningless without a release tag to point asset URLs at.
+  # ---------------------------------------------------------------------------
+  publish-manifest:
+    name: Publish update manifest (latest.json)
+    needs: [build-macos, build-windows]
+    if: github.event_name == 'release'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download every release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir -p dist
+          # Pull whichever of the four artefacts the previous jobs uploaded.
+          # The script tolerates missing files — a partial release that only
+          # built one platform still produces a valid manifest.
+          for asset in \
+            awatv-macos.dmg \
+            awatv-macos.zip \
+            awatv-setup.exe \
+            awatv-windows.zip
+          do
+            if gh release download "$RELEASE_TAG" \
+                --pattern "$asset" \
+                --dir dist \
+                --clobber 2>/dev/null; then
+              echo "downloaded: $asset"
+            else
+              echo "skip: $asset (not in release)"
+            fi
+          done
+          ls -la dist
+
+      - name: Build latest.json
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_NOTES: ${{ github.event.release.body }}
+          GH_OWNER: ${{ github.repository_owner }}
+          GH_REPO: ${{ github.event.repository.name }}
+        run: |
+          chmod +x scripts/build-update-manifest.sh
+          ./scripts/build-update-manifest.sh
+
+      - name: Upload manifest as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: awatv-update-manifest
+          path: dist/latest.json
+          if-no-files-found: error
+
+      - name: Attach latest.json to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$RELEASE_TAG" dist/latest.json --clobber

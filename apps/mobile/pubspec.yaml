@@ -55,6 +55,15 @@ dependencies:
   collection: ^1.18.0
   cupertino_icons: ^1.0.8
 
+  # Cryptographic helpers — sha256 for the auto-update integrity check.
+  # awatv_core already depends on this, but the mobile app uses it
+  # directly in `updater_service.dart`, so list it explicitly here.
+  crypto: ^3.0.5
+
+  # Reads CFBundleShortVersionString / FileDescription on every platform
+  # so the in-app updater can compare against the GitHub release manifest.
+  package_info_plus: ^9.0.1
+
   # Desktop window control (macOS / Windows / Linux). Mobile platforms do
   # not link this; Flutter's conditional plugin tooling handles it.
   window_manager: ^0.4.2

@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
+import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,6 +48,11 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
   bool _isPaused = false;
   bool _buffering = false;
   bool _firstFrameSeen = false;
+  // Mirrors the mobile player: when the OS backgrounds the app we pause
+  // and remember to auto-resume on `resumed`. On Android TV (where this
+  // screen lives) this matches the leanback expectation that backgrounding
+  // briefly should not lose the user's playback position.
+  bool _wasPlayingBeforeBackground = false;
   Duration _position = Duration.zero;
   Duration _bufferedPos = Duration.zero;
   Duration? _total;
@@ -68,7 +76,10 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
     try {
       // Use the empty controller so playback is driven by
       // openWithFallbacks below — same rationale as the mobile player.
-      final c = AwaPlayerController.empty();
+      // The persisted backend preference is honoured here so a TV-side
+      // launch picks the same engine the user chose on phone.
+      final preferred = ref.read(playerBackendPreferenceProvider);
+      final c = AwaPlayerController.empty(backend: preferred);
       _controller = c;
       setState(() {});
 
@@ -263,9 +274,26 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    // Same policy as the mobile player: pause-on-background is correct on
+    // mobile/TV (Android, iOS), but on a desktop runtime the same lifecycle
+    // event fires on simple focus loss (Cmd+Tab to another app), and pausing
+    // the player there would feel like the app froze. Gate explicitly so
+    // this code is safe even if the TV shell is ever launched on a desktop
+    // form-factor (e.g. Linux PC running the TV layout).
+    final isMobileBackground = !kIsWeb &&
+        !isDesktopRuntime() &&
+        (state == AppLifecycleState.paused ||
+            state == AppLifecycleState.inactive);
+    if (isMobileBackground) {
+      if (!_isPaused) {
+        _wasPlayingBeforeBackground = true;
+      }
       _controller?.pause();
+      return;
+    }
+    if (state == AppLifecycleState.resumed && _wasPlayingBeforeBackground) {
+      _wasPlayingBeforeBackground = false;
+      _controller?.play();
     }
   }
 

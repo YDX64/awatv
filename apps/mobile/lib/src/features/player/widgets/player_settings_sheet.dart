@@ -1,22 +1,42 @@
+import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
+import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
+import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Bottom-modal sheet that exposes track and speed pickers for the
-/// player. Sections appear top-down: Quality → Audio → Subtitles → Speed.
+/// player. Sections appear top-down:
+/// Quality → Audio → Subtitles → Speed → Engine.
+///
+/// The engine section is gated behind the `vlcBackend` premium feature.
+/// Selecting a different engine triggers [onBackendChanged] (when
+/// provided) — the player screen uses that to tear down the current
+/// controller and rebuild it against the chosen backend.
 ///
 /// The sheet reads the controller directly and is fully self-contained:
 /// the player screen only has to push it. Selections close the sheet and
 /// surface a brief toast confirmation in the parent's [Scaffold].
 class PlayerSettingsSheet extends StatelessWidget {
-  const PlayerSettingsSheet({required this.controller, super.key});
+  const PlayerSettingsSheet({
+    required this.controller,
+    super.key,
+    this.onBackendChanged,
+  });
 
   final AwaPlayerController controller;
+
+  /// Invoked when the user picks a different player engine. The parent
+  /// screen disposes the active controller and creates a new one bound
+  /// to the chosen backend. Null disables the engine section entirely.
+  final Future<void> Function(PlayerBackend next)? onBackendChanged;
 
   /// Convenience — present the sheet with the standard AWAtv chrome.
   static Future<void> show(
     BuildContext context, {
     required AwaPlayerController controller,
+    Future<void> Function(PlayerBackend next)? onBackendChanged,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -26,6 +46,7 @@ class PlayerSettingsSheet extends StatelessWidget {
       useSafeArea: true,
       builder: (BuildContext sheetCtx) => PlayerSettingsSheet(
         controller: controller,
+        onBackendChanged: onBackendChanged,
       ),
     );
   }
@@ -73,6 +94,13 @@ class PlayerSettingsSheet extends StatelessWidget {
                   _SubtitleSection(controller: controller),
                   const SizedBox(height: DesignTokens.spaceL),
                   _SpeedSection(controller: controller),
+                  if (onBackendChanged != null) ...<Widget>[
+                    const SizedBox(height: DesignTokens.spaceL),
+                    _BackendSection(
+                      currentBackend: controller.backend,
+                      onBackendChanged: onBackendChanged!,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -498,6 +526,228 @@ class _EmptyHint extends StatelessWidget {
                   .onSurface
                   .withValues(alpha: 0.6),
             ),
+      ),
+    );
+  }
+}
+
+/// Picker that lets the user switch between Auto / media_kit / VLC.
+///
+/// Wraps the sheet's tap row in a Riverpod consumer so the persisted
+/// preference shows the live "selected" highlight without the parent
+/// having to forward state. The premium gate is checked here so the
+/// row stays visible to free users (they get a `PRO` chip and a tap-
+/// through to the paywall sheet) instead of being hidden entirely.
+class _BackendSection extends ConsumerWidget {
+  const _BackendSection({
+    required this.currentBackend,
+    required this.onBackendChanged,
+  });
+
+  /// Backend currently powering the active controller — used as the
+  /// "selected" indicator when the persisted preference is `auto`.
+  final PlayerBackend currentBackend;
+  final Future<void> Function(PlayerBackend next) onBackendChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final preference = ref.watch(playerBackendPreferenceProvider);
+    final allowed =
+        ref.watch(canUseFeatureProvider(PremiumFeature.vlcBackend));
+    final vlcAvailable = PlayerBackendCapabilities.vlcSupported;
+
+    Future<void> select(PlayerBackend next) async {
+      // Snackbars must be dispatched via the *root* ScaffoldMessenger,
+      // not the sheet's local context — the sheet element unmounts the
+      // moment we pop, and `ScaffoldMessenger.of(context)` would resolve
+      // against a dead element. Capture the messenger first.
+      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+
+      if (next == PlayerBackend.vlc && !vlcAvailable) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(PlayerBackendCapabilities.vlcReason),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+      if (next == PlayerBackend.vlc && !allowed) {
+        navigator.pop();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('VLC motoru Premium üyelik gerektirir.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+      navigator.pop();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Oynatıcı motoru: ${_label(next)}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      await onBackendChanged(next);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const _SectionHeader(
+          icon: Icons.tune_rounded,
+          title: 'Oynatıcı motoru',
+        ),
+        _OptionRow(
+          label: 'Otomatik',
+          subtitle: 'Cihaz için en iyi motoru seç',
+          selected: preference == PlayerBackend.auto,
+          onTap: () => select(PlayerBackend.auto),
+        ),
+        _OptionRow(
+          label: 'Yerel motor (libmpv)',
+          subtitle: 'HEVC, AV1, HLS, DASH için optimize',
+          selected: preference == PlayerBackend.mediaKit ||
+              (preference == PlayerBackend.auto &&
+                  currentBackend == PlayerBackend.mediaKit),
+          onTap: () => select(PlayerBackend.mediaKit),
+        ),
+        _BackendVlcRow(
+          selected: preference == PlayerBackend.vlc ||
+              (preference == PlayerBackend.auto &&
+                  currentBackend == PlayerBackend.vlc),
+          locked: !allowed,
+          unsupported: !vlcAvailable,
+          onTap: () => select(PlayerBackend.vlc),
+        ),
+      ],
+    );
+  }
+
+  static String _label(PlayerBackend b) => switch (b) {
+        PlayerBackend.auto => 'Otomatik',
+        PlayerBackend.mediaKit => 'Yerel (libmpv)',
+        PlayerBackend.vlc => 'VLC',
+      };
+}
+
+/// VLC row — variant of `_OptionRow` that surfaces the premium gate
+/// and the platform-unsupported state inline. Disabled rows still respond
+/// to taps so the user gets a snackbar explaining why; `_OptionRow`'s
+/// strict on/off model didn't fit those paths cleanly.
+class _BackendVlcRow extends StatelessWidget {
+  const _BackendVlcRow({
+    required this.selected,
+    required this.locked,
+    required this.unsupported,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final bool locked;
+  final bool unsupported;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dimmed = unsupported;
+    final subtitle = unsupported
+        ? PlayerBackendCapabilities.vlcReason
+        : 'Zorlu codec / DRM / panel kıvrımı için yedek';
+    return Opacity(
+      opacity: dimmed ? 0.55 : 1,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+        child: AnimatedContainer(
+          duration: DesignTokens.motionFast,
+          curve: DesignTokens.motionStandard,
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignTokens.spaceM,
+            vertical: DesignTokens.spaceM,
+          ),
+          decoration: BoxDecoration(
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+            border: Border.all(
+              color: selected
+                  ? scheme.primary.withValues(alpha: 0.45)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Text(
+                          'VLC motoru',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyLarge
+                              ?.copyWith(
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                        ),
+                        if (locked) ...<Widget>[
+                          const SizedBox(width: DesignTokens.spaceS),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: scheme.tertiary.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'PRO',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    color: scheme.tertiary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitle,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                              color: scheme.onSurface
+                                  .withValues(alpha: 0.7),
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected)
+                Padding(
+                  padding: const EdgeInsets.only(left: DesignTokens.spaceS),
+                  child: Icon(Icons.check_rounded, color: scheme.primary),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

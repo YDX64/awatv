@@ -8,6 +8,7 @@ import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/sync_status.dart';
+import 'package:awatv_mobile/src/shared/updater/update_settings_card.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -143,25 +144,11 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/premium'),
           ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Hakkinda'),
-            subtitle: const Text('AWAtv 0.1.0  -  bu makinede gelistirildi'),
-            onTap: () {
-              showAboutDialog(
-                context: context,
-                applicationName: 'AWAtv',
-                applicationVersion: '0.1.0',
-                applicationIcon: const Icon(Icons.live_tv_rounded, size: 32),
-                children: const [
-                  Text(
-                    'Cross-platform IPTV oynatici. M3U / Xtream destekli, '
-                    'TMDB metadata zenginlestirmeli, premium abonelikli.',
-                  ),
-                ],
-              );
-            },
-          ),
+          const Divider(),
+          const _SectionHeader('Sürüm'),
+          // Live version line + auto-update controls (desktop only).
+          // Mobile / web see only the version row.
+          const UpdateSettingsCard(),
         ],
       ),
     );

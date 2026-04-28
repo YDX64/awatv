@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/keyboard_shortcuts.dart';
 import 'package:awatv_mobile/src/desktop/pip_window.dart';
+import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_controls_layer.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_gestures.dart';
@@ -64,6 +65,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _buffering = false;
   bool _scrubbing = false;
   bool _firstFrameSeen = false;
+  // True when we paused the player ourselves because the OS reported the
+  // app was about to background (mobile only). Used by [didChangeAppLifecycleState]
+  // to auto-resume on `resumed` so the user doesn't return to a frozen frame.
+  bool _wasPlayingBeforeBackground = false;
   Duration _position = Duration.zero;
   Duration _bufferedPos = Duration.zero;
   Duration? _total;
@@ -122,7 +127,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // starts via `openWithFallbacks` below — that gives us a single
       // place to drive the variant chain instead of racing an immediate
       // open() against subscriber wiring.
-      final c = AwaPlayerController.empty();
+      //
+      // Honour the persisted backend preference. The factory falls back
+      // to media_kit silently on platforms where VLC isn't supported
+      // (web / macOS / Windows / Linux), so we can pass the user's
+      // preference through unconditionally.
+      final preferred = ref.read(playerBackendPreferenceProvider);
+      final c = AwaPlayerController.empty(backend: preferred);
       _controller = c;
       // Surface the controller into the build immediately so AwaPlayerView
       // can attach its texture before bytes start flowing.
@@ -404,18 +415,96 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
-  void _onBackendToggleRequested() {
+  Future<void> _onBackendToggleRequested() async {
     final allowed =
         ref.read(canUseFeatureProvider(PremiumFeature.vlcBackend));
     if (!allowed) {
       PremiumLockSheet.show(context, PremiumFeature.vlcBackend);
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Oynatici motor secimi yakinda eklenecek.'),
-      ),
+    // The backend picker lives inside the unified settings sheet so the
+    // user always reaches it through the same surface. Selecting a
+    // different backend triggers `_switchBackend` below, which restarts
+    // playback against the same source list.
+    final c = _controller;
+    if (c == null) return;
+    _hideTimer?.cancel();
+    await PlayerSettingsSheet.show(
+      context,
+      controller: c,
+      onBackendChanged: _switchBackend,
     );
+    if (!mounted) return;
+    _scheduleHide();
+  }
+
+  /// Tears down the active controller and rebuilds it against [next].
+  ///
+  /// We persist the choice via [playerBackendPreferenceProvider] so the
+  /// next launch picks the same engine, then walk the variant chain
+  /// again so playback resumes against whichever URL shape the new
+  /// backend likes best.
+  Future<void> _switchBackend(PlayerBackend next) async {
+    await ref.read(playerBackendPreferenceProvider.notifier).set(next);
+    final old = _controller;
+    if (old != null && old.backend == next) return;
+
+    // Cancel current subscriptions before tearing down the controller —
+    // otherwise we'd briefly receive late events from the disposed engine.
+    await _stateSub?.cancel();
+    await _positionSub?.cancel();
+    await _bufferedSub?.cancel();
+    await _heightSub?.cancel();
+    _stateSub = null;
+    _positionSub = null;
+    _bufferedSub = null;
+    _heightSub = null;
+
+    setState(() {
+      _controller = null;
+      _firstFrameSeen = false;
+      _errorMessage = null;
+    });
+    try {
+      await old?.dispose();
+    } on Object {
+      // Best-effort cleanup; the new engine doesn't depend on the old
+      // one being fully torn down.
+    }
+
+    final fresh = AwaPlayerController.empty(backend: next);
+    _controller = fresh;
+    setState(() {});
+
+    _stateSub = fresh.states.listen(
+      _onPlayerState,
+      onError: (Object e, StackTrace _) {
+        if (!mounted) return;
+        setState(() => _errorMessage = e.toString());
+      },
+    );
+    _positionSub = fresh.positions.listen((Duration p) {
+      if (!mounted) return;
+      setState(() {
+        _position = p;
+        if (!_firstFrameSeen && p > Duration.zero) _firstFrameSeen = true;
+      });
+    });
+    _bufferedSub = fresh.buffered.listen((Duration b) {
+      if (!mounted) return;
+      setState(() => _bufferedPos = b);
+      _evaluateLowBandwidth();
+    });
+    _heightSub = fresh.videoHeightStream.listen((int? h) {
+      if (!mounted) return;
+      setState(() => _videoHeight = h);
+    });
+
+    try {
+      await fresh.openWithFallbacks(widget.args.allSources);
+    } on PlayerException catch (e) {
+      if (mounted) setState(() => _errorMessage = e.message);
+    }
   }
 
   /// Used by desktop keyboard shortcuts (arrow keys, J/L) to nudge the
@@ -459,9 +548,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    // Mobile (iOS / Android): respect OS-level background pause — when the
+    // app moves off-screen we should release the audio focus and stop
+    // decoding to play nice with other apps and the battery.
+    //
+    // Desktop (macOS / Windows / Linux): `inactive` fires whenever the
+    // window simply loses focus — Cmd+Tab to a browser, clicking another
+    // app, etc. Pausing the player there is wrong: the user expects
+    // playback (especially live IPTV / a movie they're watching while
+    // working) to keep going in the background. Only `detached` is a real
+    // shutdown signal on desktop, and at that point we're tearing down
+    // anyway, so a defensive pause is unnecessary.
+    final isMobileBackground = !kIsWeb &&
+        !isDesktopRuntime() &&
+        (state == AppLifecycleState.paused ||
+            state == AppLifecycleState.inactive);
+    if (isMobileBackground) {
+      // Remember we were playing so we can auto-resume on `resumed`.
+      if (!_isPaused) {
+        _wasPlayingBeforeBackground = true;
+      }
       _controller?.pause();
+      return;
+    }
+    if (state == AppLifecycleState.resumed && _wasPlayingBeforeBackground) {
+      _wasPlayingBeforeBackground = false;
+      _controller?.play();
     }
   }
 

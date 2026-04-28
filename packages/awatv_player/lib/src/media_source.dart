@@ -1,4 +1,3 @@
-import 'package:awatv_player/awatv_player.dart' show AwaPlayerController;
 import 'package:awatv_player/src/awa_player_controller.dart' show AwaPlayerController;
 
 /// Describes a single playable media resource for [AwaPlayerController].

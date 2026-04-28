@@ -1,0 +1,14 @@
+{
+  "images" : [
+    {
+      "extent" : "full-screen",
+      "idiom" : "tv",
+      "minimum-system-version" : "9.0",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

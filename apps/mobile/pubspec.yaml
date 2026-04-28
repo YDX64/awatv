@@ -59,6 +59,11 @@ dependencies:
   # not link this; Flutter's conditional plugin tooling handles it.
   window_manager: ^0.4.2
 
+  # System tray icon + menu (macOS / Windows). Linux is gated off in
+  # AwaTvTray.initialise because libappindicator availability is
+  # distro-dependent and a missing native dep must not block the boot.
+  tray_manager: ^0.2.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -72,4 +77,5 @@ flutter:
   assets:
     - .env
     - assets/
+    - assets/tray/
   # Custom fonts can be added here later (Inter / Manrope recommended for sleek UI)

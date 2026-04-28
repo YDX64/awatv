@@ -16,6 +16,7 @@ import 'package:awatv_mobile/src/features/remote/sender_screen.dart';
 import 'package:awatv_mobile/src/features/search/search_screen.dart';
 import 'package:awatv_mobile/src/features/series/series_detail_screen.dart';
 import 'package:awatv_mobile/src/features/series/series_screen.dart';
+import 'package:awatv_mobile/src/features/settings/manage_devices_screen.dart';
 import 'package:awatv_mobile/src/features/settings/settings_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_detail_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_screen.dart';
@@ -62,7 +63,8 @@ GoRouter appRouter(Ref ref) {
           loc.startsWith('/playlists') ||
           loc.startsWith('/login') ||
           loc.startsWith('/auth') ||
-          loc.startsWith('/account')) {
+          loc.startsWith('/account') ||
+          loc.startsWith('/settings/devices')) {
         return null;
       }
       try {
@@ -193,6 +195,15 @@ GoRouter appRouter(Ref ref) {
         name: 'account',
         builder: (BuildContext context, GoRouterState state) =>
             const AccountScreen(),
+      ),
+      // Manage devices screen — surfaces the user's `device_sessions`
+      // rows and lets them sign out a remote device. Premium + signed-in
+      // gate is enforced inside the screen via the engine.
+      GoRoute(
+        path: '/settings/devices',
+        name: 'settingsDevices',
+        builder: (BuildContext context, GoRouterState state) =>
+            const ManageDevicesScreen(),
       ),
       // Bottom-nav shell. On desktop the same `StatefulNavigationShell`
       // is reused but rendered through `DesktopHomeShell` which adapts to

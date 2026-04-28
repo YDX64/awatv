@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/keyboard_shortcuts.dart';
+import 'package:awatv_mobile/src/desktop/pip_window.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_controls_layer.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_gestures.dart';
@@ -20,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:window_manager/window_manager.dart';
 
 /// Full-screen, Netflix-tier player.
 ///
@@ -184,16 +186,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  /// Wires this player into the remote-control bridge when (and only
-  /// when) a receiver session is already alive. Pure additive — players
-  /// outside any remote flow don't pay the channel-open cost.
+  /// Wires this player into the remote-control bridge and publishes the
+  /// active playback context. We always publish (not just when a remote
+  /// session is alive) so secondary consumers — the desktop system tray
+  /// "now playing" label, future widgets — can read the title without
+  /// each subscribing through the bridge.
+  ///
+  /// The remote bridge is only instantiated when a receiver session is
+  /// active, so its method-channel cost is still gated.
   void _publishToBridgeIfReceiving() {
-    final session = ref.read(receiverSessionControllerProvider);
-    if (!session.hasValue) return;
     final c = _controller;
     if (c == null) return;
-    // Touch the bridge so it instantiates and listens for commands.
-    ref.read(ensurePlayerBridgeProvider);
     ref.read(activePlaybackProvider.notifier).set(
           PlaybackContext(
             controller: c,
@@ -203,6 +206,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             isLive: widget.args.isLive,
           ),
         );
+    final session = ref.read(receiverSessionControllerProvider);
+    if (session.hasValue) {
+      // Touch the bridge so it instantiates and listens for commands.
+      ref.read(ensurePlayerBridgeProvider);
+    }
   }
 
   void _onPlayerState(PlayerState state) {
@@ -329,16 +337,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _revealControls();
   }
 
-  void _onPipRequested() {
+  Future<void> _onPipRequested() async {
     final allowed =
         ref.read(canUseFeatureProvider(PremiumFeature.pictureInPicture));
     if (!allowed) {
       PremiumLockSheet.show(context, PremiumFeature.pictureInPicture);
       return;
     }
+    // On desktop we toggle the compact always-on-top window. On mobile
+    // (iOS / Android) the OS-native PiP API still has to land — until
+    // then we surface the limitation honestly via a snack.
+    if (!kIsWeb && isDesktopRuntime()) {
+      try {
+        await ref.read(pipWindowControllerProvider).toggle();
+      } on Object catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PiP açılamadı: $e')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('PiP destegi Phase 2 te platform kanali ile aktiflesir.'),
+        content: Text('PiP destegi mobilde platform kanali ile aktiflesir.'),
       ),
     );
   }
@@ -456,8 +479,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Widget build(BuildContext context) {
     final controller = _controller;
     final isDesktop = ref.watch(isDesktopFormProvider);
+    final inPip = isDesktop ? ref.watch(pipModeProvider) : false;
     final statusKind = _statusKindForOverlay();
     final showBuffering = _buffering && !_isPaused && _firstFrameSeen;
+
+    if (inPip) {
+      // Compact PiP layout: video frame fills the small always-on-top
+      // window, with a hover-revealed exit button. No nav, no top bar,
+      // no settings — the regular layout returns the moment the user
+      // exits PiP via the corner button or tray menu.
+      return PopScope(
+        // Intercept back navigation: if the user hits Escape or
+        // platform-back while in PiP, exit PiP rather than dropping the
+        // route. Prevents the awkward state where the window is still
+        // tiny but the player route has unmounted.
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? _) async {
+          if (didPop) return;
+          await _onPipRequested();
+        },
+        child: _PipCompactLayout(
+          controller: controller,
+          videoFit: _videoFit,
+          isPaused: _isPaused,
+          onTogglePlay: _togglePlay,
+          onExitPip: _onPipRequested,
+          onClose: _onClose,
+        ),
+      );
+    }
 
     final scaffold = Scaffold(
       backgroundColor: Colors.black,
@@ -542,7 +592,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     child: Column(
                       children: <Widget>[
                         IconButton(
-                          tooltip: 'Picture in picture',
+                          tooltip: isDesktop
+                              ? 'Picture in picture (kompakt pencere)'
+                              : 'Picture in picture',
                           onPressed: _onPipRequested,
                           icon: const Icon(
                             Icons.picture_in_picture_alt_rounded,
@@ -619,6 +671,218 @@ class _ErrorPanel extends StatelessWidget {
               style: const TextStyle(color: Colors.white70),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Minimal compact-mode layout used when the desktop window has been
+/// resized into PiP form. We deliberately don't reuse `PlayerControlsLayer`
+/// here — that widget assumes a full-size player with room for a top bar
+/// and bottom scrub timeline. PiP gets a single play/pause button and an
+/// exit-PiP affordance, both fading on hover so the video frame stays the
+/// hero.
+class _PipCompactLayout extends StatefulWidget {
+  const _PipCompactLayout({
+    required this.controller,
+    required this.videoFit,
+    required this.isPaused,
+    required this.onTogglePlay,
+    required this.onExitPip,
+    required this.onClose,
+  });
+
+  final AwaPlayerController? controller;
+  final BoxFit videoFit;
+  final bool isPaused;
+  final Future<void> Function() onTogglePlay;
+  final Future<void> Function() onExitPip;
+  final VoidCallback onClose;
+
+  @override
+  State<_PipCompactLayout> createState() => _PipCompactLayoutState();
+}
+
+class _PipCompactLayoutState extends State<_PipCompactLayout> {
+  bool _hover = false;
+  Timer? _hideTimer;
+
+  void _show() {
+    setState(() => _hover = true);
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 1800), () {
+      if (!mounted) return;
+      setState(() => _hover = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.controller;
+    return Material(
+      color: Colors.black,
+      child: MouseRegion(
+        onHover: (_) => _show(),
+        onEnter: (_) => _show(),
+        onExit: (_) => setState(() => _hover = false),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            if (c != null)
+              AwaPlayerView(controller: c, fit: widget.videoFit)
+            else
+              const ColoredBox(color: Colors.black),
+            // Tap-anywhere toggles play/pause — matches user expectation
+            // when the window is small enough that hitting an icon is
+            // fiddly.
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  _show();
+                  widget.onTogglePlay();
+                },
+                onPanStart: (_) {
+                  // Drag from the video surface itself — handy because
+                  // there's no titlebar in compact mode.
+                  windowManager.startDragging();
+                },
+                onDoubleTap: widget.onExitPip,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            AnimatedOpacity(
+              opacity: _hover ? 1 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: IgnorePointer(
+                ignoring: !_hover,
+                child: _PipOverlayControls(
+                  isPaused: widget.isPaused,
+                  onTogglePlay: widget.onTogglePlay,
+                  onExitPip: widget.onExitPip,
+                  onClose: widget.onClose,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PipOverlayControls extends StatelessWidget {
+  const _PipOverlayControls({
+    required this.isPaused,
+    required this.onTogglePlay,
+    required this.onExitPip,
+    required this.onClose,
+  });
+
+  final bool isPaused;
+  final Future<void> Function() onTogglePlay;
+  final Future<void> Function() onExitPip;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final scrim = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.black.withValues(alpha: 0.55),
+            Colors.transparent,
+            Colors.black.withValues(alpha: 0.55),
+          ],
+          stops: const <double>[0, 0.45, 1],
+        ),
+      ),
+    );
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(child: scrim),
+        // Top-right: exit PiP + close.
+        Positioned(
+          top: 4,
+          right: 4,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              _PipBtn(
+                icon: Icons.fullscreen_rounded,
+                tooltip: 'Tam pencereye dön',
+                onTap: onExitPip,
+              ),
+              _PipBtn(
+                icon: Icons.close_rounded,
+                tooltip: 'Kapat',
+                onTap: () => onClose(),
+              ),
+            ],
+          ),
+        ),
+        // Centre: play/pause.
+        Center(
+          child: _PipBtn(
+            icon: isPaused
+                ? Icons.play_arrow_rounded
+                : Icons.pause_rounded,
+            tooltip: isPaused ? 'Oynat' : 'Duraklat',
+            onTap: onTogglePlay,
+            size: 44,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PipBtn extends StatelessWidget {
+  const _PipBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.size = 28,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final FutureOr<void> Function() onTap;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: Colors.black.withValues(alpha: 0.45),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {
+              final r = onTap();
+              if (r is Future) {
+                // Fire-and-forget — the overlay caller doesn't care
+                // when the platform call completes.
+                unawaited(r);
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(icon, color: Colors.white, size: size),
+            ),
+          ),
         ),
       ),
     );

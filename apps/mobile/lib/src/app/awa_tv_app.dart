@@ -2,6 +2,8 @@ import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
 import 'package:awatv_mobile/src/desktop/desktop_chrome.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
+import 'package:awatv_mobile/src/shared/sync/device_fingerprint.dart';
 import 'package:awatv_mobile/src/tv/tv_router.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_ui/awatv_ui.dart';
@@ -29,6 +31,12 @@ class AwaTvApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isTv = ref.watch(isTvFormProvider);
     final isDesktop = ref.watch(isDesktopFormProvider);
+    if (isTv) DeviceFingerprint.markCurrentProcessAsTv();
+    // Bring the cloud sync engine online whenever this widget is mounted.
+    // The pulse provider auto-activates / -deactivates based on the
+    // canUseCloudSync gate; just watching it is enough to attach the
+    // lifecycle to the running app.
+    ref.watch(cloudSyncEnginePulseProvider);
     final router = isTv
         ? ref.watch(appTvRouterProvider)
         : ref.watch(appRouterProvider);

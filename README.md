@@ -6,6 +6,18 @@ Cross-platform freemium IPTV / streaming application.
 
 **Status:** Phase 0 + Phase 1 in progress (mobile MVP).
 
+## Screenshots
+
+Captured against the live deployment at <https://awatv.pages.dev>.
+
+| Onboarding | Add Playlist (Xtream) | Sign-in |
+|---|---|---|
+| ![Onboarding](store/screenshots/01-onboarding-mobile.png) | ![Add Playlist](store/screenshots/03-add-playlist-xtream-mobile.png) | ![Sign-in](store/screenshots/04-login-mobile.png) |
+
+See [`store/screenshots/INDEX.md`](store/screenshots/INDEX.md) for the
+full set (16 PNGs across 8 screens × mobile + desktop) and the
+regeneration script at [`scripts/capture-screenshots.sh`](scripts/capture-screenshots.sh).
+
 ## Quick start
 
 ```bash

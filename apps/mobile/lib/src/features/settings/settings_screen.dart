@@ -6,6 +6,8 @@ import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/auth/cloud_sync_gate.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
+import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
+import 'package:awatv_mobile/src/shared/sync/sync_status.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,6 +92,16 @@ class SettingsScreen extends ConsumerWidget {
             unlocked: canCloud,
             isSignedIn: auth is AuthSignedIn,
           ),
+          if (canCloud)
+            ListTile(
+              leading: const Icon(Icons.devices_outlined),
+              title: const Text('Cihazlarım'),
+              subtitle: const Text(
+                'Hesabınla oturum açan diğer cihazları yönet',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/devices'),
+            ),
           // Remote control — pairs the device with another running
           // AWAtv install (TV, desktop). Visible to everyone; the hub
           // screen surfaces its own "needs cloud" empty state when the
@@ -274,7 +286,12 @@ class _AccountRow extends StatelessWidget {
 /// Cloud sync row — distinct from `_GatedTile` because the locked
 /// state has two distinct fixes (sign in vs upgrade) and we want to
 /// route the user to the closer one first.
-class _CloudSyncRow extends StatelessWidget {
+///
+/// When unlocked, the subtitle reflects the live engine status — pulled,
+/// pushing, idle (with a relative timestamp), offline, or failing — so
+/// the user can tell at a glance whether their last favourite tap made
+/// it to the cloud.
+class _CloudSyncRow extends ConsumerWidget {
   const _CloudSyncRow({
     required this.unlocked,
     required this.isSignedIn,
@@ -284,32 +301,38 @@ class _CloudSyncRow extends StatelessWidget {
   final bool isSignedIn;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     String subtitle;
     Widget trailing;
     VoidCallback onTap;
 
     if (unlocked) {
-      subtitle = 'Favori, gecmis ve ayarlari cihazlar arasinda esitle';
-      trailing = const Icon(Icons.chevron_right);
-      onTap = () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Bulut senkronizasyonu Phase 3 te aktiflesir.',
-            ),
-          ),
-        );
-      };
+      // Live engine status: "Senkron — son güncelleme: 2 dakika önce",
+      // "Senkron — yükleniyor…", "Bağlanılamıyor", etc.
+      final statusAsync = ref.watch(cloudSyncStatusProvider);
+      subtitle = statusAsync.when(
+        data: (SyncStatus s) => s.localized(),
+        loading: () => 'Senkron başlatılıyor…',
+        error: (Object err, StackTrace _) =>
+            'Senkron hatası: $err',
+      );
+      final isOk = statusAsync.value?.isActive ?? false;
+      trailing = Icon(
+        isOk ? Icons.cloud_done_rounded : Icons.cloud_outlined,
+        color: isOk ? Theme.of(context).colorScheme.primary : null,
+      );
+      // Tap routes to the manage-devices screen so the user has somewhere
+      // useful to land instead of a snackbar.
+      onTap = () => context.push('/settings/devices');
     } else if (!isSignedIn) {
-      subtitle = 'Hesap aciniz, sonra premium ile aktiflesir';
+      subtitle = 'Senkron askıda — premium ve oturum açık olmalı';
       trailing = const Padding(
         padding: EdgeInsets.only(right: 4),
         child: PremiumBadge(),
       );
       onTap = () => context.push('/login');
     } else {
-      subtitle = 'Premium ile cihazlar arasi esitleme';
+      subtitle = 'Premium ile cihazlar arası eşitleme';
       trailing = const Padding(
         padding: EdgeInsets.only(right: 4),
         child: PremiumBadge(),

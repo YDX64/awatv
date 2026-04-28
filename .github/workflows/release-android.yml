@@ -1,0 +1,152 @@
+name: release-android
+
+# Builds and packages distributable Android APKs for AWAtv.
+#
+# Outputs (uploaded as CI artifacts and, on release.published, attached to
+# the GitHub Release for sideload distribution):
+#   - awatv-android-universal.apk      multi-arch fat APK (mobile + Android TV)
+#   - awatv-android-arm64.apk          arm64-v8a slim APK (recommended)
+#   - awatv-android-armeabi-v7a.apk    32-bit arm slim APK (older devices)
+#
+# Triggers
+# --------
+#   * push to main when Android-impacting paths change
+#   * workflow_dispatch — manual "build me a release" button
+#   * release published — attach artifacts to the GitHub Release
+#
+# Android TV note
+# ---------------
+# The same APK installs on phones, tablets, Android TV and Google TV thanks
+# to the leanback uses-feature flag (required="false") and the
+# LEANBACK_LAUNCHER intent filter in AndroidManifest.xml. The 320x180
+# tv_banner.png declared via android:banner is what the TV launcher row
+# renders as the app tile.
+#
+# Code-signing
+# ------------
+# These APKs are signed with the *debug* key baked into the Flutter Android
+# tooling (so `flutter run --release` works locally and Android can install
+# them). They are NOT release-signed for the Play Store. Side-loaders will
+# need to enable "Install unknown apps" once. To produce a Play-Store-ready
+# AAB, switch to `flutter build appbundle` and wire a real keystore.
+#
+# Security note for workflow inputs
+# ---------------------------------
+# The only github.event.* value consumed below is `release.tag_name`, and
+# it is routed through the RELEASE_TAG env var rather than templated into a
+# `run:` line. No untrusted user-controlled strings (issue titles, commit
+# messages, PR descriptions) reach the shell.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/lib/**'
+      - 'apps/mobile/android/**'
+      - 'apps/mobile/pubspec.yaml'
+      - 'packages/**'
+      - 'scripts/package-android.sh'
+      - '.github/workflows/release-android.yml'
+  workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  FLUTTER_VERSION: 3.41.7
+
+jobs:
+  build-android:
+    name: Android (universal + per-ABI APKs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java (Temurin 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+
+      - name: Bake .env from secrets
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          WEB_PROXY_URL: ${{ secrets.WEB_PROXY_URL }}
+        run: |
+          {
+            printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
+            printf 'SUPABASE_URL=%s\n' "$SUPABASE_URL"
+            printf 'SUPABASE_ANON_KEY=%s\n' "$SUPABASE_ANON_KEY"
+            printf 'WEB_PROXY_URL=%s\n' "$WEB_PROXY_URL"
+          } > apps/mobile/.env
+
+      - name: Build universal APK (release)
+        # Multi-arch fat APK so users without per-ABI knowledge can grab one
+        # file that runs on phone (arm64), older phone (armv7), x86 emulator
+        # and Android TV boxes (mostly arm64).
+        run: |
+          cd apps/mobile
+          flutter build apk --release \
+            --target-platform=android-arm,android-arm64,android-x64
+
+      - name: Build per-ABI APKs (release)
+        run: |
+          cd apps/mobile
+          flutter build apk --release --split-per-abi
+
+      - name: Package APKs into dist/
+        run: |
+          chmod +x scripts/package-android.sh
+          ./scripts/package-android.sh
+
+      - name: Upload universal APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: awatv-android-universal
+          path: dist/awatv-android-universal.apk
+          if-no-files-found: error
+
+      - name: Upload arm64 APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: awatv-android-arm64
+          path: dist/awatv-android-arm64.apk
+          if-no-files-found: error
+
+      - name: Upload armeabi-v7a APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: awatv-android-armeabi-v7a
+          path: dist/awatv-android-armeabi-v7a.apk
+          if-no-files-found: warn
+
+      - name: Attach to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          files=()
+          for f in \
+            dist/awatv-android-universal.apk \
+            dist/awatv-android-arm64.apk \
+            dist/awatv-android-armeabi-v7a.apk; do
+            if [ -f "$f" ]; then files+=("$f"); fi
+          done
+          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber

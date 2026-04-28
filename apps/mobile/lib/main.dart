@@ -3,6 +3,7 @@ import 'package:awatv_mobile/src/app/awa_tv_app.dart';
 import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/desktop_window.dart';
+import 'package:awatv_mobile/src/desktop/system_tray.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
@@ -97,11 +98,29 @@ Future<void> main() async {
   // which shell renders. See `TvRuntime.detectFromPlatform`.
   final isTv = TvRuntime.detectFromPlatform();
 
+  // Build the ProviderContainer up-front so we can wire the tray
+  // *before* runApp — this guarantees the tray's listener on
+  // `activePlaybackProvider` is in place before any player route can
+  // emit a now-playing event.
+  final container = ProviderContainer(
+    overrides: <Override>[
+      isTvFormProvider.overrideWithValue(isTv),
+    ],
+  );
+
+  // Tray initialisation. Wrapped because tray_manager has spotty Linux
+  // support and any platform glitch must not block the boot.
+  if (!kIsWeb && isDesktopRuntime()) {
+    try {
+      await container.read(systemTrayProvider);
+    } on Object {
+      // Tray init failure is non-fatal — the app still works without it.
+    }
+  }
+
   runApp(
-    ProviderScope(
-      overrides: <Override>[
-        isTvFormProvider.overrideWithValue(isTv),
-      ],
+    UncontrolledProviderScope(
+      container: container,
       child: const AwaTvApp(),
     ),
   );

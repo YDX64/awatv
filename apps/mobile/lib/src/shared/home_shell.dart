@@ -13,6 +13,11 @@ class HomeShell extends StatelessWidget {
 
   static const List<_NavDestination> _destinations = <_NavDestination>[
     _NavDestination(
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home,
+      label: 'Anasayfa',
+    ),
+    _NavDestination(
       icon: Icons.live_tv_outlined,
       selectedIcon: Icons.live_tv,
       label: 'Canli',

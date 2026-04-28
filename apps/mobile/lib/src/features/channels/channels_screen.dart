@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
+import 'package:awatv_mobile/src/features/channels/epg_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
-import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
+import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,10 +27,37 @@ class ChannelsScreen extends ConsumerWidget {
     final groups = ref.watch(liveChannelGroupsProvider);
     final activeGroup = ref.watch(channelGroupFilterProvider);
 
+    // First-render: pick a sensible default view mode based on form factor
+    // (grid on tablets/desktop, list on phones), but only if the user has
+    // never chosen one explicitly. Auto-route into the grid the first time
+    // a tablet user hits the screen.
+    final width = MediaQuery.sizeOf(context).width;
+    final isWide = width >= 720;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Fire-and-forget: persisting the default is best-effort and only
+      // happens once per install.
+      unawaited(
+        ref.read(liveViewModePrefProvider.notifier).setIfUnset(
+              isWide ? LiveViewMode.grid : LiveViewMode.list,
+            ),
+      );
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Canli Kanallar'),
         actions: [
+          IconButton(
+            tooltip: 'TV Rehberi',
+            icon: const Icon(Icons.grid_view_outlined),
+            onPressed: () async {
+              await ref
+                  .read(liveViewModePrefProvider.notifier)
+                  .set(LiveViewMode.grid);
+              if (!context.mounted) return;
+              unawaited(context.push<void>('/live/epg'));
+            },
+          ),
           IconButton(
             tooltip: 'Listeleri yonet',
             icon: const Icon(Icons.queue_music_outlined),

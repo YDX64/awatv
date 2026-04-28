@@ -44,6 +44,15 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           const _SectionHeader('Hesap'),
           _AccountRow(auth: auth),
+          ListTile(
+            leading: const Icon(Icons.people_alt_outlined),
+            title: const Text('Profiller'),
+            subtitle: const Text(
+              'Aileniz için ayrı kullanıcı profilleri oluşturun',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/profiles'),
+          ),
           const Divider(),
           const _SectionHeader('Gorunum'),
           ListTile(
@@ -125,15 +134,7 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'PIN ile yetiskin icerigi gizle',
             unlocked: canParental,
             feature: PremiumFeature.parentalControls,
-            onUnlockedTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Aile koruma kurulumu yakinda eklenecek.',
-                  ),
-                ),
-              );
-            },
+            onUnlockedTap: () => context.push('/settings/parental'),
           ),
           const Divider(),
           const _SectionHeader('Abonelik'),

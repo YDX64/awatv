@@ -5,8 +5,13 @@ import 'package:awatv_mobile/src/features/auth/account_screen.dart';
 import 'package:awatv_mobile/src/features/auth/login_screen.dart';
 import 'package:awatv_mobile/src/features/auth/magic_link_callback_screen.dart';
 import 'package:awatv_mobile/src/features/channels/channels_screen.dart';
+import 'package:awatv_mobile/src/features/channels/epg_grid_screen.dart';
+import 'package:awatv_mobile/src/features/home/home_screen.dart';
 import 'package:awatv_mobile/src/features/onboarding/welcome_screen.dart';
+import 'package:awatv_mobile/src/features/parental/parental_screen.dart';
 import 'package:awatv_mobile/src/features/player/player_screen.dart';
+import 'package:awatv_mobile/src/features/profiles/profile_edit_screen.dart';
+import 'package:awatv_mobile/src/features/profiles/profile_picker_screen.dart';
 import 'package:awatv_mobile/src/features/playlists/add_playlist_screen.dart';
 import 'package:awatv_mobile/src/features/playlists/playlists_screen.dart';
 import 'package:awatv_mobile/src/features/premium/premium_screen.dart';
@@ -45,7 +50,7 @@ GoRouter appRouter(Ref ref) {
   final playlistService = ref.watch(playlistServiceProvider);
 
   return GoRouter(
-    initialLocation: '/live',
+    initialLocation: '/home',
     redirect: (BuildContext context, GoRouterState state) async {
       final loc = state.uri.path;
 
@@ -64,6 +69,8 @@ GoRouter appRouter(Ref ref) {
           loc.startsWith('/login') ||
           loc.startsWith('/auth') ||
           loc.startsWith('/account') ||
+          loc.startsWith('/profiles') ||
+          loc.startsWith('/settings/parental') ||
           loc.startsWith('/settings/devices')) {
         return null;
       }
@@ -205,6 +212,43 @@ GoRouter appRouter(Ref ref) {
         builder: (BuildContext context, GoRouterState state) =>
             const ManageDevicesScreen(),
       ),
+      // Parental controls — premium-gated central hub for the device
+      // PIN, max age rating, blocked categories, daily watch limit
+      // and bedtime hour. Read-only when the active tier doesn't cover
+      // [PremiumFeature.parentalControls] but always reachable so the
+      // settings entry point keeps a stable destination.
+      GoRoute(
+        path: '/settings/parental',
+        name: 'settingsParental',
+        builder: (BuildContext context, GoRouterState state) =>
+            const ParentalScreen(),
+      ),
+      // Profile picker — Netflix-style "who's watching" tile grid.
+      // Bouncing through this route after login is handled by the
+      // post-login gate in `awa_tv_app.dart` so the picker only takes
+      // over when there are 2+ profiles.
+      GoRoute(
+        path: '/profiles',
+        name: 'profiles',
+        builder: (BuildContext context, GoRouterState state) =>
+            const ProfilePickerScreen(),
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'edit',
+            name: 'profileCreate',
+            builder: (BuildContext context, GoRouterState state) =>
+                const ProfileEditScreen(),
+          ),
+          GoRoute(
+            path: 'edit/:id',
+            name: 'profileEdit',
+            builder: (BuildContext context, GoRouterState state) {
+              final id = state.pathParameters['id'];
+              return ProfileEditScreen(profileId: id);
+            },
+          ),
+        ],
+      ),
       // Bottom-nav shell. On desktop the same `StatefulNavigationShell`
       // is reused but rendered through `DesktopHomeShell` which adapts to
       // a left-rail layout above 1100dp.
@@ -223,10 +267,31 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
+                path: '/home',
+                name: 'home',
+                builder: (BuildContext context, GoRouterState state) =>
+                    const HomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
                 path: '/live',
                 name: 'live',
                 builder: (BuildContext context, GoRouterState state) =>
                     const ChannelsScreen(),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'epg',
+                    name: 'liveEpg',
+                    builder: (
+                      BuildContext context,
+                      GoRouterState state,
+                    ) =>
+                        const EpgGridScreen(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -293,7 +358,7 @@ GoRouter appRouter(Ref ref) {
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: () => context.go('/live'),
+                  onPressed: () => context.go('/home'),
                   child: const Text('Ana ekrana don'),
                 ),
               ],

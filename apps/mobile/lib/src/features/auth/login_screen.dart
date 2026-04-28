@@ -1,6 +1,7 @@
 import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
+import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -103,11 +104,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Auth state listener will route us; reset form just in case.
       setState(() => _phase = _LoginPhase.entering);
       final next = widget.next ?? '/';
-      if (!next.startsWith('/login') && !next.startsWith('/auth')) {
-        context.go(next);
-      } else {
-        context.go('/');
-      }
+      final destination = _resolvePostLoginDestination(next);
+      context.go(destination);
     } on AuthBackendNotConfiguredException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -131,11 +129,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _continueAsGuest() {
     final next = widget.next ?? '/';
-    if (next.startsWith('/login') || next.startsWith('/auth')) {
-      context.go('/');
+    context.go(_resolvePostLoginDestination(next));
+  }
+
+  /// If the user has 2+ profiles, send them through the picker so they
+  /// can choose who's watching before any per-profile state (favourites,
+  /// history) is read. Otherwise fall through to the [next] hint or the
+  /// home route — single-profile users never see a picker.
+  String _resolvePostLoginDestination(String next) {
+    String fallback;
+    if (next.startsWith('/login') || next.startsWith('/auth') || next == '/') {
+      fallback = '/home';
     } else {
-      context.go(next);
+      fallback = next;
     }
+    try {
+      final list = ref.read(profileControllerProvider).currentList();
+      if (list.length >= 2) return '/profiles';
+    } on Object {
+      // Storage hiccup — keep the user on the fallback rather than
+      // bouncing them through a possibly-empty picker.
+    }
+    return fallback;
   }
 
   void _resetForm() {

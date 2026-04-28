@@ -107,6 +107,14 @@ GoRouter appTvRouter(Ref ref) {
         name: 'tvHome',
         builder: (BuildContext _, GoRouterState __) => const TvHomeShell(),
       ),
+      // Alias matching the mobile router so deep links to `/home` land on
+      // the right shell on TV form factors. The shell internally selects
+      // the Anasayfa tab by default.
+      GoRoute(
+        path: '/home',
+        name: 'home',
+        builder: (BuildContext _, GoRouterState __) => const TvHomeShell(),
+      ),
     ],
     errorBuilder: (BuildContext context, GoRouterState state) {
       return Scaffold(

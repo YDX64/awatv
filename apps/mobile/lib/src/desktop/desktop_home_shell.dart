@@ -30,6 +30,11 @@ class DesktopHomeShell extends StatelessWidget {
   static const List<_DesktopDestination> _destinations =
       <_DesktopDestination>[
     _DesktopDestination(
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home,
+      label: 'Anasayfa',
+    ),
+    _DesktopDestination(
       icon: Icons.live_tv_outlined,
       selectedIcon: Icons.live_tv,
       label: 'Canli',

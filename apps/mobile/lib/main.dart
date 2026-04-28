@@ -4,6 +4,7 @@ import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/desktop_window.dart';
 import 'package:awatv_mobile/src/desktop/system_tray.dart';
+import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
@@ -116,6 +117,18 @@ Future<void> main() async {
     } on Object {
       // Tray init failure is non-fatal — the app still works without it.
     }
+  }
+
+  // Profile bootstrap — guarantees at least one profile exists before
+  // any screen reads `activeProfileProvider`. The default profile keeps
+  // the legacy un-scoped favourites + history boxes, so users upgrading
+  // from a pre-profiles build see their data on the right tile.
+  try {
+    await container.read(profileControllerProvider).bootstrapDefaultProfile();
+  } on Object {
+    // Worst case: profile-scoped boxes don't open. Fav/history fall
+    // back to the legacy global boxes; the picker just renders empty
+    // until the user creates a profile manually.
   }
 
   runApp(

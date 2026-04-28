@@ -15,6 +15,7 @@ export 'src/widgets/backdrop_header.dart';
 export 'src/widgets/blur_app_bar.dart';
 export 'src/widgets/channel_tile.dart';
 export 'src/widgets/empty_state.dart';
+export 'src/widgets/epg_grid.dart';
 export 'src/widgets/epg_timeline_row.dart';
 export 'src/widgets/error_view.dart';
 export 'src/widgets/genre_chip_row.dart';

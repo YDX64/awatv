@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
+import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -80,9 +81,18 @@ class _MagicLinkCallbackScreenState
     if (_resolved) return;
     _resolved = true;
     final next = widget.next;
-    final dest = (next == null || next.isEmpty || next.startsWith('/login'))
-        ? '/'
+    final fallback = (next == null || next.isEmpty || next.startsWith('/login'))
+        ? '/home'
         : next;
+    // If the user juggles 2+ profiles on this device, route them
+    // through the picker before any per-profile screen renders.
+    String dest = fallback;
+    try {
+      final list = ref.read(profileControllerProvider).currentList();
+      if (list.length >= 2) dest = '/profiles';
+    } on Object {
+      // Storage hiccup — fall back to whatever we computed above.
+    }
     // Tiny delay so the "Welcome back" text gets to render briefly.
     Future<void>.delayed(const Duration(milliseconds: 700), () {
       if (!mounted) return;

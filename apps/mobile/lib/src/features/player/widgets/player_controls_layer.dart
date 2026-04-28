@@ -32,6 +32,9 @@ class PlayerControlsLayer extends StatelessWidget {
     this.epgNow,
     this.epgNext,
     this.statusBadge,
+    this.castVisible = false,
+    this.castActive = false,
+    this.castDeviceName,
     super.key,
   });
 
@@ -58,6 +61,18 @@ class PlayerControlsLayer extends StatelessWidget {
   final String? epgNow;
   final String? epgNext;
   final Widget? statusBadge;
+
+  /// Whether the cast button should be rendered at all. False on web /
+  /// desktop where casting is unsupported.
+  final bool castVisible;
+
+  /// Whether a cast session is currently active — flips the icon to
+  /// brand-tinted and shows a "Casting" badge underneath the title.
+  final bool castActive;
+
+  /// Optional name of the receiver (e.g. "Living Room TV") used by the
+  /// "Casting to ..." sub-label when [castActive] is true.
+  final String? castDeviceName;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +109,9 @@ class PlayerControlsLayer extends StatelessWidget {
                 onCast: onCastRequested,
                 onSettings: onSettingsRequested,
                 statusBadge: statusBadge,
+                castVisible: castVisible,
+                castActive: castActive,
+                castDeviceName: castDeviceName,
               ),
               Expanded(
                 child: Center(
@@ -134,6 +152,9 @@ class _TopBar extends StatelessWidget {
     required this.onCast,
     required this.onSettings,
     required this.statusBadge,
+    required this.castVisible,
+    required this.castActive,
+    required this.castDeviceName,
   });
 
   final String title;
@@ -142,9 +163,13 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onCast;
   final VoidCallback onSettings;
   final Widget? statusBadge;
+  final bool castVisible;
+  final bool castActive;
+  final String? castDeviceName;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: DesignTokens.spaceS,
@@ -175,7 +200,12 @@ class _TopBar extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                 ),
-                if (subtitle != null && subtitle!.isNotEmpty)
+                if (castActive)
+                  _CastingBadge(
+                    deviceName: castDeviceName,
+                    tint: scheme.primary,
+                  )
+                else if (subtitle != null && subtitle!.isNotEmpty)
                   Text(
                     subtitle!,
                     maxLines: 1,
@@ -191,15 +221,69 @@ class _TopBar extends StatelessWidget {
             statusBadge!,
             const SizedBox(width: DesignTokens.spaceXs),
           ],
-          IconButton(
-            tooltip: 'Yayın gönder',
-            onPressed: onCast,
-            icon: const Icon(Icons.cast_rounded, color: Colors.white),
-          ),
+          if (castVisible)
+            IconButton(
+              tooltip:
+                  castActive ? 'Yayın aktif — kontroller' : 'Yayın gönder',
+              onPressed: onCast,
+              icon: Icon(
+                castActive
+                    ? Icons.cast_connected_rounded
+                    : Icons.cast_rounded,
+                color: castActive ? scheme.primary : Colors.white,
+              ),
+            ),
           IconButton(
             tooltip: 'Ayarlar',
             onPressed: onSettings,
             icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CastingBadge extends StatelessWidget {
+  const _CastingBadge({required this.deviceName, required this.tint});
+  final String? deviceName;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = deviceName == null
+        ? "TV'ye yayınlanıyor"
+        : '$deviceName cihazına yayınlanıyor';
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: tint,
+              shape: BoxShape.circle,
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: tint.withValues(alpha: 0.7),
+                  blurRadius: 6,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: tint,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
           ),
         ],
       ),

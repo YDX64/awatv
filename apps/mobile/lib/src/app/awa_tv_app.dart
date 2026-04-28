@@ -2,6 +2,7 @@ import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
 import 'package:awatv_mobile/src/desktop/desktop_chrome.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/profiles/profile_scoped_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/device_fingerprint.dart';
 import 'package:awatv_mobile/src/shared/updater/update_boot_check.dart';
@@ -38,6 +39,10 @@ class AwaTvApp extends ConsumerWidget {
     // canUseCloudSync gate; just watching it is enough to attach the
     // lifecycle to the running app.
     ref.watch(cloudSyncEnginePulseProvider);
+    // Mount the profile-change listener so an active profile switch
+    // invalidates the legacy un-scoped favourites/history providers
+    // and any UI watching them re-subscribes against fresh data.
+    ref.watch(profileSyncListenerProvider);
     final router = isTv
         ? ref.watch(appTvRouterProvider)
         : ref.watch(appRouterProvider);

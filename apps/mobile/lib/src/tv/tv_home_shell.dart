@@ -1,4 +1,5 @@
 import 'package:awatv_mobile/src/tv/d_pad.dart';
+import 'package:awatv_mobile/src/tv/screens/tv_home_screen.dart';
 import 'package:awatv_mobile/src/tv/screens/tv_live_screen.dart';
 import 'package:awatv_mobile/src/tv/screens/tv_search_screen.dart';
 import 'package:awatv_mobile/src/tv/screens/tv_series_screen.dart';
@@ -32,6 +33,11 @@ class _TvHomeShellState extends State<TvHomeShell> {
   int _index = 0;
 
   static const List<_TvDestination> _destinations = <_TvDestination>[
+    _TvDestination(
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home,
+      label: 'Anasayfa',
+    ),
     _TvDestination(
       icon: Icons.live_tv_outlined,
       activeIcon: Icons.live_tv,
@@ -100,6 +106,7 @@ class _TvHomeShellState extends State<TvHomeShell> {
                     child: IndexedStack(
                       index: _index,
                       children: const <Widget>[
+                        TvHomeScreen(),
                         TvLiveScreen(),
                         TvVodScreen(),
                         TvSeriesScreen(),

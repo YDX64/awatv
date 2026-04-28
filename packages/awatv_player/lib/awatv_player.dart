@@ -9,5 +9,8 @@ export 'package:media_kit/media_kit.dart'
 
 export 'src/awa_player_controller.dart';
 export 'src/awa_player_view.dart';
+export 'src/cast/cast_engine.dart';
+export 'src/cast/cast_media.dart';
+export 'src/cast/cast_session.dart';
 export 'src/media_source.dart';
 export 'src/player_state.dart';

@@ -4,14 +4,23 @@ import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/keyboard_shortcuts.dart';
 import 'package:awatv_mobile/src/desktop/pip_window.dart';
 import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
+import 'package:awatv_mobile/src/features/player/widgets/cast_device_picker.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_controls_layer.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_gestures.dart';
+import 'package:awatv_mobile/src/features/parental/widgets/parental_lock_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.dart';
+import 'package:awatv_mobile/src/features/player/widgets/sleep_timer_sheet.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/cast/cast_provider.dart';
+import 'package:awatv_mobile/src/shared/parental/parental_controller.dart';
+import 'package:awatv_mobile/src/shared/parental/parental_gate.dart';
+import 'package:awatv_mobile/src/shared/parental/parental_settings.dart';
+import 'package:awatv_mobile/src/shared/player/sleep_timer.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
+import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_mobile/src/shared/remote/player_bridge.dart';
 import 'package:awatv_mobile/src/shared/remote/receiver_provider.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
@@ -86,6 +95,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     kind: PlayerGestureKind.none,
     value: 0,
   );
+
+  /// Parental-gate decision for the current launch. Set to a non-`allowed`
+  /// value when the active profile is forbidden from watching this
+  /// content; the lock overlay reads this to render the correct title /
+  /// subtitle. Reset to `allowed` after a successful PIN unlock.
+  ParentalGateOutcome _parentalOutcome = ParentalGateOutcome.allowed;
 
   @override
   void initState() {
@@ -191,10 +206,62 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // route into this player and so its now-playing state echoes
       // back to the connected sender. No-op when no session is active.
       _publishToBridgeIfReceiving();
+
+      // Wire the player into the sleep timer so a fade/pause from the
+      // notifier acts on the live engine. Reattaches automatically when
+      // the user switches backend (the controller instance changes).
+      ref.read(sleepTimerProvider.notifier).attachController(c);
+
+      // Evaluate parental gate against the active profile. Does nothing
+      // when parental controls are disabled or the active profile is a
+      // grown-up — see [ParentalGate.evaluate].
+      _evaluateParentalGate();
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _errorMessage = e.toString());
     }
+  }
+
+  void _evaluateParentalGate() {
+    final settings = ref.read(parentalSettingsProvider).valueOrNull ??
+        const ParentalSettings();
+    final profile = ref.read(activeProfileProvider);
+    final controller = ref.read(parentalControllerProvider);
+    final gate = ParentalGate(
+      settings: settings,
+      profile: profile,
+      controller: controller,
+    );
+    // Heuristic: pass through whatever signal we have. Live channels
+    // surface a category from `subtitle`/`title`; VOD payloads aren't
+    // available here, so we lean on the rating-by-category check via
+    // the bracketed subtitle (e.g. "Action / 18+").
+    final outcome = gate.evaluate(
+      category: widget.args.subtitle,
+    );
+    if (outcome != ParentalGateOutcome.allowed) {
+      // Pause immediately so the kids profile doesn't catch a frame
+      // before the overlay shows.
+      _controller?.pause();
+    }
+    if (mounted) {
+      setState(() => _parentalOutcome = outcome);
+    } else {
+      _parentalOutcome = outcome;
+    }
+  }
+
+  void _onParentalUnlocked() {
+    setState(() => _parentalOutcome = ParentalGateOutcome.allowed);
+    // Resume playback if the controller was paused by the gate.
+    _controller?.play();
+  }
+
+  void _onParentalCancel() {
+    // The user backed out instead of entering a PIN — pop the player
+    // route. Honour the same back behaviour the close button uses so
+    // immersive UI restores cleanly via `_exitImmersive` in dispose.
+    if (context.canPop()) context.pop();
   }
 
   /// Wires this player into the remote-control bridge and publishes the
@@ -377,13 +444,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  void _onCastRequested() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Yayın gönderme yakında geliyor.'),
-        duration: Duration(seconds: 2),
-      ),
+  Future<void> _onCastRequested() async {
+    final c = _controller;
+    if (c == null) return;
+    _hideTimer?.cancel();
+    final cast = ref.read(castControllerProvider);
+    await CastDevicePicker.show(
+      context,
+      onConnectAndMirror: (CastDevice device) async {
+        // 1) connect to the device,
+        // 2) hand the active media source over to the engine,
+        // 3) the engine emits a CastConnected state — the picker dismisses.
+        await cast.connect(device);
+        try {
+          await cast.mirror(
+            widget.args.source,
+            localController: c,
+            title: widget.args.title,
+            subtitle: widget.args.subtitle,
+            isLive: widget.args.isLive,
+          );
+        } on CastNotConnectedException {
+          // Connect probably emitted CastError — the picker shows it.
+        } on Object catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Yayın başlatılamadı: $e')),
+          );
+        }
+      },
+      onDisconnect: () async {
+        await cast.unmirror(
+          localController: c,
+          // Live streams don't have a meaningful resume point — still
+          // re-`play()` the local engine so the user sees the current
+          // live frame instead of a paused one.
+          resumeLocal: true,
+        );
+      },
     );
+    if (!mounted) return;
+    _scheduleHide();
   }
 
   Future<void> _onSettingsRequested() async {
@@ -505,6 +606,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } on PlayerException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     }
+    // Re-bind the sleep timer to the new engine so an active fade
+    // continues to act on the new audio path.
+    ref.read(sleepTimerProvider.notifier).attachController(fresh);
   }
 
   /// Used by desktop keyboard shortcuts (arrow keys, J/L) to nudge the
@@ -539,6 +643,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref.read(activePlaybackProvider.notifier).clear();
     } on Object {
       // ignore: best-effort cleanup
+    }
+    // Detach the sleep-timer controller pointer (the timer itself is
+    // app-scoped — cancelling it here would surprise users who set a
+    // 30-min timer and then closed the player).
+    try {
+      ref.read(sleepTimerProvider.notifier).attachController(null);
+    } on Object {
+      // best-effort
     }
     _controller?.dispose();
     _exitImmersive();
@@ -594,6 +706,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final inPip = isDesktop ? ref.watch(pipModeProvider) : false;
     final statusKind = _statusKindForOverlay();
     final showBuffering = _buffering && !_isPaused && _firstFrameSeen;
+    // Cast affordances are mobile-only — Chromecast on Android, AirPlay on
+    // iOS. On web / desktop / TV the engine is a NoOp and the icon is
+    // hidden. We don't gate this on the premium feature flag — single-
+    // device casting is free; only multi-device casting is premium.
+    final castVisible = !kIsWeb &&
+        !isDesktop &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    final castActive = ref.watch(castIsActiveProvider);
+    final castDeviceName = ref.watch(castConnectedDeviceNameProvider);
 
     if (inPip) {
       // Compact PiP layout: video frame fills the small always-on-top
@@ -677,7 +799,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   onSkipForward: () =>
                       _skipBy(const Duration(seconds: 10)),
                   onClose: _onClose,
-                  onCastRequested: _onCastRequested,
+                  // unawaited(): VoidCallback wants `void Function()`,
+                  // but `_onCastRequested` is async. Fire-and-forget — the
+                  // sheet itself manages the async UX.
+                  onCastRequested: () {
+                    unawaited(_onCastRequested());
+                  },
                   onSettingsRequested: _onSettingsRequested,
                   onScrubStartChanged: (bool active) {
                     setState(() => _scrubbing = active);
@@ -686,6 +813,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   statusBadge: statusKind == null
                       ? null
                       : NetworkStatusBadge(kind: statusKind),
+                  castVisible: castVisible,
+                  castActive: castActive,
+                  castDeviceName: castDeviceName,
                 ),
               ),
             ),
@@ -721,10 +851,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             color: Colors.white,
                           ),
                         ),
+                        const _SleepTimerButton(),
                       ],
                     ),
                   ),
                 ),
+              ),
+            // Parental lock overlay sits above gestures + controls when
+            // the active profile is forbidden from this content. Wins
+            // hit-test against everything underneath via Material's
+            // opaque scrim.
+            if (_parentalOutcome != ParentalGateOutcome.allowed)
+              ParentalLockOverlay(
+                outcome: _parentalOutcome,
+                onUnlocked: _onParentalUnlocked,
+                onCancel: _onParentalCancel,
               ),
           ],
         ),
@@ -998,5 +1139,82 @@ class _PipBtn extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Top-right control that opens the [SleepTimerSheet]. When a timer is
+/// active the button collapses into a chip showing remaining time
+/// ("44:28 kaldı") so the user can confirm at a glance — matching
+/// the Netflix/YouTube TV UX.
+class _SleepTimerButton extends ConsumerWidget {
+  const _SleepTimerButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(sleepTimerProvider);
+    if (!state.isActive) {
+      return IconButton(
+        tooltip: 'Uyku zamanlayıcısı',
+        onPressed: () => SleepTimerSheet.show(context),
+        icon: const Icon(
+          Icons.bedtime_outlined,
+          color: Colors.white,
+        ),
+      );
+    }
+    // Watching the tick stream is what drives the chip's countdown.
+    final now = ref.watch(sleepTimerTickProvider).value ?? DateTime.now();
+    final remaining = state.remaining(now.toUtc()) ?? Duration.zero;
+    final label = state.fading
+        ? 'Sönüyor…'
+        : '${_format(remaining)} kaldı';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Tooltip(
+        message: 'Uyku zamanlayıcısı aktif',
+        child: Material(
+          color: Colors.black.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+            onTap: () => SleepTimerSheet.show(context),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 6,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(
+                    Icons.bedtime_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: <FontFeature>[
+                        FontFeature.tabularFigures(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _format(Duration d) {
+    final s = d.inSeconds;
+    final mm = (s ~/ 60).toString().padLeft(2, '0');
+    final ss = (s % 60).toString().padLeft(2, '0');
+    return '$mm:$ss';
   }
 }

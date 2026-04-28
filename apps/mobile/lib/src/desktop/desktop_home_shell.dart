@@ -1,21 +1,27 @@
+import 'package:awatv_mobile/src/desktop/widgets/persistent_player_bar.dart';
+import 'package:awatv_mobile/src/desktop/widgets/sidebar.dart';
 import 'package:awatv_mobile/src/shared/home_shell.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// Width threshold below which the desktop shell falls back to the mobile
-/// `HomeShell` (bottom NavigationBar). 1100dp is the Material 3 expanded
-/// breakpoint — wide enough that a vertical rail and a content grid both
-/// have comfortable room.
-const double _railBreakpoint = 1100;
-
-/// Adaptive home shell used inside the desktop app.
+/// IPTV-Expert-class desktop home shell.
 ///
-/// At >= 1100dp it draws a left navigation rail with the same five
-/// destinations as `HomeShell`, plus a header strip with the AWAtv brand
-/// mark. Below 1100dp it gracefully falls back to the existing mobile
-/// `HomeShell` so the same widget tree behaves correctly when the user
-/// shrinks the window.
+/// Layout (>= [DesignTokens.desktopShellBreakpoint]):
+/// ┌──────────┬───────────────────────────────────────────────┐
+/// │          │                                                 │
+/// │          │                                                 │
+/// │ Sidebar  │  Branch content (home / live / movies / etc.)   │
+/// │ (72/240) │                                                 │
+/// │          │                                                 │
+/// │          ├───────────────────────────────────────────────┤
+/// │          │  Persistent mini player (when playing, 64dp)   │
+/// └──────────┴───────────────────────────────────────────────┘
+///
+/// Below the breakpoint, the shell falls back to the mobile [HomeShell]
+/// (bottom NavigationBar) so a user shrinking their window keeps a
+/// usable layout. The desktop chrome bar still sits above whatever this
+/// widget paints — same as before.
 ///
 /// We intentionally do **not** create a new go_router shell branch — this
 /// widget is plugged into the *existing* `StatefulShellRoute.indexedStack`
@@ -27,262 +33,172 @@ class DesktopHomeShell extends StatelessWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  static const List<_DesktopDestination> _destinations =
-      <_DesktopDestination>[
-    _DesktopDestination(
-      icon: Icons.home_outlined,
-      selectedIcon: Icons.home,
-      label: 'Anasayfa',
-    ),
-    _DesktopDestination(
-      icon: Icons.live_tv_outlined,
-      selectedIcon: Icons.live_tv,
-      label: 'Canli',
-    ),
-    _DesktopDestination(
-      icon: Icons.movie_outlined,
-      selectedIcon: Icons.movie,
-      label: 'Filmler',
-    ),
-    _DesktopDestination(
-      icon: Icons.video_library_outlined,
-      selectedIcon: Icons.video_library,
-      label: 'Diziler',
-    ),
-    _DesktopDestination(
-      icon: Icons.search_outlined,
-      selectedIcon: Icons.search,
-      label: 'Ara',
-    ),
-    _DesktopDestination(
-      icon: Icons.settings_outlined,
-      selectedIcon: Icons.settings,
-      label: 'Ayarlar',
-    ),
-  ];
-
-  void _onSelected(int index) {
-    navigationShell.goBranch(
-      index,
-      initialLocation: index == navigationShell.currentIndex,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        if (constraints.maxWidth < _railBreakpoint) {
-          // Narrow window — use the existing mobile shell so we don't
-          // duplicate UX. The chrome bar painted by `DesktopChrome` still
-          // sits above this.
-          return HomeShell(navigationShell: navigationShell);
+      builder: (BuildContext _, BoxConstraints constraints) {
+        if (constraints.maxWidth < DesignTokens.desktopShellBreakpoint) {
+          // Narrow window — fall back to the mobile shell so the same
+          // widget tree behaves correctly when the user shrinks the
+          // window. The persistent player bar still pins to the bottom
+          // of the mobile body.
+          return Stack(
+            children: <Widget>[
+              HomeShell(navigationShell: navigationShell),
+              const Align(
+                alignment: Alignment.bottomCenter,
+                child: PersistentPlayerBar(),
+              ),
+            ],
+          );
         }
-        return _WideShell(
-          navigationShell: navigationShell,
-          destinations: _destinations,
-          onSelected: _onSelected,
-        );
+        return _WideShell(navigationShell: navigationShell);
       },
     );
   }
 }
 
 class _WideShell extends StatelessWidget {
-  const _WideShell({
-    required this.navigationShell,
-    required this.destinations,
-    required this.onSelected,
-  });
+  const _WideShell({required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
-  final List<_DesktopDestination> destinations;
-  final ValueChanged<int> onSelected;
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+  static const List<SidebarSection> _sections = <SidebarSection>[
+    SidebarSection(
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home_rounded,
+      label: 'Anasayfa',
+      route: '/home',
+    ),
+    SidebarSection(
+      icon: Icons.live_tv_outlined,
+      activeIcon: Icons.live_tv_rounded,
+      label: 'Canli TV',
+      route: '/live',
+    ),
+    SidebarSection(
+      icon: Icons.movie_outlined,
+      activeIcon: Icons.movie_rounded,
+      label: 'Filmler',
+      route: '/movies',
+    ),
+    SidebarSection(
+      icon: Icons.video_library_outlined,
+      activeIcon: Icons.video_library_rounded,
+      label: 'Diziler',
+      route: '/series',
+    ),
+    SidebarSection(
+      icon: Icons.replay_circle_filled_outlined,
+      activeIcon: Icons.replay_circle_filled_rounded,
+      label: 'Catchup',
+      route: null,
+      comingSoon: true,
+    ),
+    SidebarSection(
+      icon: Icons.fiber_manual_record_outlined,
+      activeIcon: Icons.fiber_manual_record_rounded,
+      label: 'Kayitlar',
+      route: null,
+      comingSoon: true,
+    ),
+    SidebarSection(
+      icon: Icons.download_outlined,
+      activeIcon: Icons.download_rounded,
+      label: 'Indirilenler',
+      route: null,
+      comingSoon: true,
+    ),
+    SidebarSection(
+      icon: Icons.search_outlined,
+      activeIcon: Icons.search_rounded,
+      label: 'Ara',
+      route: '/search',
+      shortcut: 'F',
+    ),
+    SidebarSection(
+      icon: Icons.favorite_outline_rounded,
+      activeIcon: Icons.favorite_rounded,
+      label: 'Favoriler',
+      route: '/favorites',
+      comingSoon: true,
+    ),
+    SidebarSection(
+      icon: Icons.history_rounded,
+      activeIcon: Icons.history_rounded,
+      label: 'Gecmis',
+      route: '/history',
+      comingSoon: true,
+    ),
+    SidebarSection(
+      icon: Icons.settings_outlined,
+      activeIcon: Icons.settings_rounded,
+      label: 'Ayarlar',
+      route: '/settings',
+    ),
+  ];
 
-    return Scaffold(
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          // Custom rail rather than `NavigationRail` — we want the brand
-          // mark, an explicit width, and consistent typography with the
-          // TV shell.
-          Container(
-            width: 240,
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              border: Border(
-                right: BorderSide(
-                  color: scheme.outline.withValues(alpha: 0.18),
-                ),
-              ),
-            ),
-            child: SafeArea(
-              right: false,
-              child: Column(
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      DesignTokens.spaceL,
-                      DesignTokens.spaceL,
-                      DesignTokens.spaceL,
-                      DesignTokens.spaceM,
-                    ),
-                    child: ShaderMask(
-                      shaderCallback: (Rect r) =>
-                          BrandColors.brandGradient.createShader(r),
-                      blendMode: BlendMode.srcIn,
-                      child: const Text(
-                        'AWAtv',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.4,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  for (int i = 0; i < destinations.length; i++)
-                    _RailItem(
-                      destination: destinations[i],
-                      selected: navigationShell.currentIndex == i,
-                      onTap: () => onSelected(i),
-                    ),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      DesignTokens.spaceL,
-                      DesignTokens.spaceM,
-                      DesignTokens.spaceL,
-                      DesignTokens.spaceL,
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Icon(
-                          Icons.bolt,
-                          size: 14,
-                          color: scheme.onSurface.withValues(alpha: 0.45),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Masaustu modu',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color:
-                                scheme.onSurface.withValues(alpha: 0.45),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Expanded(child: navigationShell),
-        ],
-      ),
-    );
-  }
-}
-
-class _RailItem extends StatefulWidget {
-  const _RailItem({
-    required this.destination,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _DesktopDestination destination;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  State<_RailItem> createState() => _RailItemState();
-}
-
-class _RailItemState extends State<_RailItem> {
-  bool _hover = false;
+  // Each shell branch index — must match `routing/app_router.dart`. We
+  // keep the list literal here so the wide shell can swap between
+  // shell-aware sidebar items (which call `goBranch`) and standalone
+  // `context.go` items without losing the back-stack semantics.
+  static const Map<String, int> _branchIndex = <String, int>{
+    '/home': 0,
+    '/live': 1,
+    '/movies': 2,
+    '/series': 3,
+    '/search': 4,
+    '/settings': 5,
+  };
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final selected = widget.selected;
-    final bg = selected
-        ? scheme.primaryContainer.withValues(alpha: 0.6)
-        : (_hover
-            ? scheme.onSurface.withValues(alpha: 0.06)
-            : Colors.transparent);
-    final fg = selected
-        ? scheme.onPrimaryContainer
-        : scheme.onSurface.withValues(alpha: 0.85);
+    final activeBranchIndex = navigationShell.currentIndex;
+    final activeRoute = _branchIndex.entries
+        .firstWhere(
+          (MapEntry<String, int> e) => e.value == activeBranchIndex,
+          orElse: () => const MapEntry<String, int>('/home', 0),
+        )
+        .key;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: DesignTokens.spaceM,
-        vertical: 2,
-      ),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: DesignTokens.motionFast,
-            height: 44,
-            padding: const EdgeInsets.symmetric(
-              horizontal: DesignTokens.spaceM,
-            ),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius:
-                  BorderRadius.circular(DesignTokens.radiusM),
-            ),
-            child: Row(
+    return Scaffold(
+      backgroundColor: scheme.surface,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          IpxSidebar(
+            sections: _sections,
+            activeRoute: activeRoute,
+            onNavigate: (String route) => _navigate(context, route),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Icon(
-                  selected
-                      ? widget.destination.selectedIcon
-                      : widget.destination.icon,
-                  size: 20,
-                  color: fg,
-                ),
-                const SizedBox(width: DesignTokens.spaceM),
-                Expanded(
-                  child: Text(
-                    widget.destination.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.w500,
-                      color: fg,
-                    ),
-                  ),
-                ),
+                Expanded(child: navigationShell),
+                const PersistentPlayerBar(),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
-}
 
-class _DesktopDestination {
-  const _DesktopDestination({
-    required this.icon,
-    required this.selectedIcon,
-    required this.label,
-  });
-
-  final IconData icon;
-  final IconData selectedIcon;
-  final String label;
+  /// Route a sidebar tap. Branch routes use `goBranch` so each tab keeps
+  /// its own back-stack; everything else falls through to a plain
+  /// `context.go` so deep-linkable routes (favorites/history once they
+  /// ship) work without rebuilding the shell.
+  void _navigate(BuildContext context, String route) {
+    final branch = _branchIndex[route];
+    if (branch != null) {
+      navigationShell.goBranch(
+        branch,
+        initialLocation: branch == navigationShell.currentIndex,
+      );
+      return;
+    }
+    context.go(route);
+  }
 }

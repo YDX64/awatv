@@ -1,66 +1,148 @@
+import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// Bottom-tab container for the five primary sections.
+/// Bottom-tab container for the four primary content sections + a More
+/// drawer.
 ///
-/// Wraps a [StatefulNavigationShell] (from go_router) so each tab keeps its
-/// own back-stack. The shell itself is responsible for the tab's content;
-/// this widget only paints the chrome around it.
+/// Wraps a [StatefulNavigationShell] (from go_router) so each tab keeps
+/// its own back-stack. The shell itself is responsible for the tab's
+/// content; this widget only paints the chrome around it.
+///
+/// Tab order matches IPTV-Expert-class apps: Home (category tree),
+/// Live, VOD, Series, More (drawer with Search, Settings, Favorites,
+/// History, Profiles, Premium, Account).
 class HomeShell extends StatelessWidget {
   const HomeShell({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 
+  /// Bottom-nav destinations that map 1:1 to a shell branch index.
   static const List<_NavDestination> _destinations = <_NavDestination>[
     _NavDestination(
       icon: Icons.home_outlined,
-      selectedIcon: Icons.home,
+      selectedIcon: Icons.home_rounded,
       label: 'Anasayfa',
+      branchIndex: 0,
     ),
     _NavDestination(
       icon: Icons.live_tv_outlined,
-      selectedIcon: Icons.live_tv,
+      selectedIcon: Icons.live_tv_rounded,
       label: 'Canli',
+      branchIndex: 1,
     ),
     _NavDestination(
       icon: Icons.movie_outlined,
-      selectedIcon: Icons.movie,
+      selectedIcon: Icons.movie_rounded,
       label: 'Filmler',
+      branchIndex: 2,
     ),
     _NavDestination(
       icon: Icons.video_library_outlined,
-      selectedIcon: Icons.video_library,
+      selectedIcon: Icons.video_library_rounded,
       label: 'Diziler',
-    ),
-    _NavDestination(
-      icon: Icons.search_outlined,
-      selectedIcon: Icons.search,
-      label: 'Ara',
-    ),
-    _NavDestination(
-      icon: Icons.settings_outlined,
-      selectedIcon: Icons.settings,
-      label: 'Ayarlar',
+      branchIndex: 3,
     ),
   ];
 
-  void _onTap(int index) {
-    // `goBranch` keeps the existing branch state if already selected, but
-    // pops to its root when re-tapping the active tab — matches platform
-    // expectations on iOS / Android.
+  /// More-drawer entries — secondary navigation that doesn't deserve a
+  /// permanent slot in a 360-wide bottom bar but is still essential.
+  static const List<_MoreEntry> _moreEntries = <_MoreEntry>[
+    _MoreEntry(
+      icon: Icons.search_rounded,
+      label: 'Ara',
+      route: '/search',
+      branchIndex: 4,
+    ),
+    _MoreEntry(
+      icon: Icons.settings_outlined,
+      label: 'Ayarlar',
+      route: '/settings',
+      branchIndex: 5,
+    ),
+    _MoreEntry(
+      icon: Icons.queue_music_outlined,
+      label: 'Listeler',
+      route: '/playlists',
+    ),
+    _MoreEntry(
+      icon: Icons.workspace_premium_rounded,
+      label: 'Premium',
+      route: '/premium',
+    ),
+    _MoreEntry(
+      icon: Icons.person_outline,
+      label: 'Profiller',
+      route: '/profiles',
+    ),
+    _MoreEntry(
+      icon: Icons.account_circle_outlined,
+      label: 'Hesap',
+      route: '/account',
+    ),
+    _MoreEntry(
+      icon: Icons.devices_other_rounded,
+      label: 'Cihazlar',
+      route: '/settings/devices',
+    ),
+    _MoreEntry(
+      icon: Icons.shield_moon_outlined,
+      label: 'Ebeveyn',
+      route: '/settings/parental',
+    ),
+    _MoreEntry(
+      icon: Icons.cast_connected_rounded,
+      label: 'Uzaktan kumanda',
+      route: '/remote',
+    ),
+  ];
+
+  void _onTap(BuildContext context, int index) {
+    if (index == _destinations.length) {
+      // "More" tab — opens the modal drawer instead of jumping to a
+      // branch. Keeps the bar pattern (4 + 1) close to the IPTV Expert
+      // mobile drawer affordance.
+      _showMoreSheet(context);
+      return;
+    }
+    final branch = _destinations[index].branchIndex;
     navigationShell.goBranch(
-      index,
-      initialLocation: index == navigationShell.currentIndex,
+      branch,
+      initialLocation: branch == navigationShell.currentIndex,
+    );
+  }
+
+  Future<void> _showMoreSheet(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (BuildContext ctx) => _MoreSheet(
+        entries: _moreEntries,
+        onPick: (_MoreEntry e) {
+          Navigator.of(ctx).pop();
+          if (e.branchIndex != null) {
+            navigationShell.goBranch(
+              e.branchIndex!,
+              initialLocation:
+                  e.branchIndex == navigationShell.currentIndex,
+            );
+          } else {
+            context.push(e.route);
+          }
+        },
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeIndex = _activeIndexFor(navigationShell.currentIndex);
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: _onTap,
+        selectedIndex: activeIndex,
+        onDestinationSelected: (int i) => _onTap(context, i),
         destinations: <NavigationDestination>[
           for (final d in _destinations)
             NavigationDestination(
@@ -68,9 +150,24 @@ class HomeShell extends StatelessWidget {
               selectedIcon: Icon(d.selectedIcon),
               label: d.label,
             ),
+          const NavigationDestination(
+            icon: Icon(Icons.more_horiz_rounded),
+            selectedIcon: Icon(Icons.more_horiz_rounded),
+            label: 'Daha fazla',
+          ),
         ],
       ),
     );
+  }
+
+  /// Map the navigation shell branch index to the bottom-nav index. The
+  /// shell has 6 branches (0..5) but the bar only owns 4 + a More slot,
+  /// so anything outside that range gets pinned to "More".
+  int _activeIndexFor(int branch) {
+    for (var i = 0; i < _destinations.length; i++) {
+      if (_destinations[i].branchIndex == branch) return i;
+    }
+    return _destinations.length; // "More" tab
   }
 }
 
@@ -79,9 +176,127 @@ class _NavDestination {
     required this.icon,
     required this.selectedIcon,
     required this.label,
+    required this.branchIndex,
   });
 
   final IconData icon;
   final IconData selectedIcon;
   final String label;
+  final int branchIndex;
+}
+
+class _MoreEntry {
+  const _MoreEntry({
+    required this.icon,
+    required this.label,
+    required this.route,
+    this.branchIndex,
+  });
+
+  final IconData icon;
+  final String label;
+  final String route;
+
+  /// When set, picking this entry calls `goBranch` instead of `context.push`
+  /// so the user lands on the same shell-managed tab they would reach via
+  /// the bottom bar / sidebar elsewhere.
+  final int? branchIndex;
+}
+
+class _MoreSheet extends StatelessWidget {
+  const _MoreSheet({required this.entries, required this.onPick});
+
+  final List<_MoreEntry> entries;
+  final ValueChanged<_MoreEntry> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              DesignTokens.spaceL,
+              DesignTokens.spaceS,
+              DesignTokens.spaceL,
+              DesignTokens.spaceS,
+            ),
+            child: Row(
+              children: <Widget>[
+                Text(
+                  'Daha fazla',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const Spacer(),
+                Text(
+                  '${entries.length} secenek',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: scheme.onSurface.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Flexible(
+            child: GridView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(DesignTokens.spaceM),
+              physics: const ClampingScrollPhysics(),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: DesignTokens.spaceS,
+                crossAxisSpacing: DesignTokens.spaceS,
+              ),
+              itemCount: entries.length,
+              itemBuilder: (BuildContext _, int i) {
+                final e = entries[i];
+                return Material(
+                  color: scheme.surface,
+                  borderRadius:
+                      BorderRadius.circular(DesignTokens.radiusM),
+                  child: InkWell(
+                    borderRadius:
+                        BorderRadius.circular(DesignTokens.radiusM),
+                    onTap: () => onPick(e),
+                    child: Padding(
+                      padding: const EdgeInsets.all(
+                        DesignTokens.spaceS,
+                      ),
+                      child: Column(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(
+                            e.icon,
+                            size: 22,
+                            color: scheme.primary,
+                          ),
+                          const SizedBox(height: DesignTokens.spaceXs),
+                          Text(
+                            e.label,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

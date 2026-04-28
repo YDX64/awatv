@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 
@@ -80,14 +82,68 @@ class GradientScrim extends StatelessWidget {
       ),
     );
 
+    // Premium top-tinted glow: kicks in only when the caller dialled
+    // the intensity past 1.0 (i.e. they explicitly want extra depth).
+    // A soft brand-tinted blur over the top 20% mimics the way light
+    // bleeds across a glass panel above an image, lending the surface
+    // the kind of layered feel premium IPTV apps lean on for hero
+    // panels and player chrome — without breaking the API.
+    final boost = (clamped - 1.0).clamp(0.0, 1.0);
+    final overlay = boost > 0
+        ? Positioned.fill(
+            child: IgnorePointer(
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 0.5, sigmaY: 0.5),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const <double>[0, 0.22, 1],
+                        colors: <Color>[
+                          // Cool brand tint at the very top — blends
+                          // into the hero image rather than masking it.
+                          Color.fromRGBO(
+                            108,
+                            92,
+                            231,
+                            (0.10 * boost).clamp(0.0, 0.18),
+                          ),
+                          Color.fromRGBO(
+                            108,
+                            92,
+                            231,
+                            (0.04 * boost).clamp(0.0, 0.08),
+                          ),
+                          const Color(0x00000000),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : null;
+
     final c = child;
     if (c == null) {
       // No child: render only the gradient — caller stacks us themselves.
-      return gradient;
+      return overlay == null
+          ? gradient
+          : Stack(
+              fit: StackFit.passthrough,
+              children: <Widget>[gradient, overlay],
+            );
     }
     return Stack(
       fit: StackFit.passthrough,
-      children: <Widget>[c, gradient],
+      children: <Widget>[
+        c,
+        gradient,
+        if (overlay != null) overlay,
+      ],
     );
   }
 }

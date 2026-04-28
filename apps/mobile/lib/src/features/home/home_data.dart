@@ -1,3 +1,9 @@
+// Legacy Netflix-style row providers replaced by the category-tree home
+// in v0.4. Kept around so any out-of-tree consumer still resolves; the
+// internal cross-references (e.g. `heroSlotsProvider` -> the row
+// providers) would otherwise trigger their own deprecation warnings.
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
@@ -26,6 +32,7 @@ const Duration _kRecencyWindow = Duration(days: 90);
 
 /// Continue Watching — recent `HistoryEntry`s where `progress < 0.95`,
 /// decorated with the originating VOD / Series / Channel object.
+@Deprecated('Replaced by category-tree home in v0.4')
 final continueWatchingProvider =
     FutureProvider<List<HomeRowItem>>((Ref ref) async {
   final history = ref.watch(historyServiceProvider);
@@ -97,6 +104,7 @@ String _seriesIdFromEpisodeId(String itemId) {
 /// airing whose category/title hints at trending topics. Falls back to
 /// "first 24 live channels" when no EPG is available so the row never
 /// reads as empty for a brand-new install.
+@Deprecated('Replaced by category-tree home in v0.4')
 final trendingNowProvider =
     FutureProvider<List<HomeRowItem>>((Ref ref) async {
   final channels = await ref.watch(liveChannelsProvider.future);
@@ -205,6 +213,7 @@ int _trendingScore(Channel c, EpgProgramme? current) {
 /// New movies — VOD items whose TMDB `releaseDate` is within the last 90
 /// days, sorted by date desc. Falls back to the most recently parsed VOD
 /// (no enrichment) so we still show *something* when no TMDB key is set.
+@Deprecated('Replaced by category-tree home in v0.4')
 final newMoviesProvider = FutureProvider<List<HomeRowItem>>((Ref ref) async {
   final vod = await ref.watch(allVodProvider.future);
   if (vod.isEmpty) return const <HomeRowItem>[];
@@ -280,6 +289,7 @@ Future<DateTime?> _resolveSeriesReleaseDate(Ref ref, SeriesItem s) async {
 }
 
 /// New series — same shape as new movies.
+@Deprecated('Replaced by category-tree home in v0.4')
 final newSeriesProvider = FutureProvider<List<HomeRowItem>>((Ref ref) async {
   final series = await ref.watch(allSeriesProvider.future);
   if (series.isEmpty) return const <HomeRowItem>[];
@@ -311,6 +321,7 @@ final newSeriesProvider = FutureProvider<List<HomeRowItem>>((Ref ref) async {
 });
 
 /// Favorites — surfaces all favorited channels/movies/series as a row.
+@Deprecated('Replaced by category-tree home in v0.4')
 final homeFavoritesProvider =
     StreamProvider<List<HomeRowItem>>((Ref ref) async* {
   final favs = ref.watch(favoritesServiceProvider);
@@ -354,6 +365,7 @@ final homeFavoritesProvider =
 /// series. Premium feature: we still build the request when the user is
 /// free, but we emit an empty list so the home screen hides the row
 /// (rather than rendering a tease the user can't tap).
+@Deprecated('Replaced by category-tree home in v0.4')
 final editorsPicksProvider =
     FutureProvider<List<HomeRowItem>>((Ref ref) async {
   // No TMDB key -> no editor's picks at all.
@@ -435,6 +447,7 @@ Future<List<HomeRowItem>> _tmdbDiscover(
 
 /// Whether the user has any data to show at all. Used to decide between
 /// "render rows" and "show onboarding hint".
+@Deprecated('Replaced by category-tree home in v0.4')
 final homeHasAnyDataProvider = FutureProvider<bool>((Ref ref) async {
   final vod = await ref.watch(allVodProvider.future);
   if (vod.isNotEmpty) return true;
@@ -446,6 +459,7 @@ final homeHasAnyDataProvider = FutureProvider<bool>((Ref ref) async {
 
 /// Hero carousel feed — up to 5 slots picked from continue-watching first,
 /// then editor's picks, then most recent VOD/series. Always returns 0..5.
+@Deprecated('Replaced by category-tree home in v0.4')
 final heroSlotsProvider = FutureProvider<List<HomeRowItem>>((Ref ref) async {
   const max = 5;
   final out = <HomeRowItem>[];

@@ -1,3 +1,4 @@
+import 'package:awatv_ui/src/animations/spring_curves.dart';
 import 'package:awatv_ui/src/tokens/design_tokens.dart';
 import 'package:flutter/material.dart';
 
@@ -40,9 +41,12 @@ class HeroPoster {
       // what the user is about to see.
       final child = toHero is Hero ? toHero.child : toHero;
 
+      // Spring-based curve gives the flight a subtle, premium settle —
+      // the radius/elevation morph rides a single overshoot rather than
+      // an exponential easing.
       final curved = CurvedAnimation(
         parent: animation,
-        curve: DesignTokens.motionEmphasized,
+        curve: curveSpringSoft,
         reverseCurve: DesignTokens.motionStandard.flipped,
       );
 

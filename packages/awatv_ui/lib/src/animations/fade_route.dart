@@ -1,3 +1,4 @@
+import 'package:awatv_ui/src/animations/spring_curves.dart';
 import 'package:awatv_ui/src/tokens/design_tokens.dart';
 import 'package:flutter/material.dart';
 
@@ -11,13 +12,15 @@ class FadeRoute<T> extends PageRoute<T> {
     required this.builder,
     this.duration = DesignTokens.motionMedium,
     this.reverseDuration,
-    this.curve = DesignTokens.motionStandard,
+    Curve? curve,
+    Curve? reverseCurve,
     this.maintainStateOverride = true,
     this.opaqueOverride = true,
     this.barrierLabelOverride,
     this.fullscreenDialogOverride = false,
     super.settings,
-  });
+  })  : curve = curve ?? curveSpringSnap,
+        reverseCurve = reverseCurve ?? curveSpringSoft;
 
   /// Builds the destination's body.
   final WidgetBuilder builder;
@@ -28,8 +31,13 @@ class FadeRoute<T> extends PageRoute<T> {
   /// Reverse animation duration (defaults to [duration]).
   final Duration? reverseDuration;
 
-  /// Easing curve applied to both fade and translate.
+  /// Forward easing curve. Defaults to [curveSpringSnap] — quick into
+  /// the destination, almost no overshoot, feels decisive.
   final Curve curve;
+
+  /// Reverse easing curve. Defaults to [curveSpringSoft] — gentler on
+  /// the way back so the user's eye can follow the receding screen.
+  final Curve reverseCurve;
 
   final bool maintainStateOverride;
   final bool opaqueOverride;
@@ -76,7 +84,7 @@ class FadeRoute<T> extends PageRoute<T> {
     final curved = CurvedAnimation(
       parent: animation,
       curve: curve,
-      reverseCurve: curve.flipped,
+      reverseCurve: reverseCurve,
     );
 
     final slide = Tween<Offset>(

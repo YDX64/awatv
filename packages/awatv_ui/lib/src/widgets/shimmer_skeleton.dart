@@ -1,3 +1,4 @@
+import 'package:awatv_ui/src/theme/brand_colors.dart';
 import 'package:awatv_ui/src/tokens/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
@@ -65,17 +66,26 @@ class ShimmerSkeleton extends StatelessWidget {
     final base = isDark
         ? scheme.surfaceContainerHighest
         : scheme.surfaceContainerHighest.withValues(alpha: 0.7);
+    // Brand-purple-tinted highlight peak: feels less like a generic
+    // "loading" stripe and more like anticipation — the same colour
+    // the eye is about to land on once the content arrives.
     final highlight = isDark
         ? Color.alphaBlend(
-            scheme.primary.withValues(alpha: 0.06),
+            BrandColors.primarySoft.withValues(alpha: 0.18),
             scheme.surface,
           )
-        : Colors.white;
+        : Color.alphaBlend(
+            BrandColors.primarySoft.withValues(alpha: 0.10),
+            Colors.white,
+          );
 
+    // Period is left at the package default (1500ms) — that cadence
+    // reads as anticipation rather than urgency and matches the rest
+    // of our motion system. Documented here so a future reader doesn't
+    // accidentally tighten it back to the old 1000-1400ms range.
     return Shimmer.fromColors(
       baseColor: base,
       highlightColor: highlight,
-      period: const Duration(milliseconds: 1400),
       child: child,
     );
   }

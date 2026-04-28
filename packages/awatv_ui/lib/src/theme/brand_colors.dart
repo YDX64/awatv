@@ -91,4 +91,47 @@ class BrandColors {
     end: Alignment.bottomCenter,
     colors: [Color(0x00000000), Color(0xCC000000)],
   );
+
+  // --- Aurora surface (premium IPTV depth) --------------------------------
+  /// Top of the aurora canvas — deep night with an indigo wash.
+  /// Picked to harmonise with [primary] (#6C5CE7) at very low chroma so
+  /// large background fills don't fight the brand accent.
+  static const Color surfaceAuroraTop = Color(0xFF1B1430);
+
+  /// Bottom of the aurora canvas — black-blue. Pairs with
+  /// [surfaceAuroraTop] on a vertical gradient to create the sense of
+  /// depth referenced apps lean on for hero panels and player chrome.
+  static const Color surfaceAuroraBot = Color(0xFF050810);
+
+  // --- Functional accents -------------------------------------------------
+  /// Distinct from [error] — used for the "LIVE" pulse, broadcast badges,
+  /// active recording dots. Hotter than error red so the eye reads it as
+  /// "right now" rather than "something is wrong".
+  static const Color liveAccent = Color(0xFFFF3B5C);
+
+  /// Warm gold used by rating pills, premium badges, awards.
+  /// Perceptually balanced against the cool brand primary.
+  static const Color goldRating = Color(0xFFFFC857);
+
+  /// Online / connected indicator — lush emerald that reads as
+  /// "available" without competing with the cyan secondary.
+  static const Color emeraldOnline = Color(0xFF45D27A);
+
+  // --- Glass tints --------------------------------------------------------
+  /// Pre-mixed dark glass tint matching the blur app bar across surfaces.
+  /// 0xCC = 80% alpha, base #0F1320 (a touch warmer than [background]).
+  static const Color glassTintDark = Color(0xCC0F1320);
+
+  /// Pre-mixed light glass tint — slightly cool off-white to keep glass
+  /// feeling "frosted" rather than "milky".
+  static const Color glassTintLight = Color(0xCCF8F8FB);
+
+  // --- Gradients (additional) ---------------------------------------------
+  /// Aurora vertical gradient — drop in as a `Container.decoration` for
+  /// the app shell background or hero panels.
+  static const LinearGradient auroraGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [surfaceAuroraTop, surfaceAuroraBot],
+  );
 }

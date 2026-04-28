@@ -2,6 +2,7 @@ import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -16,6 +17,16 @@ AwatvStorage awatvStorage(Ref ref) => AwatvStorage.instance;
 /// follows redirects, accepts JSON or text bodies.
 @Riverpod(keepAlive: true)
 Dio dio(Ref ref) {
+  // Browsers refuse to let JS set the User-Agent header (it's a forbidden
+  // header name). Sending it from the Dart side anyway just produces a
+  // noisy `Refused to set unsafe header "User-Agent"` console warning.
+  // The Worker proxy substitutes its own VLC-style UA when forwarding to
+  // upstream IPTV panels, so we don't need to set one here on web.
+  final headers = <String, String>{'Accept': '*/*'};
+  if (!kIsWeb) {
+    headers['User-Agent'] = 'AWAtv/0.1 (Mobile; Flutter)';
+  }
+
   final d = Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 15),
@@ -23,10 +34,7 @@ Dio dio(Ref ref) {
       sendTimeout: const Duration(seconds: 15),
       followRedirects: true,
       validateStatus: (int? status) => status != null && status < 500,
-      headers: <String, String>{
-        'Accept': '*/*',
-        'User-Agent': 'AWAtv/0.1 (Mobile; Flutter)',
-      },
+      headers: headers,
     ),
   );
   // On web, route every http(s) request through the AWAtv proxy Worker so

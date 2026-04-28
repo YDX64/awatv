@@ -44,9 +44,13 @@ export default {
       'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor',
       'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-real-ip',
     ].forEach((h) => fwdHeaders.delete(h));
-    if (!fwdHeaders.has('user-agent')) {
-      fwdHeaders.set('user-agent', 'AWAtv/1.0 (+https://tv.awastats.com)');
-    }
+    // Most IPTV panels (worldiptv.me, several Xtream panels) reject any
+    // browser-style User-Agent with a 456 status. They expect a native
+    // player UA (VLC, IPTV Smarters, MX Player, …). We override
+    // unconditionally to a VLC string — the same way real IPTV clients
+    // do — so the upstream serves the stream regardless of what header
+    // the browser added.
+    fwdHeaders.set('user-agent', 'VLC/3.0.20 LibVLC/3.0.20');
 
     let upstreamRes;
     try {

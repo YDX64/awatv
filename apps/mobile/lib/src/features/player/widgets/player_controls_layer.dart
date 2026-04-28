@@ -35,6 +35,9 @@ class PlayerControlsLayer extends StatelessWidget {
     this.castVisible = false,
     this.castActive = false,
     this.castDeviceName,
+    this.alwaysOnTopVisible = false,
+    this.alwaysOnTopActive = false,
+    this.onAlwaysOnTopRequested,
     super.key,
   });
 
@@ -74,6 +77,20 @@ class PlayerControlsLayer extends StatelessWidget {
   /// "Casting to ..." sub-label when [castActive] is true.
   final String? castDeviceName;
 
+  /// Whether the always-on-top toggle should render in the top bar.
+  /// True only on desktop runtimes (macOS, Windows, Linux); the feature
+  /// has no meaning on mobile / TV / web.
+  final bool alwaysOnTopVisible;
+
+  /// Whether always-on-top is currently engaged. Drives the icon
+  /// variant (filled push-pin vs outlined) and the brand tint.
+  final bool alwaysOnTopActive;
+
+  /// Tapped from the top bar. Premium-gating, persistence, and the
+  /// native call all live in the host screen — this widget only fires
+  /// the intent.
+  final VoidCallback? onAlwaysOnTopRequested;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -112,6 +129,9 @@ class PlayerControlsLayer extends StatelessWidget {
                 castVisible: castVisible,
                 castActive: castActive,
                 castDeviceName: castDeviceName,
+                alwaysOnTopVisible: alwaysOnTopVisible,
+                alwaysOnTopActive: alwaysOnTopActive,
+                onAlwaysOnTop: onAlwaysOnTopRequested,
               ),
               Expanded(
                 child: Center(
@@ -155,6 +175,9 @@ class _TopBar extends StatelessWidget {
     required this.castVisible,
     required this.castActive,
     required this.castDeviceName,
+    required this.alwaysOnTopVisible,
+    required this.alwaysOnTopActive,
+    required this.onAlwaysOnTop,
   });
 
   final String title;
@@ -166,6 +189,9 @@ class _TopBar extends StatelessWidget {
   final bool castVisible;
   final bool castActive;
   final String? castDeviceName;
+  final bool alwaysOnTopVisible;
+  final bool alwaysOnTopActive;
+  final VoidCallback? onAlwaysOnTop;
 
   @override
   Widget build(BuildContext context) {
@@ -221,6 +247,19 @@ class _TopBar extends StatelessWidget {
             statusBadge!,
             const SizedBox(width: DesignTokens.spaceXs),
           ],
+          if (alwaysOnTopVisible && onAlwaysOnTop != null)
+            IconButton(
+              tooltip: alwaysOnTopActive
+                  ? 'Sabitlemeyi kaldır'
+                  : 'Pencereyi üstte sabitle',
+              onPressed: onAlwaysOnTop,
+              icon: Icon(
+                alwaysOnTopActive
+                    ? Icons.push_pin
+                    : Icons.push_pin_outlined,
+                color: alwaysOnTopActive ? scheme.primary : Colors.white,
+              ),
+            ),
           if (castVisible)
             IconButton(
               tooltip:

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:awatv_mobile/src/desktop/always_on_top.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/keyboard_shortcuts.dart';
 import 'package:awatv_mobile/src/desktop/pip_window.dart';
@@ -13,6 +14,7 @@ import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.d
 import 'package:awatv_mobile/src/features/player/widgets/sleep_timer_sheet.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/background_playback/background_playback_controller.dart';
 import 'package:awatv_mobile/src/shared/cast/cast_provider.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_controller.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_gate.dart';
@@ -211,6 +213,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // notifier acts on the live engine. Reattaches automatically when
       // the user switches backend (the controller instance changes).
       ref.read(sleepTimerProvider.notifier).attachController(c);
+
+      // Hand the controller to the OS media-session bridge so the lock
+      // screen / Bluetooth headset / Android Auto can drive playback.
+      // Returns null on web — that platform has no system playback UI
+      // to populate, so we skip silently.
+      try {
+        final handler = ref.read(audioHandlerProvider);
+        handler
+          ?..bind(c)
+          ..updateNowPlaying(
+            id: widget.args.itemId ?? widget.args.title ?? 'awatv:stream',
+            title: widget.args.title ?? 'AWAtv',
+            artist: widget.args.subtitle,
+            isLive: widget.args.isLive,
+          );
+      } on Object {
+        // Best-effort — losing the lock-screen tile must never block
+        // the on-screen playback.
+      }
 
       // Evaluate parental gate against the active profile. Does nothing
       // when parental controls are disabled or the active profile is a
@@ -444,6 +465,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  /// Handles a tap on the always-on-top toggle (top bar pin icon /
+  /// settings sheet switch / Cmd+Shift+T shortcut). Free users see the
+  /// upsell sheet instead. Honours the toggle in PiP mode by exiting
+  /// PiP first — PiP forces always-on-top regardless of preference, so
+  /// untoggling while compact would leave the user with a tiny window
+  /// they don't want pinned.
+  Future<void> _onAlwaysOnTopRequested() async {
+    final allowed =
+        ref.read(canUseFeatureProvider(PremiumFeature.alwaysOnTop));
+    if (!allowed) {
+      PremiumLockSheet.show(context, PremiumFeature.alwaysOnTop);
+      return;
+    }
+    if (!isDesktopRuntime()) {
+      // Mobile / TV / web don't have the concept; surface a hint
+      // rather than silently swallowing the gesture.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Pencere sabitleme yalnızca masaüstünde kullanılabilir.',
+          ),
+        ),
+      );
+      return;
+    }
+    try {
+      final next = await ref.read(alwaysOnTopProvider.notifier).toggle();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            next
+                ? 'Pencere üstte sabitlendi.'
+                : 'Pencere sabitlemesi kaldırıldı.',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } on Object catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sabitleme uygulanamadı: $e')),
+      );
+    }
+  }
+
   Future<void> _onCastRequested() async {
     final c = _controller;
     if (c == null) return;
@@ -609,6 +677,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Re-bind the sleep timer to the new engine so an active fade
     // continues to act on the new audio path.
     ref.read(sleepTimerProvider.notifier).attachController(fresh);
+    // Re-attach the OS media-session bridge to the fresh controller so
+    // lock-screen / Bluetooth controls keep working across an engine
+    // swap. Best-effort; never blocks playback.
+    try {
+      ref.read(audioHandlerProvider)?.bind(fresh);
+    } on Object {
+      // best-effort
+    }
   }
 
   /// Used by desktop keyboard shortcuts (arrow keys, J/L) to nudge the
@@ -652,6 +728,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } on Object {
       // best-effort
     }
+    // Tear down the OS media-session bridge so the lock-screen tile
+    // disappears and the foreground-service notification gets cancelled
+    // on Android. Wrapped because the audio handler may be null on web
+    // / on platforms where init failed.
+    try {
+      ref.read(audioHandlerProvider)?.bind(null);
+    } on Object {
+      // best-effort
+    }
     _controller?.dispose();
     _exitImmersive();
     WidgetsBinding.instance.removeObserver(this);
@@ -671,11 +756,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // working) to keep going in the background. Only `detached` is a real
     // shutdown signal on desktop, and at that point we're tearing down
     // anyway, so a defensive pause is unnecessary.
+    final bgEnabled = ref.read(backgroundPlaybackProvider);
+    final canBg =
+        ref.read(canUseFeatureProvider(PremiumFeature.backgroundPlayback));
     final isMobileBackground = !kIsWeb &&
         !isDesktopRuntime() &&
         (state == AppLifecycleState.paused ||
             state == AppLifecycleState.inactive);
-    if (isMobileBackground) {
+    final shouldPauseOnBackground = isMobileBackground && !(bgEnabled && canBg);
+    if (shouldPauseOnBackground) {
       // Remember we were playing so we can auto-resume on `resumed`.
       if (!_isPaused) {
         _wasPlayingBeforeBackground = true;
@@ -716,6 +805,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             defaultTargetPlatform == TargetPlatform.iOS);
     final castActive = ref.watch(castIsActiveProvider);
     final castDeviceName = ref.watch(castConnectedDeviceNameProvider);
+    // Always-on-top is desktop-only — the toggle is hidden on every
+    // other runtime. We still watch the provider unconditionally so the
+    // top bar pin icon flips immediately when the tray menu / settings
+    // sheet / shortcut updates the state from elsewhere.
+    final alwaysOnTopActive = isDesktop ? ref.watch(alwaysOnTopProvider) : false;
+    final alwaysOnTopVisible = isDesktop;
 
     if (inPip) {
       // Compact PiP layout: video frame fills the small always-on-top
@@ -816,6 +911,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   castVisible: castVisible,
                   castActive: castActive,
                   castDeviceName: castDeviceName,
+                  alwaysOnTopVisible: alwaysOnTopVisible,
+                  alwaysOnTopActive: alwaysOnTopActive,
+                  onAlwaysOnTopRequested: () {
+                    unawaited(_onAlwaysOnTopRequested());
+                  },
                 ),
               ),
             ),
@@ -879,6 +979,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             onSeekRelative: _seekRelative,
             onToggleFullscreen: toggleDesktopFullscreen,
             onExit: _onClose,
+            onToggleAlwaysOnTop: () {
+              unawaited(_onAlwaysOnTopRequested());
+            },
             child: scaffold,
           )
         : scaffold;

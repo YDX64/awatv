@@ -1,7 +1,10 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/playlists/playlist_providers.dart';
+import 'package:awatv_mobile/src/shared/discovery/discovered_iptv_server.dart';
+import 'package:awatv_mobile/src/shared/discovery/local_iptv_discovery.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -195,6 +198,19 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                       ),
                       validator: _validateXtreamServer,
                     ),
+                    const SizedBox(height: DesignTokens.spaceS),
+                    _LocalDiscoveryPanel(
+                      onPick: (DiscoveredIptvServer s) {
+                        // Push the suggested URL into the Server URL field
+                        // and let the user fill creds. Re-runs validators
+                        // by calling validate() once focus moves on.
+                        _urlCtrl.text = s.suggestedUrl;
+                        if (_nameCtrl.text.trim().isEmpty) {
+                          _nameCtrl.text = s.name;
+                        }
+                        FocusScope.of(context).nextFocus();
+                      },
+                    ),
                     const SizedBox(height: DesignTokens.spaceM),
                     TextFormField(
                       controller: _userCtrl,
@@ -268,6 +284,117 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Expandable section that lists IPTV-ish services advertising via mDNS
+/// on the local network. Tapping a row pushes the suggested URL into the
+/// parent form's Server URL field (via the supplied [onPick]).
+///
+/// Hidden entirely on web — Bonsoir doesn't ship a browser implementation.
+class _LocalDiscoveryPanel extends ConsumerWidget {
+  const _LocalDiscoveryPanel({required this.onPick});
+
+  final ValueChanged<DiscoveredIptvServer> onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (kIsWeb) return const SizedBox.shrink();
+    final discovery = ref.watch(localIptvDiscoveryProvider);
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(DesignTokens.radiusL),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: ExpansionTile(
+        leading: const Icon(Icons.wifi_find_outlined),
+        title: const Text('Yerel agda bulunan sunucular'),
+        subtitle: discovery.when(
+          data: (List<DiscoveredIptvServer> values) {
+            if (values.isEmpty) {
+              return const Text('Henuz sunucu bulunamadi - tarama suruyor.');
+            }
+            return Text(
+              '${values.length} sunucu bulundu - tap ile sec',
+            );
+          },
+          loading: () => const Text('Aglarda taranıyor...'),
+          error: (Object _, StackTrace __) =>
+              const Text('Tarama yapilamadi'),
+        ),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        childrenPadding: const EdgeInsets.symmetric(
+          horizontal: DesignTokens.spaceS,
+          vertical: DesignTokens.spaceXs,
+        ),
+        children: <Widget>[
+          discovery.when(
+            data: (List<DiscoveredIptvServer> values) {
+              if (values.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(DesignTokens.spaceM),
+                  child: Row(
+                    children: <Widget>[
+                      const Icon(Icons.lan_outlined, size: 18),
+                      const SizedBox(width: DesignTokens.spaceS),
+                      Expanded(
+                        child: Text(
+                          'Sunucularin Bonjour servisi yayinlamasi gerekir. '
+                          'Manuel olarak da girebilirsin.',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return Column(
+                children: <Widget>[
+                  for (final s in values)
+                    ListTile(
+                      dense: true,
+                      leading: Icon(
+                        s.type.contains('xtream')
+                            ? Icons.satellite_alt_outlined
+                            : Icons.router_outlined,
+                        size: 22,
+                      ),
+                      title: Text(s.name),
+                      subtitle: Text(
+                        '${s.host}:${s.port} - ${s.type}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      trailing: const Icon(Icons.add_link_rounded, size: 20),
+                      onTap: () => onPick(s),
+                    ),
+                ],
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.all(DesignTokens.spaceM),
+              child: SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            error: (Object err, StackTrace _) => Padding(
+              padding: const EdgeInsets.all(DesignTokens.spaceM),
+              child: Text(
+                'Yerel ag taramasi yapilamadi: $err',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

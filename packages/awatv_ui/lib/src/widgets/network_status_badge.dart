@@ -20,10 +20,18 @@ enum NetworkStatusKind { live, buffering, lowBandwidth, offline, hd, fourK }
 ///
 /// Use [compact] to render the icon-only pill (with an a11y semantics
 /// label still present), useful inside dense tiles.
+///
+/// Pass [connectionLabel] (e.g. SSID) + [connectionIcon] to append a
+/// secondary chip showing the active interface name. The badge keeps
+/// working without it — we deliberately accept primitives here so
+/// `awatv_ui` doesn't have to depend on the mobile app's `NetworkSnapshot`
+/// type.
 class NetworkStatusBadge extends StatefulWidget {
   const NetworkStatusBadge({
     required this.kind,
     this.compact = false,
+    this.connectionLabel,
+    this.connectionIcon,
     super.key,
   });
 
@@ -33,6 +41,15 @@ class NetworkStatusBadge extends StatefulWidget {
   /// When true, only the icon (and dot, if any) is shown — the text
   /// label is collapsed but remains in the accessibility tree.
   final bool compact;
+
+  /// Optional secondary label (Wi-Fi SSID, "Mobil veri", "Ethernet").
+  /// When provided, the badge renders a tiny separator + this label
+  /// beside the primary state. Hidden in [compact] mode.
+  final String? connectionLabel;
+
+  /// Glyph paired with [connectionLabel]. Defaults to a generic Wi-Fi
+  /// icon when null but a label is given.
+  final IconData? connectionIcon;
 
   @override
   State<NetworkStatusBadge> createState() => _NetworkStatusBadgeState();
@@ -100,6 +117,9 @@ class _NetworkStatusBadgeState extends State<NetworkStatusBadge>
       ),
     );
 
+    final hasConnectionChip =
+        !widget.compact && widget.connectionLabel != null &&
+            widget.connectionLabel!.isNotEmpty;
     Widget content = Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
@@ -113,6 +133,34 @@ class _NetworkStatusBadgeState extends State<NetworkStatusBadge>
         if (!widget.compact) ...<Widget>[
           const SizedBox(width: 4),
           label,
+        ],
+        if (hasConnectionChip) ...<Widget>[
+          const SizedBox(width: DesignTokens.spaceXs),
+          Container(
+            width: 1,
+            height: 10,
+            color: spec.foreground.withValues(alpha: 0.4),
+          ),
+          const SizedBox(width: DesignTokens.spaceXs),
+          Icon(
+            widget.connectionIcon ?? Icons.wifi_rounded,
+            size: 12,
+            color: spec.foreground,
+          ),
+          const SizedBox(width: 2),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 100),
+            child: Text(
+              widget.connectionLabel!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.labelSmall?.copyWith(
+                color: spec.foreground,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
         ],
       ],
     );

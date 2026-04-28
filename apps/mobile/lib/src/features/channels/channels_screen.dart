@@ -4,7 +4,9 @@ import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/channels/epg_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/discovery/share_helper.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
+import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_player/awatv_player.dart';
@@ -156,8 +158,11 @@ class ChannelsScreen extends ConsumerWidget {
                             logoUrl: ch.logoUrl,
                             group: ch.groups.isEmpty ? null : ch.groups.first,
                             onTap: () => _play(context, ch),
-                            onLongPress: () =>
-                                context.push('/channel/${ch.id}'),
+                            onLongPress: () => _showChannelContextSheet(
+                              context,
+                              ref,
+                              ch,
+                            ),
                           );
                         },
                       );
@@ -210,6 +215,80 @@ class ChannelsScreen extends ConsumerWidget {
     );
 
     context.push('/play', extra: args);
+  }
+
+  /// Bottom-sheet surfaced via long-press on a [ChannelTile]. Hosts the
+  /// favourite toggle, channel-detail link and the new "Paylas" entry
+  /// (which builds a deep link via [ShareHelper.shareChannel]).
+  Future<void> _showChannelContextSheet(
+    BuildContext context,
+    WidgetRef ref,
+    Channel channel,
+  ) async {
+    final favs = ref.read(favoritesServiceProvider);
+    // FavoritesService exposes `isFavorite` as Future<bool>; resolve once
+    // before painting the sheet so the icon doesn't have to flicker.
+    final isFav = await favs.isFavorite(channel.id);
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor:
+                      Theme.of(ctx).colorScheme.primary,
+                  foregroundColor:
+                      Theme.of(ctx).colorScheme.onPrimary,
+                  child: const Icon(Icons.live_tv_rounded),
+                ),
+                title: Text(channel.name),
+                subtitle: channel.groups.isEmpty
+                    ? null
+                    : Text(channel.groups.first),
+              ),
+              const Divider(height: 0),
+              ListTile(
+                leading: Icon(
+                  isFav ? Icons.favorite : Icons.favorite_border,
+                ),
+                title: Text(
+                  isFav ? 'Favorilerden cikar' : 'Favorilere ekle',
+                ),
+                onTap: () async {
+                  await favs.toggle(channel.id);
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('Detaylar'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  context.push('/channel/${channel.id}');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.share_outlined),
+                title: const Text('Paylas'),
+                subtitle: const Text(
+                  'AWAtv kullananlar bu kanali acabilir',
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  ShareHelper.shareChannel(context, channel);
+                },
+              ),
+              const SizedBox(height: DesignTokens.spaceM),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

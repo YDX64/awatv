@@ -48,6 +48,12 @@ class QuitAppIntent extends Intent {
   const QuitAppIntent();
 }
 
+/// Toggle always-on-top window pinning. Premium-gated; the host wires
+/// the upsell sheet for free users.
+class ToggleAlwaysOnTopIntent extends Intent {
+  const ToggleAlwaysOnTopIntent();
+}
+
 /// Default shortcut bindings used by the player on desktop.
 ///
 /// Centralised so the table is auditable in one place — see the report
@@ -79,6 +85,17 @@ Map<ShortcutActivator, Intent> defaultPlayerShortcuts() {
         const ExitPlayerIntent(),
     SingleActivator(LogicalKeyboardKey.keyW, meta: isMac, control: !isMac):
         const CloseWindowIntent(),
+    // Cmd+Shift+T (macOS) / Ctrl+Shift+T (Windows / Linux) toggles
+    // always-on-top — matches the muscle memory from reference IPTV
+    // apps. We pick a chord with Shift to stay clear of common
+    // text-edit shortcuts (Cmd+T opens new tabs in many apps; Cmd+T
+    // alone could clash if a future settings screen ever takes focus).
+    SingleActivator(
+      LogicalKeyboardKey.keyT,
+      meta: isMac,
+      control: !isMac,
+      shift: true,
+    ): const ToggleAlwaysOnTopIntent(),
     if (isMac)
       const SingleActivator(LogicalKeyboardKey.keyQ, meta: true):
           const QuitAppIntent(),
@@ -111,6 +128,7 @@ class DesktopPlayerShortcuts extends StatefulWidget {
     required this.onSeekRelative,
     required this.onToggleFullscreen,
     required this.onExit,
+    required this.onToggleAlwaysOnTop,
     super.key,
   });
 
@@ -120,6 +138,11 @@ class DesktopPlayerShortcuts extends StatefulWidget {
   final ValueChanged<Duration> onSeekRelative;
   final VoidCallback onToggleFullscreen;
   final VoidCallback onExit;
+
+  /// Fired by Cmd/Ctrl+Shift+T. The host runs the premium gate, the
+  /// upsell sheet, and the actual `alwaysOnTopProvider.toggle()` call —
+  /// this widget just dispatches the intent.
+  final VoidCallback onToggleAlwaysOnTop;
 
   @override
   State<DesktopPlayerShortcuts> createState() =>
@@ -223,6 +246,13 @@ class _DesktopPlayerShortcutsState extends State<DesktopPlayerShortcuts> {
           QuitAppIntent: CallbackAction<QuitAppIntent>(
             onInvoke: (_) {
               _quitApp();
+              return null;
+            },
+          ),
+          ToggleAlwaysOnTopIntent:
+              CallbackAction<ToggleAlwaysOnTopIntent>(
+            onInvoke: (_) {
+              widget.onToggleAlwaysOnTop();
               return null;
             },
           ),

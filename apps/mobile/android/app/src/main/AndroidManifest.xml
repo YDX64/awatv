@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Android TV / Leanback support.
          `leanback` is declared `required="false"` so the same APK still
          installs on phones that lack the leanback library. The touchscreen
@@ -10,6 +11,34 @@
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
+
+    <!-- Premium background playback: keeps the player decoding while
+         the user locks the phone or switches apps, surfaced via a
+         media-session foreground notification. Required by audio_service
+         on Android 14+ where `mediaPlayback` is its own permission. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Network plumbing — mDNS / Bonjour discovery (bonsoir),
+         network_info_plus SSID lookup, and the OS-settings deep links.
+         CHANGE_WIFI_MULTICAST_STATE is required for the multicast socket
+         the discovery loop opens. ACCESS_WIFI_STATE is needed for SSID +
+         BSSID lookup via network_info_plus on Android 13+.
+         NEARBY_WIFI_DEVICES (Android 12+, API 31) lets the app advertise
+         and discover Bonjour services without requiring fine-location;
+         flagged neverForLocation so Play Store won't gate the listing
+         behind the location-data policy. ACCESS_FINE_LOCATION is
+         intentionally NOT requested — the SSID badge degrades to
+         "Wi-Fi" without the name on devices that don't grant it. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
 
     <application
         android:label="awatv_mobile"
@@ -50,6 +79,30 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- audio_service foreground service. Hosts the MediaSession +
+             notification when "Arkaplan oynatma" (background playback) is
+             on. `mediaPlayback` is required on Android 14+; the package's
+             implementation is `com.ryanheise.audioservice.AudioService`. -->
+        <service
+            android:name="com.ryanheise.audioservice.AudioService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="true"
+            tools:ignore="Instantiatable">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <!-- Media-button receiver — routes Bluetooth headset / car-stereo
+             play/pause/next/prev intents into the AudioService. -->
+        <receiver
+            android:name="com.ryanheise.audioservice.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

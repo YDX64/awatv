@@ -1,8 +1,13 @@
+import 'package:awatv_mobile/src/desktop/always_on_top.dart';
+import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
+import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
+import 'package:awatv_mobile/src/shared/background_playback/background_playback_controller.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -94,6 +99,21 @@ class PlayerSettingsSheet extends StatelessWidget {
                   _SubtitleSection(controller: controller),
                   const SizedBox(height: DesignTokens.spaceL),
                   _SpeedSection(controller: controller),
+                  // Background playback section is mobile/native only:
+                  // web has no media-session integration to drive, and
+                  // desktop already keeps decoding on focus loss (the
+                  // PlayerScreen lifecycle handler short-circuits the
+                  // pause path on desktop).
+                  if (!kIsWeb && !isDesktopRuntime()) ...<Widget>[
+                    const SizedBox(height: DesignTokens.spaceL),
+                    const _BackgroundPlaybackSection(),
+                  ],
+                  // Display section is desktop-only: the always-on-top
+                  // toggle has no meaning on phones, TVs, or web.
+                  if (!kIsWeb && isDesktopRuntime()) ...<Widget>[
+                    const SizedBox(height: DesignTokens.spaceL),
+                    const _DisplaySection(),
+                  ],
                   if (onBackendChanged != null) ...<Widget>[
                     const SizedBox(height: DesignTokens.spaceL),
                     _BackendSection(
@@ -749,6 +769,326 @@ class _BackendVlcRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Desktop-only "Görüntü" / Display section. Currently exposes the
+/// always-on-top toggle; future preferences (e.g. video fit defaults,
+/// HDR pass-through) belong in this section too.
+///
+/// Free users see the row with a `PRO` chip and tap-through to the
+/// paywall — same UX as the VLC backend row above.
+class _DisplaySection extends ConsumerWidget {
+  const _DisplaySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final allowed =
+        ref.watch(canUseFeatureProvider(PremiumFeature.alwaysOnTop));
+    final active = ref.watch(alwaysOnTopProvider);
+
+    Future<void> handleTap() async {
+      // Capture the messenger and navigator before any await — once the
+      // sheet pops the local context becomes invalid.
+      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+
+      if (!allowed) {
+        navigator.pop();
+        await PremiumLockSheet.show(context, PremiumFeature.alwaysOnTop);
+        return;
+      }
+      try {
+        final next = await ref.read(alwaysOnTopProvider.notifier).toggle();
+        navigator.pop();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              next
+                  ? 'Pencere üstte sabitlendi.'
+                  : 'Pencere sabitlemesi kaldırıldı.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } on Object catch (e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Sabitleme uygulanamadı: $e')),
+        );
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const _SectionHeader(
+          icon: Icons.desktop_windows_rounded,
+          title: 'Görüntü',
+        ),
+        InkWell(
+          onTap: handleTap,
+          borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+          child: AnimatedContainer(
+            duration: DesignTokens.motionFast,
+            curve: DesignTokens.motionStandard,
+            padding: const EdgeInsets.symmetric(
+              horizontal: DesignTokens.spaceM,
+              vertical: DesignTokens.spaceM,
+            ),
+            decoration: BoxDecoration(
+              color: active && allowed
+                  ? scheme.primary.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+              border: Border.all(
+                color: active && allowed
+                    ? scheme.primary.withValues(alpha: 0.45)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  active && allowed
+                      ? Icons.push_pin
+                      : Icons.push_pin_outlined,
+                  color: active && allowed
+                      ? scheme.primary
+                      : scheme.onSurface.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: DesignTokens.spaceM),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Text(
+                            'Pencereyi üstte sabitle',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(
+                                  fontWeight: active && allowed
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                          ),
+                          if (!allowed) ...<Widget>[
+                            const SizedBox(width: DesignTokens.spaceS),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    scheme.tertiary.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'PRO',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: scheme.tertiary,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Text(
+                          'Player penceresi diğer pencereler arkasında '
+                          'kalmaz.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch.adaptive(
+                  value: active && allowed,
+                  onChanged: (_) => handleTap(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Toggle for keeping audio + video alive when the app moves off-screen.
+///
+/// Premium-gated: free users see the row with a `PRO` chip and a tap
+/// opens the [PremiumLockSheet]. Premium users see a Switch — flipping
+/// it on lets the player keep decoding past phone-lock / app-switcher,
+/// driven by `audio_service` notifications.
+class _BackgroundPlaybackSection extends ConsumerWidget {
+  const _BackgroundPlaybackSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final allowed = ref.watch(
+      canUseFeatureProvider(PremiumFeature.backgroundPlayback),
+    );
+    final enabled = ref.watch(backgroundPlaybackProvider);
+    final active = enabled && allowed;
+
+    Future<void> handleTap() async {
+      // Capture the messenger and navigator before any await — once the
+      // sheet pops the local context becomes invalid.
+      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+
+      if (!allowed) {
+        navigator.pop();
+        await PremiumLockSheet.show(
+          context,
+          PremiumFeature.backgroundPlayback,
+        );
+        return;
+      }
+      try {
+        final next = !enabled;
+        await ref.read(backgroundPlaybackProvider.notifier).setEnabled(next);
+        navigator.pop();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              next
+                  ? 'Arkaplan oynatma açık.'
+                  : 'Arkaplan oynatma kapalı.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } on Object catch (e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Ayar kaydedilemedi: $e')),
+        );
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const _SectionHeader(
+          icon: Icons.headphones_rounded,
+          title: 'Arkaplan oynatma',
+        ),
+        InkWell(
+          onTap: handleTap,
+          borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+          child: AnimatedContainer(
+            duration: DesignTokens.motionFast,
+            curve: DesignTokens.motionStandard,
+            padding: const EdgeInsets.symmetric(
+              horizontal: DesignTokens.spaceM,
+              vertical: DesignTokens.spaceM,
+            ),
+            decoration: BoxDecoration(
+              color: active
+                  ? scheme.primary.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+              border: Border.all(
+                color: active
+                    ? scheme.primary.withValues(alpha: 0.45)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  active
+                      ? Icons.headphones_rounded
+                      : Icons.headphones_outlined,
+                  color: active
+                      ? scheme.primary
+                      : scheme.onSurface.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: DesignTokens.spaceM),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Text(
+                            'Arkaplan oynatma',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(
+                                  fontWeight: active
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                          ),
+                          if (!allowed) ...<Widget>[
+                            const SizedBox(width: DesignTokens.spaceS),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: scheme.tertiary
+                                    .withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'PRO',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: scheme.tertiary,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          allowed
+                              ? 'Kilit ekranında ve uygulama dışında '
+                                  'oynatmaya devam.'
+                              : 'Premium üyelere özel — kilit ekranında '
+                                  've uygulama dışında oynatmaya devam.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: scheme.onSurface
+                                    .withValues(alpha: 0.7),
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch.adaptive(
+                  value: active,
+                  onChanged: (_) => handleTap(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -73,6 +73,25 @@ dependencies:
   # distro-dependent and a missing native dep must not block the boot.
   tray_manager: ^0.2.4
 
+  # Background playback (Premium):
+  # - audio_service: registers a media-session so the OS surfaces a
+  #   notification + lock-screen "now playing" tile, AirPods/headphone
+  #   button events, Android Auto / CarPlay command intents.
+  # - audio_session: handled inside `awatv_player` so the engine keeps
+  #   audio decoding alive even when the app is backgrounded.
+  audio_service: ^0.18.16
+  audio_session: ^0.1.21
+
+  # Platform plumbing (mDNS discovery, share sheet, OS settings deep
+  # links, network info). Each plugin is mobile/desktop only — web/TV
+  # codepaths short-circuit before reaching the native call. See
+  # `lib/src/shared/discovery/*` and `lib/src/shared/network/*` for the
+  # platform-guarded providers.
+  bonsoir: ^5.1.10
+  share_plus: ^10.1.2
+  app_settings: ^5.1.1
+  network_info_plus: ^6.1.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

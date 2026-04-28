@@ -66,5 +66,35 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Premium "background playback" (lock screen, app switcher).
+	     `audio` keeps decoding alive while the app is backgrounded so
+	     the lock-screen now-playing tile and AirPods controls work.
+	     Required by audio_service / audio_session for iOS background
+	     audio behaviour. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	<!--
+	  Local-network usage justification surfaced by iOS the first time
+	  AWAtv tries to discover an IPTV server or Cast receiver via mDNS.
+	  Without this key the discovery socket silently returns zero
+	  results on iOS 14+ — the user sees "no servers found" forever.
+	-->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>AWAtv yerel agindaki IPTV sunucularini ve Cast cihazlarini bulmak icin gerekli.</string>
+	<!--
+	  Bonjour service types the app discovers / advertises. iOS 14+
+	  requires every type to be enumerated here; missing entries are
+	  silently filtered out at the framework layer. Order is purely
+	  cosmetic but we keep the IPTV-relevant ones first.
+	-->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_xtream._tcp</string>
+		<string>_iptv._tcp</string>
+		<string>_googlecast._tcp</string>
+		<string>_airplay._tcp</string>
+	</array>
 </dict>
 </plist>

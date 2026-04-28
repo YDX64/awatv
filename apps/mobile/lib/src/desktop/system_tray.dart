@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:awatv_mobile/src/desktop/always_on_top.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/pip_window.dart';
+import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
+import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/remote/player_bridge.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +17,7 @@ import 'package:window_manager/window_manager.dart';
 /// the `onTrayMenuItemClick` switch can stay readable.
 const String _kShow = 'show';
 const String _kPip = 'pip';
+const String _kAlwaysOnTop = 'always-on-top';
 const String _kQuit = 'quit';
 const String _kNowPlaying = 'nowplaying';
 
@@ -107,6 +111,23 @@ class AwaTvTray with TrayListener {
         unawaited(setNowPlaying(next?.title));
       }, fireImmediately: true);
 
+      // Always-on-top is a checkable menu entry; tray_manager doesn't
+      // expose per-item updates, so we rebuild the whole menu when the
+      // provider flips. Listening here (not inside `_publishMenu`) keeps
+      // the listener attached for the lifetime of the tray. The
+      // previous-value type is nullable on first emission.
+      _ref.listen<bool>(alwaysOnTopProvider, (bool? _, bool __) {
+        unawaited(_publishMenu());
+      });
+
+      // Same story for PiP — the menu copy on the PiP row depends on
+      // whether we're currently compact, and the user can flip that from
+      // the player overlay or a keyboard shortcut. Without this listener
+      // the tray label drifts out of sync.
+      _ref.listen<bool>(pipModeProvider, (bool? _, bool __) {
+        unawaited(_publishMenu());
+      });
+
       return true;
     } on Object catch (e) {
       if (kDebugMode) debugPrint('[tray] init failed: $e');
@@ -116,6 +137,7 @@ class AwaTvTray with TrayListener {
 
   Future<void> _publishMenu() async {
     final inPip = _ref.read(pipModeProvider);
+    final pinned = _ref.read(alwaysOnTopProvider);
     final menu = Menu(
       items: <MenuItem>[
         MenuItem(key: _kShow, label: 'AWAtv pencereyi göster'),
@@ -124,6 +146,11 @@ class AwaTvTray with TrayListener {
           label: inPip
               ? 'Picture in picture\'dan çık'
               : 'Picture in picture',
+        ),
+        MenuItem.checkbox(
+          key: _kAlwaysOnTop,
+          label: 'Pencereyi üstte sabitle',
+          checked: pinned,
         ),
         MenuItem.separator(),
         MenuItem(
@@ -176,6 +203,8 @@ class AwaTvTray with TrayListener {
         unawaited(_handleShow());
       case _kPip:
         unawaited(_handlePipToggle());
+      case _kAlwaysOnTop:
+        unawaited(_handleAlwaysOnTopToggle());
       case _kQuit:
         unawaited(_handleQuit());
       default:
@@ -203,8 +232,40 @@ class AwaTvTray with TrayListener {
     final controller = _ref.read(pipWindowControllerProvider);
     await controller.toggle();
     // Menu label depends on PiP state — rebuild so the next open shows
-    // the correct toggle copy.
+    // the correct toggle copy. (The pipModeProvider listener also
+    // triggers a rebuild, but rebuilding eagerly here keeps the UX
+    // responsive even if the provider notification is debounced.)
     await _publishMenu();
+  }
+
+  /// Tray-driven always-on-top toggle.
+  ///
+  /// The tray surface has no `BuildContext`, so we can't push the
+  /// premium-lock sheet directly. Free users see the checkbox flip
+  /// momentarily (tray_manager applies the visual state optimistically
+  /// before the click handler runs), then we rebuild the menu to snap
+  /// it back, raise the main window, and let the in-app surfaces
+  /// present the upsell.
+  Future<void> _handleAlwaysOnTopToggle() async {
+    try {
+      final allowed =
+          _ref.read(canUseFeatureProvider(PremiumFeature.alwaysOnTop));
+      if (!allowed) {
+        // Restore the menu so the optimistic check flip reverts, then
+        // surface the main window so the user can see the paywall the
+        // next time they tap the in-player toggle.
+        await _publishMenu();
+        await _handleShow();
+        return;
+      }
+      await _ref.read(alwaysOnTopProvider.notifier).toggle();
+      // The alwaysOnTopProvider listener rebuilds the menu, but call it
+      // explicitly so the next click sees a fresh menu instance even on
+      // hosts that batch listener notifications.
+      await _publishMenu();
+    } on Object catch (e) {
+      if (kDebugMode) debugPrint('[tray] always-on-top toggle failed: $e');
+    }
   }
 
   Future<void> _handleQuit() async {

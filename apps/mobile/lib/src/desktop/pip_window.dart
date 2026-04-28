@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui';
 
+import 'package:awatv_mobile/src/desktop/always_on_top.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -128,6 +129,12 @@ class PipWindowController {
           animate: true,
         ),
       );
+      // PiP always pins the compact window — the whole point of PiP is
+      // a floating frame the user can keep on top of other windows.
+      // We bypass the user's `alwaysOnTopProvider` preference here so a
+      // user who has it off still gets a usable PiP; on `exit()` below
+      // we ask the provider to re-apply the *saved* preference so the
+      // toggle the user actually set is what survives.
       await _safe(() => windowManager.setAlwaysOnTop(true));
       // Hides the taskbar entry on Windows so the floating window
       // doesn't take a slot in the taskbar group; macOS keeps the dock
@@ -153,7 +160,20 @@ class PipWindowController {
     _busy = true;
     try {
       final saved = await _readPrePipGeometry();
-      await _safe(() => windowManager.setAlwaysOnTop(false));
+      // Defer the always-on-top reset to the provider so the user's
+      // saved preference survives a PiP round-trip. If the user had
+      // pinned the window before entering PiP, we want it pinned after.
+      // The provider's `reapply` is a no-op when the saved preference
+      // is `false`, mirroring the previous behaviour for users who
+      // never enabled the feature.
+      try {
+        await _ref.read(alwaysOnTopProvider.notifier).reapply();
+      } on Object {
+        // Provider hasn't been initialised (rare — it's keep-alive and
+        // boot-loaded). Fall back to clearing the flag explicitly so
+        // the OS state at least matches the new (post-PiP) UI.
+        await _safe(() => windowManager.setAlwaysOnTop(false));
+      }
       if (Platform.isWindows) {
         await _safe(() => windowManager.setSkipTaskbar(false));
       }

@@ -16,5 +16,10 @@
 	     drag-drop in a future build). Enables NSOpenPanel-selected files. -->
 	<key>com.apple.security.files.user-selected.read-only</key>
 	<true/>
+	<!-- We never want microphone capture; declare it explicitly so the
+	     sandbox auditor doesn't grant audio-input by default. Audio
+	     output (playback) does not need an entitlement. -->
+	<key>com.apple.security.device.audio-input</key>
+	<false/>
 </dict>
 </plist>

@@ -1,6 +1,7 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/playlists/playlist_providers.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
+import 'package:awatv_mobile/src/shared/discovery/share_helper.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_quotas.dart';
@@ -255,54 +256,99 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(DesignTokens.radiusL),
       ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-          child: Icon(
-            s.kind == PlaylistKind.xtream
-                ? Icons.satellite_alt_outlined
-                : Icons.list_alt_rounded,
+      child: Dismissible(
+        key: ValueKey<String>('playlist_${s.id}'),
+        // Right-to-left swipe: share. We never auto-confirm — Dismissible
+        // returns false from confirmDismiss so the row springs back. The
+        // swipe is purely an alternative entry point to the share action.
+        direction: DismissDirection.endToStart,
+        background: const SizedBox.shrink(),
+        secondaryBackground: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignTokens.spaceL,
+          ),
+          decoration: BoxDecoration(
+            color: BrandColors.primary.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(DesignTokens.radiusL),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: <Widget>[
+              Icon(Icons.share_rounded, color: BrandColors.primary),
+              SizedBox(width: DesignTokens.spaceS),
+              Text(
+                'Paylas',
+                style: TextStyle(
+                  color: BrandColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
         ),
-        title: Text(
-          s.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(subtitle.toString()),
-        trailing: PopupMenuButton<String>(
-          onSelected: (String value) {
-            switch (value) {
-              case 'refresh':
-                _refresh();
-              case 'delete':
-                _confirmDelete();
-            }
-          },
-          itemBuilder: (BuildContext ctx) => const <PopupMenuEntry<String>>[
-            PopupMenuItem(
-              value: 'refresh',
-              child: ListTile(
-                leading: Icon(Icons.refresh),
-                title: Text('Yenile'),
-              ),
+        confirmDismiss: (DismissDirection _) async {
+          await ShareHelper.sharePlaylist(context, s);
+          return false;
+        },
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            child: Icon(
+              s.kind == PlaylistKind.xtream
+                  ? Icons.satellite_alt_outlined
+                  : Icons.list_alt_rounded,
             ),
-            PopupMenuItem(
-              value: 'delete',
-              child: ListTile(
-                leading: Icon(Icons.delete_outline),
-                title: Text('Sil'),
+          ),
+          title: Text(
+            s.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(subtitle.toString()),
+          trailing: PopupMenuButton<String>(
+            onSelected: (String value) {
+              switch (value) {
+                case 'refresh':
+                  _refresh();
+                case 'share':
+                  ShareHelper.sharePlaylist(context, s);
+                case 'delete':
+                  _confirmDelete();
+              }
+            },
+            itemBuilder: (BuildContext ctx) => const <PopupMenuEntry<String>>[
+              PopupMenuItem(
+                value: 'refresh',
+                child: ListTile(
+                  leading: Icon(Icons.refresh),
+                  title: Text('Yenile'),
+                ),
               ),
-            ),
-          ],
-          child: _refreshing
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.more_vert),
+              PopupMenuItem(
+                value: 'share',
+                child: ListTile(
+                  leading: Icon(Icons.share_outlined),
+                  title: Text('Paylas'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline),
+                  title: Text('Sil'),
+                ),
+              ),
+            ],
+            child: _refreshing
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.more_vert),
+          ),
         ),
       ),
     );

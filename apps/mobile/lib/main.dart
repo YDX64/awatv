@@ -4,6 +4,8 @@ import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/desktop_window.dart';
 import 'package:awatv_mobile/src/desktop/system_tray.dart';
+import 'package:awatv_mobile/src/shared/background_playback/audio_session_config.dart';
+import 'package:awatv_mobile/src/shared/background_playback/background_playback_controller.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_player/awatv_player.dart';
@@ -58,6 +60,27 @@ Future<void> main() async {
   } on Object {
     // Player will still create on demand; web users may see a "couldn't
     // play this stream" surface for HEVC/AV1 but the app boots.
+  }
+
+  // Audio session — tells the OS we are a media-playback app so the
+  // engine keeps decoding while the screen is locked / app backgrounded.
+  // No-op on web. Failures are non-fatal; the player still renders.
+  try {
+    await configureAudioSession();
+  } on Object {
+    // Without a session we lose lock-screen / Bluetooth control UX,
+    // but on-screen playback still works.
+  }
+
+  // Boot the OS media-session bridge. On Android this also wires the
+  // foreground-service notification, so streams can survive the doze
+  // killer for the duration the user keeps playback alive. On iOS /
+  // macOS this populates the lock-screen / Control Center tile.
+  try {
+    await ensureAudioServiceInitialized();
+  } on Object {
+    // Best-effort — see comment above; failure here only loses the
+    // lock-screen affordance.
   }
 
   try {

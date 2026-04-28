@@ -2,6 +2,7 @@ import 'package:awatv_mobile/src/features/home/home_data.dart';
 import 'package:awatv_mobile/src/features/home/home_hero.dart';
 import 'package:awatv_mobile/src/features/home/home_row.dart';
 import 'package:awatv_mobile/src/features/home/home_row_item.dart';
+import 'package:awatv_mobile/src/shared/network/network_chip.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,6 +94,14 @@ class _HomeBody extends ConsumerWidget {
             ),
           ),
           actions: <Widget>[
+            // Live network chip — surfaces Wi-Fi SSID once the user has
+            // granted consent in onboarding. Falls back to "Mobil veri"
+            // / "Ethernet" depending on the active interface; hidden
+            // outright on web and offline.
+            const Padding(
+              padding: EdgeInsets.only(right: DesignTokens.spaceXs),
+              child: NetworkChip(),
+            ),
             IconButton(
               tooltip: 'Ara',
               icon: const Icon(Icons.search),
@@ -106,6 +115,10 @@ class _HomeBody extends ConsumerWidget {
             const SizedBox(width: DesignTokens.spaceS),
           ],
         ),
+        // One-shot SSID consent banner. Renders as a SizedBox.shrink
+        // when already asked / granted so it has zero footprint after
+        // the first launch.
+        const SliverToBoxAdapter(child: SsidConsentBanner()),
         SliverToBoxAdapter(
           child: hero.when(
             loading: () => const _HeroSkeleton(),

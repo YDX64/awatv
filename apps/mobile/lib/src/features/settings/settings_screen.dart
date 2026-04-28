@@ -4,12 +4,15 @@ import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/auth/cloud_sync_gate.dart';
+import 'package:awatv_mobile/src/shared/discovery/share_helper.dart';
+import 'package:awatv_mobile/src/shared/network/app_settings_helper.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/sync_status.dart';
 import 'package:awatv_mobile/src/shared/updater/update_settings_card.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -144,6 +147,70 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: const Text('Reklamsiz, sinirsiz, kosulsuz.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/premium'),
+          ),
+          const Divider(),
+          // Sistem ayarlari — deep links into the OS settings screens.
+          // Hidden entirely on web (no equivalent surface).
+          if (!kIsWeb) ...<Widget>[
+            const _SectionHeader('Sistem ayarlari'),
+            ListTile(
+              leading: const Icon(Icons.notifications_outlined),
+              title: const Text('Bildirimler'),
+              subtitle: const Text(
+                'Sistem bildirim ayarlarini ac',
+              ),
+              trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+              onTap: () => openOsSettingsOrToast(
+                context,
+                kind: OsSettingsPage.notifications,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.wifi_outlined),
+              title: const Text('Wi-Fi'),
+              subtitle: const Text('Ag tercihlerini ac'),
+              trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+              onTap: () => openOsSettingsOrToast(
+                context,
+                kind: OsSettingsPage.wifi,
+              ),
+            ),
+            // Pil ayarlari sadece Android'de anlamli — iOS uygulama icin
+            // pil tercih sayfasi sunmaz.
+            if (defaultTargetPlatform == TargetPlatform.android)
+              ListTile(
+                leading: const Icon(Icons.battery_5_bar_outlined),
+                title: const Text('Pil'),
+                subtitle: const Text(
+                  'Arka plan kisitlamasini bul',
+                ),
+                trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+                onTap: () => openOsSettingsOrToast(
+                  context,
+                  kind: OsSettingsPage.battery,
+                ),
+              ),
+            ListTile(
+              leading: const Icon(Icons.tune_outlined),
+              title: const Text('Uygulama ayarlari'),
+              subtitle: const Text('AWAtv izinlerini gor'),
+              trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+              onTap: () => openOsSettingsOrToast(
+                context,
+                kind: OsSettingsPage.app,
+              ),
+            ),
+          ],
+          const Divider(),
+          const _SectionHeader('Yayilma'),
+          ListTile(
+            leading: const Icon(Icons.ios_share_rounded),
+            title: const Text("AWAtv'i paylas"),
+            subtitle: const Text(
+              'Arkadaslarini davet et, link kopyala',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => ShareHelper.shareApp(context),
           ),
           const Divider(),
           const _SectionHeader('Sürüm'),

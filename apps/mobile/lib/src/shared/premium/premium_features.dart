@@ -35,6 +35,18 @@ enum PremiumFeature {
 
   /// Suppress AdMob banners and interstitials.
   noAds,
+
+  /// Keep audio + video decoding alive when the app is backgrounded
+  /// (phone lock, app switcher, window focus loss). Surfaces a lock-
+  /// screen / notification "now playing" tile so the user can
+  /// pause / resume without re-opening the app.
+  backgroundPlayback,
+
+  /// Pin the desktop player window above every other window so the
+  /// stream stays visible while the user works or browses elsewhere.
+  /// Mirrors the "always on top" toggle reference IPTV apps surface
+  /// in their player overlay and tray menu.
+  alwaysOnTop,
 }
 
 /// Display copy used by the paywall sheet and lock dialog. Kept as a
@@ -53,6 +65,8 @@ class PremiumFeatureCopy {
         PremiumFeature.parentalControls => 'Parental controls',
         PremiumFeature.customThemes => 'Custom themes',
         PremiumFeature.noAds => 'Ad-free experience',
+        PremiumFeature.backgroundPlayback => 'Arkaplan oynatma',
+        PremiumFeature.alwaysOnTop => 'Pencereyi üstte sabitle',
       };
 
   static String subtitle(PremiumFeature f) => switch (f) {
@@ -74,5 +88,11 @@ class PremiumFeatureCopy {
           'Personalise the accent colour and wallpaper packs.',
         PremiumFeature.noAds =>
           'Banishes every banner and interstitial throughout the app.',
+        PremiumFeature.backgroundPlayback =>
+          'Premium üyelere özel — kilit ekranında ve uygulama dışında '
+              'oynatmaya devam.',
+        PremiumFeature.alwaysOnTop =>
+          'Player penceresi diğer pencereler arkasında kalmaz — bilgisayarda '
+              'çalışırken veya gezerken yayını gözden kaçırma.',
       };
 }

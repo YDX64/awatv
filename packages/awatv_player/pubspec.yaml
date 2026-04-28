@@ -21,6 +21,11 @@ dependencies:
   # backend factory so platforms without a libVLC build (web, desktop)
   # silently route to media_kit instead.
   flutter_vlc_player: ^7.4.2
+  # OS-level audio-session arbitration: claims the playback category so
+  # the engine keeps decoding audio when the app moves off-screen / the
+  # phone locks. Pairs with `audio_service` in the host app to surface
+  # lock-screen / Bluetooth / Android-Auto controls. Web is a no-op.
+  audio_session: ^0.1.21
 
 dev_dependencies:
   flutter_test:

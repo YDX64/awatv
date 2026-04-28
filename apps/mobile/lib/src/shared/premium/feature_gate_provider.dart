@@ -38,6 +38,12 @@ bool _freeTierAllowed(PremiumFeature feature) {
     case PremiumFeature.parentalControls:
     case PremiumFeature.customThemes:
     case PremiumFeature.noAds:
+    // Background playback is the headline premium feature — matches
+    // IPTV Expert / ipTV's "play in background" upsell.
+    case PremiumFeature.backgroundPlayback:
+    // Always-on-top window pinning is a desktop-only premium perk —
+    // matches the player-pin toggle reference IPTV apps expose.
+    case PremiumFeature.alwaysOnTop:
       return false;
   }
 }

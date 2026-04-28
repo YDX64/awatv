@@ -87,6 +87,22 @@ class AwaPlayerController {
       StreamController<bool>.broadcast();
   final StreamController<String> _errorsCtrl =
       StreamController<String>.broadcast();
+  final StreamController<List<VideoTrack>> _videoTracksCtrl =
+      StreamController<List<VideoTrack>>.broadcast();
+  final StreamController<List<AudioTrack>> _audioTracksCtrl =
+      StreamController<List<AudioTrack>>.broadcast();
+  final StreamController<List<SubtitleTrack>> _subtitleTracksCtrl =
+      StreamController<List<SubtitleTrack>>.broadcast();
+  final StreamController<VideoTrack> _currentVideoTrackCtrl =
+      StreamController<VideoTrack>.broadcast();
+  final StreamController<AudioTrack> _currentAudioTrackCtrl =
+      StreamController<AudioTrack>.broadcast();
+  final StreamController<SubtitleTrack> _currentSubtitleTrackCtrl =
+      StreamController<SubtitleTrack>.broadcast();
+  final StreamController<int?> _videoWidthCtrl =
+      StreamController<int?>.broadcast();
+  final StreamController<int?> _videoHeightCtrl =
+      StreamController<int?>.broadcast();
 
   // Subscriptions to the underlying media_kit streams; cancelled on dispose.
   final List<StreamSubscription<dynamic>> _subs = <StreamSubscription<dynamic>>[];
@@ -101,6 +117,17 @@ class AwaPlayerController {
   bool _disposed = false;
 
   PlayerState _currentState = const PlayerIdle();
+
+  // Cached track snapshots so late subscribers immediately receive the
+  // most recent value rather than waiting for the next emission.
+  List<VideoTrack> _videoTracks = const <VideoTrack>[];
+  List<AudioTrack> _audioTracks = const <AudioTrack>[];
+  List<SubtitleTrack> _subtitleTracks = const <SubtitleTrack>[];
+  VideoTrack? _currentVideoTrack;
+  AudioTrack? _currentAudioTrack;
+  SubtitleTrack? _currentSubtitleTrack;
+  int? _videoWidth;
+  int? _videoHeight;
 
   /// The media_kit player. Exposed so [AwaPlayerView] (or advanced
   /// callers needing track selection, screenshots, etc.) can reach it.
@@ -122,6 +149,109 @@ class AwaPlayerController {
   Stream<bool> get playing => _playingCtrl.stream;
   Stream<bool> get completed => _completedCtrl.stream;
   Stream<String> get errors => _errorsCtrl.stream;
+
+  // --- Tracks ------------------------------------------------------------
+  /// Currently available video tracks (typically including `auto` and
+  /// `no` virtual entries plus per-stream variants for HLS).
+  List<VideoTrack> get videoTracks => List<VideoTrack>.unmodifiable(_videoTracks);
+
+  /// Currently available audio tracks (language / channels / codec).
+  List<AudioTrack> get audioTracks => List<AudioTrack>.unmodifiable(_audioTracks);
+
+  /// Currently available subtitle tracks. Always includes the synthetic
+  /// `no` entry that disables subtitles.
+  List<SubtitleTrack> get subtitleTracks =>
+      List<SubtitleTrack>.unmodifiable(_subtitleTracks);
+
+  /// The video track the player is currently rendering, or `null` when
+  /// the engine has not yet reported a selection.
+  VideoTrack? get currentVideoTrack => _currentVideoTrack;
+
+  /// The audio track the player is currently outputting.
+  AudioTrack? get currentAudioTrack => _currentAudioTrack;
+
+  /// The subtitle track currently displayed (or `SubtitleTrack.no()`).
+  SubtitleTrack? get currentSubtitleTrack => _currentSubtitleTrack;
+
+  /// Last reported native video width in pixels, if any.
+  int? get videoWidth => _videoWidth;
+
+  /// Last reported native video height in pixels, if any.
+  int? get videoHeight => _videoHeight;
+
+  /// Stream of available video tracks. Replays the current snapshot on
+  /// subscribe.
+  Stream<List<VideoTrack>> get videoTracksStream async* {
+    yield _videoTracks;
+    yield* _videoTracksCtrl.stream;
+  }
+
+  /// Stream of available audio tracks. Replays the current snapshot on
+  /// subscribe.
+  Stream<List<AudioTrack>> get audioTracksStream async* {
+    yield _audioTracks;
+    yield* _audioTracksCtrl.stream;
+  }
+
+  /// Stream of available subtitle tracks. Replays the current snapshot
+  /// on subscribe.
+  Stream<List<SubtitleTrack>> get subtitleTracksStream async* {
+    yield _subtitleTracks;
+    yield* _subtitleTracksCtrl.stream;
+  }
+
+  /// Stream of the currently selected video track.
+  Stream<VideoTrack> get currentVideoTrackStream async* {
+    final v = _currentVideoTrack;
+    if (v != null) yield v;
+    yield* _currentVideoTrackCtrl.stream;
+  }
+
+  /// Stream of the currently selected audio track.
+  Stream<AudioTrack> get currentAudioTrackStream async* {
+    final a = _currentAudioTrack;
+    if (a != null) yield a;
+    yield* _currentAudioTrackCtrl.stream;
+  }
+
+  /// Stream of the currently selected subtitle track.
+  Stream<SubtitleTrack> get currentSubtitleTrackStream async* {
+    final s = _currentSubtitleTrack;
+    if (s != null) yield s;
+    yield* _currentSubtitleTrackCtrl.stream;
+  }
+
+  /// Stream of native video width in pixels (from the engine).
+  Stream<int?> get videoWidthStream async* {
+    yield _videoWidth;
+    yield* _videoWidthCtrl.stream;
+  }
+
+  /// Stream of native video height in pixels (from the engine).
+  Stream<int?> get videoHeightStream async* {
+    yield _videoHeight;
+    yield* _videoHeightCtrl.stream;
+  }
+
+  /// Selects a video track by reference. The track must be drawn from
+  /// [videoTracks] (or one of the `VideoTrack.auto()` / `.no()` factories).
+  Future<void> setVideoTrack(VideoTrack track) async {
+    _ensureAlive();
+    await _player.setVideoTrack(track);
+  }
+
+  /// Selects an audio track by reference. Pass `AudioTrack.no()` to mute.
+  Future<void> setAudioTrack(AudioTrack track) async {
+    _ensureAlive();
+    await _player.setAudioTrack(track);
+  }
+
+  /// Selects a subtitle track by reference. Pass `SubtitleTrack.no()` to
+  /// hide subtitles.
+  Future<void> setSubtitleTrack(SubtitleTrack track) async {
+    _ensureAlive();
+    await _player.setSubtitleTrack(track);
+  }
 
   /// Opens [source] in the player.
   ///
@@ -221,6 +351,14 @@ class AwaPlayerController {
     await _playingCtrl.close();
     await _completedCtrl.close();
     await _errorsCtrl.close();
+    await _videoTracksCtrl.close();
+    await _audioTracksCtrl.close();
+    await _subtitleTracksCtrl.close();
+    await _currentVideoTrackCtrl.close();
+    await _currentAudioTrackCtrl.close();
+    await _currentSubtitleTrackCtrl.close();
+    await _videoWidthCtrl.close();
+    await _videoHeightCtrl.close();
   }
 
   // --- internals ---------------------------------------------------------
@@ -272,6 +410,30 @@ class AwaPlayerController {
         if (e.isEmpty) return;
         _errorsCtrl.add(e);
         _emitState(PlayerError(e));
+      }))
+      ..add(_player.stream.tracks.listen((Tracks t) {
+        _videoTracks = t.video;
+        _audioTracks = t.audio;
+        _subtitleTracks = t.subtitle;
+        _videoTracksCtrl.add(_videoTracks);
+        _audioTracksCtrl.add(_audioTracks);
+        _subtitleTracksCtrl.add(_subtitleTracks);
+      }))
+      ..add(_player.stream.track.listen((Track sel) {
+        _currentVideoTrack = sel.video;
+        _currentAudioTrack = sel.audio;
+        _currentSubtitleTrack = sel.subtitle;
+        _currentVideoTrackCtrl.add(sel.video);
+        _currentAudioTrackCtrl.add(sel.audio);
+        _currentSubtitleTrackCtrl.add(sel.subtitle);
+      }))
+      ..add(_player.stream.width.listen((int? w) {
+        _videoWidth = w;
+        _videoWidthCtrl.add(w);
+      }))
+      ..add(_player.stream.height.listen((int? h) {
+        _videoHeight = h;
+        _videoHeightCtrl.add(h);
       }));
   }
 

@@ -1,8 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
+import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_tier.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 
 part 'premium_status_provider.g.dart';
 
@@ -21,6 +26,17 @@ const String _kPrefsKey = 'premium:tier';
 class PremiumStatus extends _$PremiumStatus {
   @override
   PremiumTier build() {
+    // Mirror Supabase user_metadata into the tier whenever auth flips
+    // to signed-in. Hand-provisioned beta accounts have `premium_plan`
+    // / `premium_lifetime` flags set server-side via admin SQL — clients
+    // never need to touch `simulateActivate` for them.
+    ref.listen<AsyncValue<AuthState>>(authControllerProvider, (prev, next) {
+      final s = next.valueOrNull;
+      if (s is AuthSignedIn) {
+        unawaited(_applyFromUserMetadata());
+      }
+    });
+
     final initial = _readPersisted();
     // If the stored entitlement has elapsed, demote on boot so the rest
     // of the app does not flicker through a brief premium frame.
@@ -31,6 +47,43 @@ class PremiumStatus extends _$PremiumStatus {
       return const FreeTier();
     }
     return initial;
+  }
+
+  /// Best-effort: read the live Supabase user_metadata and upgrade the
+  /// tier when it carries `premium_plan` / `premium_lifetime`. Idempotent
+  /// — re-runs on every sign-in but only mutates when the result differs.
+  Future<void> _applyFromUserMetadata() async {
+    try {
+      final user = supa.Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+      final meta = user.userMetadata ?? const <String, dynamic>{};
+      final lifetime = meta['premium_lifetime'] == true;
+      final planStr = meta['premium_plan'] as String?;
+      final expiresStr = meta['premium_expires_at'] as String?;
+
+      PremiumTier? next;
+      if (lifetime || planStr == 'lifetime') {
+        next = const PremiumTierActive(
+          plan: PremiumPlan.lifetime,
+          expiresAt: null,
+          willRenew: false,
+        );
+      } else if (planStr == 'yearly' || planStr == 'monthly') {
+        final expiry =
+            expiresStr != null ? DateTime.tryParse(expiresStr) : null;
+        next = PremiumTierActive(
+          plan: planStr == 'yearly' ? PremiumPlan.yearly : PremiumPlan.monthly,
+          expiresAt: expiry,
+          willRenew: true,
+        );
+      }
+      if (next != null && next != state) {
+        state = next;
+        await _persist(next);
+      }
+    } on Object {
+      // Best-effort — ignore failures; user can still upgrade via paywall.
+    }
   }
 
   /// Dev-mode entry-point used by the paywall in lieu of a real IAP

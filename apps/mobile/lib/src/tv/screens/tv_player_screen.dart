@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
+import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
@@ -19,6 +21,8 @@ import 'package:go_router/go_router.dart';
 ///     exits.
 ///   - No orientation lock (TVs are already landscape, plus rotating
 ///     a TV's `SystemChrome` is ignored).
+///   - Visual chrome mirrors the mobile redesign — bigger fonts, gradient
+///     scrims, status badge — so the brand reads consistently on both.
 class TvPlayerScreen extends ConsumerStatefulWidget {
   const TvPlayerScreen({required this.args, super.key});
 
@@ -33,13 +37,19 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
   AwaPlayerController? _controller;
   StreamSubscription<PlayerState>? _stateSub;
   StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration>? _bufferedSub;
+  StreamSubscription<int?>? _heightSub;
   Timer? _historyTimer;
 
   bool _showControls = true;
   bool _isPaused = false;
+  bool _buffering = false;
+  bool _firstFrameSeen = false;
   Duration _position = Duration.zero;
+  Duration _bufferedPos = Duration.zero;
   Duration? _total;
   String? _errorMessage;
+  int? _videoHeight;
 
   late final FocusNode _surfaceFocus = FocusNode(debugLabel: 'tv_player');
 
@@ -68,7 +78,20 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
       );
       _positionSub = c.positions.listen((Duration p) {
         if (!mounted) return;
-        setState(() => _position = p);
+        setState(() {
+          _position = p;
+          if (!_firstFrameSeen && p > Duration.zero) {
+            _firstFrameSeen = true;
+          }
+        });
+      });
+      _bufferedSub = c.buffered.listen((Duration b) {
+        if (!mounted) return;
+        setState(() => _bufferedPos = b);
+      });
+      _heightSub = c.videoHeightStream.listen((int? h) {
+        if (!mounted) return;
+        setState(() => _videoHeight = h);
       });
 
       await c.play();
@@ -88,6 +111,7 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
       case PlayerPlaying(:final position, :final total):
         setState(() {
           _isPaused = false;
+          _buffering = false;
           _position = position;
           _total = total;
           _errorMessage = null;
@@ -95,11 +119,15 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
       case PlayerPaused(:final position, :final total):
         setState(() {
           _isPaused = true;
+          _buffering = false;
           _position = position;
           _total = total;
         });
       case PlayerLoading():
-        setState(() => _errorMessage = null);
+        setState(() {
+          _buffering = true;
+          _errorMessage = null;
+        });
       case PlayerEnded():
         setState(() => _isPaused = true);
       case PlayerError(:final message):
@@ -148,6 +176,12 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
     await c.seek(clamped);
   }
 
+  Future<void> _openSettings() async {
+    final c = _controller;
+    if (c == null) return;
+    await PlayerSettingsSheet.show(context, controller: c);
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
@@ -180,6 +214,11 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
       setState(() => _showControls = true);
       return KeyEventResult.handled;
     }
+    if (k == LogicalKeyboardKey.keyM) {
+      // 'M' opens the audio/subtitle/quality menu — same key VLC uses.
+      _openSettings();
+      return KeyEventResult.handled;
+    }
     if (k == LogicalKeyboardKey.escape ||
         k == LogicalKeyboardKey.goBack ||
         k == LogicalKeyboardKey.browserBack) {
@@ -189,11 +228,22 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
     return KeyEventResult.ignored;
   }
 
+  NetworkStatusKind? _statusKindForOverlay() {
+    if (widget.args.isLive) return NetworkStatusKind.live;
+    if (_buffering) return NetworkStatusKind.buffering;
+    if (_videoHeight != null && _videoHeight! >= 2160) {
+      return NetworkStatusKind.fourK;
+    }
+    return null;
+  }
+
   @override
   void dispose() {
     _historyTimer?.cancel();
     _stateSub?.cancel();
     _positionSub?.cancel();
+    _bufferedSub?.cancel();
+    _heightSub?.cancel();
     _controller?.dispose();
     _surfaceFocus.dispose();
     SystemChrome.setEnabledSystemUIMode(
@@ -215,6 +265,8 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
+    final showBuffering = _buffering && !_isPaused && _firstFrameSeen;
+    final statusKind = _statusKindForOverlay();
     return PopScope(
       onPopInvokedWithResult: (bool didPop, Object? _) async {
         if (didPop) {
@@ -237,6 +289,7 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
                 AwaPlayerView(controller: controller)
               else
                 const ColoredBox(color: Colors.black),
+              PlayerBufferingOverlay(visible: showBuffering),
               if (_errorMessage != null) _ErrorPanel(message: _errorMessage!),
               if (_showControls)
                 _TvControlsLayer(
@@ -246,6 +299,8 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
                   isPaused: _isPaused,
                   position: _position,
                   total: _total,
+                  buffered: _bufferedPos,
+                  statusKind: statusKind,
                   onClose: () {
                     if (context.canPop()) context.pop();
                   },
@@ -300,6 +355,8 @@ class _TvControlsLayer extends StatelessWidget {
     required this.isPaused,
     required this.position,
     required this.total,
+    required this.buffered,
+    required this.statusKind,
     required this.onClose,
     this.subtitle,
   });
@@ -310,6 +367,8 @@ class _TvControlsLayer extends StatelessWidget {
   final bool isPaused;
   final Duration position;
   final Duration? total;
+  final Duration buffered;
+  final NetworkStatusKind? statusKind;
   final VoidCallback onClose;
 
   @override
@@ -364,27 +423,12 @@ class _TvControlsLayer extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (isLive)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: DesignTokens.spaceM,
-                        vertical: DesignTokens.spaceS,
+                  if (statusKind != null)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        right: DesignTokens.spaceS,
                       ),
-                      decoration: BoxDecoration(
-                        color: BrandColors.error,
-                        borderRadius: BorderRadius.circular(
-                          DesignTokens.radiusS,
-                        ),
-                      ),
-                      child: const Text(
-                        'CANLI',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
+                      child: NetworkStatusBadge(kind: statusKind!),
                     ),
                 ],
               ),
@@ -392,22 +436,32 @@ class _TvControlsLayer extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
-                  Icon(
-                    isPaused
-                        ? Icons.play_arrow_rounded
-                        : Icons.pause_rounded,
-                    color: Colors.white,
-                    size: 96,
+                  AnimatedSwitcher(
+                    duration: DesignTokens.motionFast,
+                    transitionBuilder: (Widget c, Animation<double> a) =>
+                        ScaleTransition(scale: a, child: c),
+                    child: Icon(
+                      isPaused
+                          ? Icons.play_arrow_rounded
+                          : Icons.pause_rounded,
+                      key: ValueKey<bool>(isPaused),
+                      color: Colors.white,
+                      size: 96,
+                    ),
                   ),
                 ],
               ),
               const Spacer(),
               if (!isLive && total != null)
-                _ProgressRow(position: position, total: total!),
+                _ProgressRow(
+                  position: position,
+                  total: total!,
+                  buffered: buffered,
+                ),
               const SizedBox(height: DesignTokens.spaceL),
               const Center(
                 child: Text(
-                  'OK: oynat / durdur     <- ->: 10sn ileri-geri     Geri: kapat',
+                  'OK: oynat / durdur     <- ->: 10sn ileri-geri     M: ayarlar     Geri: kapat',
                   style: TextStyle(color: Colors.white60, fontSize: 14),
                 ),
               ),
@@ -420,15 +474,23 @@ class _TvControlsLayer extends StatelessWidget {
 }
 
 class _ProgressRow extends StatelessWidget {
-  const _ProgressRow({required this.position, required this.total});
+  const _ProgressRow({
+    required this.position,
+    required this.total,
+    required this.buffered,
+  });
   final Duration position;
   final Duration total;
+  final Duration buffered;
 
   @override
   Widget build(BuildContext context) {
     final progress = total.inMilliseconds == 0
         ? 0.0
         : (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
+    final bufferedFrac = total.inMilliseconds == 0
+        ? 0.0
+        : (buffered.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
     return Row(
       children: <Widget>[
         Text(
@@ -439,11 +501,23 @@ class _ProgressRow extends StatelessWidget {
         Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: Colors.white24,
-              color: BrandColors.primary,
+            child: SizedBox(
+              height: 6,
+              child: Stack(
+                children: <Widget>[
+                  Container(color: Colors.white24),
+                  FractionallySizedBox(
+                    widthFactor: bufferedFrac,
+                    child: Container(
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  FractionallySizedBox(
+                    widthFactor: progress,
+                    child: Container(color: BrandColors.primary),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

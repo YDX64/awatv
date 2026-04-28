@@ -40,6 +40,9 @@ dependencies:
   cached_network_image: ^3.4.1
   shimmer: ^3.0.0
 
+  # QR generation for the remote-control pairing screen.
+  qr_flutter: ^4.1.0
+
   # Env / i18n
   flutter_dotenv: ^5.2.1
   intl: ^0.20.0

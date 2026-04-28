@@ -2,30 +2,41 @@ import 'dart:async';
 
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/keyboard_shortcuts.dart';
+import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
+import 'package:awatv_mobile/src/features/player/widgets/player_controls_layer.dart';
+import 'package:awatv_mobile/src/features/player/widgets/player_gestures.dart';
+import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
+import 'package:awatv_mobile/src/shared/remote/player_bridge.dart';
+import 'package:awatv_mobile/src/shared/remote/receiver_provider.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Full-screen player with custom overlay controls.
+/// Full-screen, Netflix-tier player.
+///
+/// Composition strategy:
+/// - [AwaPlayerView] renders the video frame (no chrome of its own).
+/// - [PlayerGestures] sits over the frame and recognises taps, double-taps,
+///   vertical/horizontal drags, and pinch.
+/// - [PlayerControlsLayer] paints the top bar / centre cluster / bottom bar
+///   on top, fading in/out as a unit.
+/// - [PlayerBufferingOverlay] fades in over both when the engine reports
+///   buffering for >200ms after the first frame.
 ///
 /// Lifecycle:
-///   - on init: locks to landscape, sets immersive UI, creates controller,
-///     triggers play, starts position-tick history saver (5s).
-///   - on dispose: restores orientation/UI, disposes controller.
-///
-/// Overlay controls:
-///   - centre: play/pause big button.
-///   - bottom: position / total / seek bar (hidden for live).
-///   - top: title + close.
-///   - auto-hide after 3 s of no interaction; tap toggles.
+///   - on init: locks orientation list (landscape preferred), sets immersive
+///     UI, creates the controller, kicks off play, starts the 5s history
+///     write timer for VOD/episodes.
+///   - on dispose: tears everything down and restores the system chrome.
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({required this.args, super.key});
 
@@ -40,14 +51,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   AwaPlayerController? _controller;
   StreamSubscription<PlayerState>? _stateSub;
   StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration>? _bufferedSub;
+  StreamSubscription<int?>? _heightSub;
   Timer? _hideTimer;
   Timer? _historyTimer;
+  Timer? _lowBwTimer;
 
   bool _showControls = true;
   bool _isPaused = false;
+  bool _buffering = false;
+  bool _scrubbing = false;
+  bool _firstFrameSeen = false;
   Duration _position = Duration.zero;
+  Duration _bufferedPos = Duration.zero;
   Duration? _total;
   String? _errorMessage;
+  int? _videoHeight;
+  bool _lowBandwidth = false;
+
+  // Brightness/volume mirrors that survive a single drag — actual
+  // brightness control requires a native plugin and is intentionally
+  // out of scope per AGENT instructions; volume goes through media_kit.
+  double _volume = 1; // 0..1
+  BoxFit _videoFit = BoxFit.contain;
+
+  PlayerGestureFeedback _gestureFeedback = const PlayerGestureFeedback(
+    kind: PlayerGestureKind.none,
+    value: 0,
+  );
 
   @override
   void initState() {
@@ -95,7 +126,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       _positionSub = c.positions.listen((Duration p) {
         if (!mounted) return;
-        setState(() => _position = p);
+        setState(() {
+          _position = p;
+          if (!_firstFrameSeen && p > Duration.zero) {
+            _firstFrameSeen = true;
+          }
+        });
+      });
+
+      _bufferedSub = c.buffered.listen((Duration b) {
+        if (!mounted) return;
+        setState(() => _bufferedPos = b);
+        _evaluateLowBandwidth();
+      });
+
+      _heightSub = c.videoHeightStream.listen((int? h) {
+        if (!mounted) return;
+        setState(() => _videoHeight = h);
       });
 
       await c.play();
@@ -103,10 +150,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!widget.args.isLive && widget.args.itemId != null) {
         _startHistoryTicker();
       }
+
+      // If a receiver session is already running on this device, hand
+      // the active controller to the bridge so remote-control commands
+      // route into this player and so its now-playing state echoes
+      // back to the connected sender. No-op when no session is active.
+      _publishToBridgeIfReceiving();
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _errorMessage = e.toString());
     }
+  }
+
+  /// Wires this player into the remote-control bridge when (and only
+  /// when) a receiver session is already alive. Pure additive — players
+  /// outside any remote flow don't pay the channel-open cost.
+  void _publishToBridgeIfReceiving() {
+    final session = ref.read(receiverSessionControllerProvider);
+    if (!session.hasValue) return;
+    final c = _controller;
+    if (c == null) return;
+    // Touch the bridge so it instantiates and listens for commands.
+    ref.read(ensurePlayerBridgeProvider);
+    ref.read(activePlaybackProvider.notifier).set(
+          PlaybackContext(
+            controller: c,
+            title: widget.args.title,
+            subtitle: widget.args.subtitle,
+            itemId: widget.args.itemId,
+            isLive: widget.args.isLive,
+          ),
+        );
   }
 
   void _onPlayerState(PlayerState state) {
@@ -115,6 +189,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       case PlayerPlaying(:final position, :final total):
         setState(() {
           _isPaused = false;
+          _buffering = false;
           _position = position;
           _total = total;
           _errorMessage = null;
@@ -122,18 +197,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       case PlayerPaused(:final position, :final total):
         setState(() {
           _isPaused = true;
+          _buffering = false;
           _position = position;
           _total = total;
+          _showControls = true;
         });
       case PlayerLoading():
-        setState(() => _errorMessage = null);
+        setState(() {
+          _buffering = true;
+          _errorMessage = null;
+        });
       case PlayerEnded():
-        setState(() => _isPaused = true);
+        setState(() {
+          _isPaused = true;
+          _showControls = true;
+        });
       case PlayerError(:final message):
         setState(() => _errorMessage = message);
       case PlayerIdle():
         break;
     }
+  }
+
+  void _evaluateLowBandwidth() {
+    // Treat <2s buffer ahead of the playhead as "low" — flip the badge on
+    // after this condition holds for 5s, off as soon as it recovers.
+    final aheadMs = _bufferedPos.inMilliseconds - _position.inMilliseconds;
+    final isLow = aheadMs >= 0 && aheadMs < 2000;
+    if (!isLow) {
+      _lowBwTimer?.cancel();
+      _lowBwTimer = null;
+      if (_lowBandwidth) setState(() => _lowBandwidth = false);
+      return;
+    }
+    if (_lowBwTimer != null) return;
+    _lowBwTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      setState(() => _lowBandwidth = true);
+    });
   }
 
   void _startHistoryTicker() {
@@ -158,11 +259,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_showControls) _scheduleHide();
   }
 
+  void _revealControls() {
+    if (!_showControls) {
+      setState(() => _showControls = true);
+    }
+    _scheduleHide();
+  }
+
   void _scheduleHide() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 3), () {
+    if (_isPaused || _scrubbing) return;
+    _hideTimer = Timer(const Duration(milliseconds: 3500), () {
       if (!mounted) return;
-      if (!_isPaused) setState(() => _showControls = false);
+      if (!_isPaused && !_scrubbing) {
+        setState(() => _showControls = false);
+      }
     });
   }
 
@@ -184,10 +295,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _scheduleHide();
   }
 
-  /// Picture-in-picture handoff. Surfaces the paywall lock sheet on
-  /// the free tier; on premium it would call out to a platform channel
-  /// — that wiring lands with multi-screen in Phase 2 (see
-  /// `docs/ROADMAP.md`).
+  Future<void> _skipBy(Duration delta) async {
+    final c = _controller;
+    if (c == null || widget.args.isLive) return;
+    final total = _total;
+    final next = _position + delta;
+    final clamped = next < Duration.zero
+        ? Duration.zero
+        : (total != null && next > total ? total : next);
+    await c.seek(clamped);
+    _revealControls();
+  }
+
   void _onPipRequested() {
     final allowed =
         ref.read(canUseFeatureProvider(PremiumFeature.pictureInPicture));
@@ -197,14 +316,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text(
-          'PiP destegi Phase 2 te platform kanali ile aktiflesir.',
-        ),
+        content: Text('PiP destegi Phase 2 te platform kanali ile aktiflesir.'),
       ),
     );
   }
 
-  /// VLC backend toggle. Same gate semantics as PiP.
+  void _onCastRequested() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Yayın gönderme yakında geliyor.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _onSettingsRequested() async {
+    final c = _controller;
+    if (c == null) return;
+    _hideTimer?.cancel();
+    await PlayerSettingsSheet.show(context, controller: c);
+    if (!mounted) return;
+    _scheduleHide();
+  }
+
+  Future<void> _onVolumeDelta(double delta) async {
+    final c = _controller;
+    if (c == null) return;
+    _volume = (_volume + delta).clamp(0.0, 1.0);
+    await c.setVolume(_volume * 100);
+  }
+
+  Future<void> _onBrightnessDelta(double _) async {
+    // Native brightness control would need a platform plugin; we keep the
+    // gesture wired so the HUD shows feedback, but the actual screen
+    // brightness call is intentionally a no-op here. If the host picks up
+    // a brightness plugin later, it can subclass and override this.
+  }
+
+  Future<void> _onPinchToggle() async {
+    setState(() {
+      _videoFit = _videoFit == BoxFit.contain ? BoxFit.cover : BoxFit.contain;
+    });
+  }
+
   void _onBackendToggleRequested() {
     final allowed =
         ref.read(canUseFeatureProvider(PremiumFeature.vlcBackend));
@@ -220,12 +374,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Used by desktop keyboard shortcuts (arrow keys, J/L) to nudge the
-  /// playback position by a relative amount. Live streams ignore the
-  /// seek but still flash the controls so the user gets feedback.
+  /// playback position by a relative amount.
   Future<void> _seekRelative(Duration delta) async {
     if (widget.args.isLive) {
-      setState(() => _showControls = true);
-      _scheduleHide();
+      _revealControls();
       return;
     }
     final total = _total;
@@ -240,8 +392,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void dispose() {
     _historyTimer?.cancel();
     _hideTimer?.cancel();
+    _lowBwTimer?.cancel();
     _stateSub?.cancel();
     _positionSub?.cancel();
+    _bufferedSub?.cancel();
+    _heightSub?.cancel();
+    // Detach this player from the remote-control bridge before tearing
+    // down the controller so the bridge does not hold a dangling ref.
+    // Wrapped because the provider scope may already be gone if the
+    // app is being torn down entirely.
+    try {
+      ref.read(activePlaybackProvider.notifier).clear();
+    } on Object {
+      // ignore: best-effort cleanup
+    }
     _controller?.dispose();
     _exitImmersive();
     WidgetsBinding.instance.removeObserver(this);
@@ -256,46 +420,126 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  NetworkStatusKind? _statusKindForOverlay() {
+    if (widget.args.isLive) return NetworkStatusKind.live;
+    if (_buffering) return NetworkStatusKind.buffering;
+    if (_videoHeight != null && _videoHeight! >= 2160) {
+      return NetworkStatusKind.fourK;
+    }
+    if (_lowBandwidth) return NetworkStatusKind.lowBandwidth;
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
     final isDesktop = ref.watch(isDesktopFormProvider);
+    final statusKind = _statusKindForOverlay();
+    final showBuffering = _buffering && !_isPaused && _firstFrameSeen;
 
     final scaffold = Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _toggleControls,
+      body: MouseRegion(
+        // On web/desktop, mouse movement reveals controls — matches the
+        // muscle memory users have from YouTube/Netflix on desktop.
+        onHover: kIsWeb ? (_) => _revealControls() : null,
         child: Stack(
           fit: StackFit.expand,
-          children: [
+          children: <Widget>[
             if (controller != null)
-              AwaPlayerView(controller: controller)
+              AwaPlayerView(controller: controller, fit: _videoFit)
             else
               const ColoredBox(color: Colors.black),
+            // Gestures intercept taps before the controls layer; they
+            // toggle visibility and drive scrub/volume HUDs.
+            PlayerGestures(
+              onTap: _toggleControls,
+              onSkipBack: () => _skipBy(const Duration(seconds: -10)),
+              onSkipForward: () => _skipBy(const Duration(seconds: 10)),
+              onBrightnessDelta: _onBrightnessDelta,
+              onVolumeDelta: _onVolumeDelta,
+              onSeekRelative: (int s) =>
+                  _skipBy(Duration(seconds: s)),
+              onPinchToggle: _onPinchToggle,
+              onGestureFeedback: (PlayerGestureFeedback fb) {
+                if (!mounted) return;
+                setState(() => _gestureFeedback = fb);
+              },
+              enableSeekDrag: !widget.args.isLive,
+              child: const SizedBox.expand(),
+            ),
+            PlayerGestureHud(feedback: _gestureFeedback),
+            PlayerBufferingOverlay(visible: showBuffering),
             if (_errorMessage != null) _ErrorPanel(message: _errorMessage!),
-            AnimatedOpacity(
-              opacity: _showControls ? 1 : 0,
-              duration: DesignTokens.motionFast,
-              child: IgnorePointer(
-                ignoring: !_showControls,
-                child: _ControlsLayer(
+            // Controls layer fades as a single unit for a cohesive feel.
+            IgnorePointer(
+              ignoring: !_showControls,
+              child: AnimatedOpacity(
+                opacity: _showControls ? 1 : 0,
+                duration: DesignTokens.motionMedium,
+                curve: DesignTokens.motionEmphasized,
+                child: PlayerControlsLayer(
                   title: widget.args.title ?? '',
                   subtitle: widget.args.subtitle,
                   isLive: widget.args.isLive,
                   isPaused: _isPaused,
                   position: _position,
                   total: _total,
+                  buffered: _bufferedPos,
                   onTogglePlay: _togglePlay,
-                  onSeek: _seekTo,
-                  onClose: () {
-                    if (context.canPop()) context.pop();
+                  onSeekTo: _seekTo,
+                  onSkipBack: () =>
+                      _skipBy(const Duration(seconds: -10)),
+                  onSkipForward: () =>
+                      _skipBy(const Duration(seconds: 10)),
+                  onClose: _onClose,
+                  onCastRequested: _onCastRequested,
+                  onSettingsRequested: _onSettingsRequested,
+                  onScrubStartChanged: (bool active) {
+                    setState(() => _scrubbing = active);
+                    if (!active) _scheduleHide();
                   },
-                  onPipRequested: _onPipRequested,
-                  onBackendToggleRequested: _onBackendToggleRequested,
+                  statusBadge: statusKind == null
+                      ? null
+                      : NetworkStatusBadge(kind: statusKind),
                 ),
               ),
             ),
+            // PiP / engine toggles tucked into the top-right corner so
+            // they remain reachable without bloating the new top bar.
+            if (_showControls)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      top: DesignTokens.spaceXxl,
+                      right: DesignTokens.spaceXs,
+                    ),
+                    child: Column(
+                      children: <Widget>[
+                        IconButton(
+                          tooltip: 'Picture in picture',
+                          onPressed: _onPipRequested,
+                          icon: const Icon(
+                            Icons.picture_in_picture_alt_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Oynatıcı motoru',
+                          onPressed: _onBackendToggleRequested,
+                          icon: const Icon(
+                            Icons.tune_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -307,9 +551,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             onTogglePlay: _togglePlay,
             onSeekRelative: _seekRelative,
             onToggleFullscreen: toggleDesktopFullscreen,
-            onExit: () {
-              if (context.canPop()) context.pop();
-            },
+            onExit: _onClose,
             child: scaffold,
           )
         : scaffold;
@@ -320,6 +562,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       },
       child: body,
     );
+  }
+
+  void _onClose() {
+    if (context.canPop()) context.pop();
   }
 }
 
@@ -334,7 +580,7 @@ class _ErrorPanel extends StatelessWidget {
         padding: const EdgeInsets.all(DesignTokens.spaceL),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children: <Widget>[
             const Icon(Icons.error_outline, color: Colors.white, size: 56),
             const SizedBox(height: DesignTokens.spaceM),
             Text(
@@ -354,204 +600,5 @@ class _ErrorPanel extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ControlsLayer extends StatelessWidget {
-  const _ControlsLayer({
-    required this.title,
-    required this.isLive,
-    required this.isPaused,
-    required this.position,
-    required this.total,
-    required this.onTogglePlay,
-    required this.onSeek,
-    required this.onClose,
-    required this.onPipRequested,
-    required this.onBackendToggleRequested,
-    this.subtitle,
-  });
-
-  final String title;
-  final String? subtitle;
-  final bool isLive;
-  final bool isPaused;
-  final Duration position;
-  final Duration? total;
-  final VoidCallback onTogglePlay;
-  final ValueChanged<Duration> onSeek;
-  final VoidCallback onClose;
-  final VoidCallback onPipRequested;
-  final VoidCallback onBackendToggleRequested;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xCC000000),
-            Color(0x33000000),
-            Color(0xCC000000),
-          ],
-        ),
-      ),
-      child: SafeArea(
-        child: Stack(
-          children: [
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: DesignTokens.spaceM,
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: onClose,
-                      tooltip: 'Kapat',
-                    ),
-                    const SizedBox(width: DesignTokens.spaceS),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(color: Colors.white),
-                          ),
-                          if (subtitle != null && subtitle!.isNotEmpty)
-                            Text(
-                              subtitle!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (isLive)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: DesignTokens.spaceS,
-                          vertical: DesignTokens.spaceXs,
-                        ),
-                        decoration: BoxDecoration(
-                          color: BrandColors.error,
-                          borderRadius:
-                              BorderRadius.circular(DesignTokens.radiusS),
-                        ),
-                        child: const Text(
-                          'CANLI',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    IconButton(
-                      tooltip: 'Picture in picture',
-                      onPressed: onPipRequested,
-                      icon: const Icon(
-                        Icons.picture_in_picture_alt_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Oynatici motoru',
-                      onPressed: onBackendToggleRequested,
-                      icon: const Icon(
-                        Icons.tune_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Center(
-              child: IconButton.filled(
-                iconSize: 56,
-                onPressed: onTogglePlay,
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white24,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.all(20),
-                ),
-                icon: Icon(
-                  isPaused
-                      ? Icons.play_arrow_rounded
-                      : Icons.pause_rounded,
-                ),
-              ),
-            ),
-            if (!isLive)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    DesignTokens.spaceM,
-                    DesignTokens.spaceS,
-                    DesignTokens.spaceM,
-                    DesignTokens.spaceL,
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        _format(position),
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      Expanded(
-                        child: Slider(
-                          value: _safeProgress(position, total),
-                          onChanged: total == null
-                              ? null
-                              : (double v) {
-                                  final t = total!.inMilliseconds * v;
-                                  onSeek(Duration(milliseconds: t.round()));
-                                },
-                        ),
-                      ),
-                      Text(
-                        total == null ? '--:--' : _format(total!),
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static double _safeProgress(Duration position, Duration? total) {
-    if (total == null || total.inMilliseconds == 0) return 0;
-    final r = position.inMilliseconds / total.inMilliseconds;
-    if (r.isNaN || r.isInfinite) return 0;
-    return r.clamp(0.0, 1.0);
-  }
-
-  static String _format(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    String two(int n) => n.toString().padLeft(2, '0');
-    if (h > 0) return '${two(h)}:${two(m)}:${two(s)}';
-    return '${two(m)}:${two(s)}';
   }
 }

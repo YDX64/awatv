@@ -90,6 +90,19 @@ class SettingsScreen extends ConsumerWidget {
             unlocked: canCloud,
             isSignedIn: auth is AuthSignedIn,
           ),
+          // Remote control — pairs the device with another running
+          // AWAtv install (TV, desktop). Visible to everyone; the hub
+          // screen surfaces its own "needs cloud" empty state when the
+          // build was compiled without Supabase.
+          ListTile(
+            leading: const Icon(Icons.settings_remote_outlined),
+            title: const Text('Uzaktan kumanda'),
+            subtitle: const Text(
+              'Telefonu kumanda olarak kullan veya bu cihazi yayin ekrani yap',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/remote'),
+          ),
           const Divider(),
           const _SectionHeader('Aile'),
           _GatedTile(

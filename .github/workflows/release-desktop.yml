@@ -1,0 +1,198 @@
+name: release-desktop
+
+# Builds and packages distributable native desktop binaries for AWAtv:
+#   - macOS: signed-less .app (zipped) + .dmg installer disk image
+#   - Windows: .exe + DLLs zipped + optional Inno Setup .exe installer
+#
+# Triggers
+# --------
+#   * push to `main` whenever desktop-impacting paths change
+#   * workflow_dispatch — manual "build me a release" button in the Actions UI
+#   * release published — when a GitHub Release is created, the built artifacts
+#     are uploaded and attached to that release for end-user download.
+#
+# NOTE on code-signing:
+#   Builds produced here are NOT signed or notarized.
+#   * macOS: users will see a Gatekeeper warning. Right-click -> Open the first
+#     time, or run `xattr -dr com.apple.quarantine /Applications/AWAtv.app`.
+#   * Windows: users will see a SmartScreen "unrecognized publisher" prompt.
+#   To produce signed builds you need:
+#     macOS  -> Apple Developer ID + notarytool + APPLE_TEAM_ID secret
+#     Windows -> a code-signing cert (Sectigo / DigiCert) + signtool integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/lib/**'
+      - 'apps/mobile/macos/**'
+      - 'apps/mobile/windows/**'
+      - 'apps/mobile/pubspec.yaml'
+      - 'packages/**'
+      - 'scripts/package-macos.sh'
+      - 'scripts/package-windows.ps1'
+      - '.github/workflows/release-desktop.yml'
+  workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  FLUTTER_VERSION: 3.41.7
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # macOS: produces awatv-macos.zip (the .app bundle) and awatv-macos.dmg
+  # ---------------------------------------------------------------------------
+  build-macos:
+    name: macOS (.app + .dmg)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+
+      - name: Bake .env from secrets
+        # The mobile app reads runtime config from apps/mobile/.env via
+        # flutter_dotenv. Secrets are optional; missing values fall back to
+        # safe defaults inside the app. Values are routed through env vars
+        # rather than inlined into `run:` to avoid shell-injection footguns.
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          WEB_PROXY_URL: ${{ secrets.WEB_PROXY_URL }}
+        run: |
+          {
+            printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
+            printf 'SUPABASE_URL=%s\n' "$SUPABASE_URL"
+            printf 'SUPABASE_ANON_KEY=%s\n' "$SUPABASE_ANON_KEY"
+            printf 'WEB_PROXY_URL=%s\n' "$WEB_PROXY_URL"
+          } > apps/mobile/.env
+
+      - name: Build macOS (release)
+        run: cd apps/mobile && flutter build macos --release
+
+      - name: Package .app + .dmg
+        run: |
+          chmod +x scripts/package-macos.sh
+          ./scripts/package-macos.sh
+
+      - name: Upload macOS ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: awatv-macos-zip
+          path: dist/awatv-macos.zip
+          if-no-files-found: error
+
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: awatv-macos-dmg
+          path: dist/awatv-macos.dmg
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            dist/awatv-macos.zip \
+            dist/awatv-macos.dmg \
+            --clobber
+
+  # ---------------------------------------------------------------------------
+  # Windows: produces awatv-windows.zip and (optional) awatv-setup.exe
+  # ---------------------------------------------------------------------------
+  build-windows:
+    name: Windows (.exe + ZIP + installer)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        shell: pwsh
+        run: |
+          cd packages/awatv_core; dart run build_runner build --delete-conflicting-outputs
+          cd ../../apps/mobile; dart run build_runner build --delete-conflicting-outputs
+
+      - name: Bake .env from secrets
+        shell: pwsh
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          WEB_PROXY_URL: ${{ secrets.WEB_PROXY_URL }}
+        run: |
+          $lines = @(
+            "TMDB_API_KEY=$env:TMDB_API_KEY",
+            "SUPABASE_URL=$env:SUPABASE_URL",
+            "SUPABASE_ANON_KEY=$env:SUPABASE_ANON_KEY",
+            "WEB_PROXY_URL=$env:WEB_PROXY_URL"
+          )
+          Set-Content -Path "apps/mobile/.env" -Value $lines -Encoding UTF8
+
+      - name: Install Inno Setup (for installer)
+        # Free, MIT-style license. Installs `iscc` on PATH so the packaging
+        # script can produce awatv-setup.exe. If this step ever breaks,
+        # the script falls back to ZIP-only and the workflow still succeeds.
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows (release)
+        shell: pwsh
+        run: cd apps/mobile; flutter build windows --release
+
+      - name: Package ZIP + installer
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+
+      - name: Upload Windows ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: awatv-windows-zip
+          path: dist/awatv-windows.zip
+          if-no-files-found: error
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        if: hashFiles('dist/awatv-setup.exe') != ''
+        with:
+          name: awatv-windows-setup
+          path: dist/awatv-setup.exe
+          if-no-files-found: warn
+
+      - name: Attach to GitHub Release
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          $files = @("dist/awatv-windows.zip")
+          if (Test-Path "dist/awatv-setup.exe") { $files += "dist/awatv-setup.exe" }
+          gh release upload $env:RELEASE_TAG $files --clobber

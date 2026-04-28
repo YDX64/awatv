@@ -10,6 +10,9 @@ import 'package:awatv_mobile/src/features/player/player_screen.dart';
 import 'package:awatv_mobile/src/features/playlists/add_playlist_screen.dart';
 import 'package:awatv_mobile/src/features/playlists/playlists_screen.dart';
 import 'package:awatv_mobile/src/features/premium/premium_screen.dart';
+import 'package:awatv_mobile/src/features/remote/receiver_screen.dart';
+import 'package:awatv_mobile/src/features/remote/remote_hub_screen.dart';
+import 'package:awatv_mobile/src/features/remote/sender_screen.dart';
 import 'package:awatv_mobile/src/features/search/search_screen.dart';
 import 'package:awatv_mobile/src/features/series/series_detail_screen.dart';
 import 'package:awatv_mobile/src/features/series/series_screen.dart';
@@ -134,6 +137,31 @@ GoRouter appRouter(Ref ref) {
         name: 'premium',
         builder: (BuildContext context, GoRouterState state) =>
             const PremiumScreen(),
+      ),
+      // Remote-control hub. Two big buttons: receive (this device shows
+      // video) or send (this device acts as a remote). The two child
+      // routes own the actual pairing flow.
+      GoRoute(
+        path: '/remote',
+        name: 'remote',
+        builder: (BuildContext context, GoRouterState state) =>
+            const RemoteHubScreen(),
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'receive',
+            name: 'remoteReceive',
+            builder: (BuildContext context, GoRouterState state) =>
+                const ReceiverScreen(),
+          ),
+          GoRoute(
+            path: 'send',
+            name: 'remoteSend',
+            builder: (BuildContext context, GoRouterState state) {
+              final code = state.uri.queryParameters['code'];
+              return SenderScreen(initialCode: code);
+            },
+          ),
+        ],
       ),
       // Auth: magic-link sign-in. Pure additive — guests can ignore
       // this route entirely and the rest of the app continues to work.

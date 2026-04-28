@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:awatv_core/src/clients/provider_intel.dart';
 import 'package:awatv_core/src/models/channel.dart';
 import 'package:awatv_core/src/models/epg_programme.dart';
 import 'package:awatv_core/src/models/episode.dart';
@@ -48,6 +49,52 @@ class XtreamClient {
   String get _normalizedServer {
     final s = server.endsWith('/') ? server.substring(0, server.length - 1) : server;
     return s;
+  }
+
+  /// Cached host of [server], used to look up the provider fingerprint.
+  /// Cached because every channel/VOD/episode mapping consults it and
+  /// re-parsing the server URL per row is wasteful.
+  late final String _serverHost = () {
+    try {
+      return Uri.parse(_normalizedServer).host;
+    } on FormatException {
+      return '';
+    }
+  }();
+
+  /// The provider fingerprint inferred from [_serverHost]. Used to pick
+  /// the right URL templates so we don't hardcode `/movie/` or `/series/`
+  /// — letting per-host recipes override.
+  late final ProviderFingerprint _fingerprint = ProviderIntel.match(_serverHost);
+
+  /// Renders a stream URL for [kind] using the matched fingerprint's
+  /// first template. Falls back to the generic Xtream layout when the
+  /// fingerprint doesn't define templates for that kind.
+  String _streamUrl({
+    required StreamKind kind,
+    required String id,
+    required String ext,
+  }) {
+    final templates = _fingerprint.templatesFor(kind);
+    if (templates.isEmpty) {
+      // Generic fallback (matches historical behaviour).
+      switch (kind) {
+        case StreamKind.live:
+          return '$_normalizedServer/$username/$password/$id.$ext';
+        case StreamKind.vod:
+          return '$_normalizedServer/movie/$username/$password/$id.$ext';
+        case StreamKind.series:
+          return '$_normalizedServer/series/$username/$password/$id.$ext';
+      }
+    }
+    return _fingerprint.render(
+      template: templates.first,
+      server: _normalizedServer,
+      user: username,
+      pass: password,
+      id: id,
+      ext: ext,
+    );
   }
 
   Uri _api(Map<String, String> action) {
@@ -116,8 +163,11 @@ class XtreamClient {
           name: name,
           tvgId: (tvgId == null || tvgId.isEmpty) ? null : tvgId,
           logoUrl: (logo == null || logo.isEmpty) ? null : logo,
-          streamUrl:
-              '$_normalizedServer/$username/$password/$streamId.$ext',
+          streamUrl: _streamUrl(
+            kind: StreamKind.live,
+            id: streamId,
+            ext: ext,
+          ),
           groups: _resolveGroups(groupId, cats),
           kind: ChannelKind.live,
           extras: <String, String>{
@@ -176,8 +226,11 @@ class XtreamClient {
           plot: (m['plot'] as String?)?.trim(),
           posterUrl: (poster == null || poster.isEmpty) ? null : poster,
           rating: rating,
-          streamUrl:
-              '$_normalizedServer/movie/$username/$password/$streamId.$extResolved',
+          streamUrl: _streamUrl(
+            kind: StreamKind.vod,
+            id: streamId,
+            ext: extResolved,
+          ),
           containerExt: extResolved,
           tmdbId: tmdbId,
           genres: genres,
@@ -298,8 +351,11 @@ class XtreamClient {
             plot: (infoMap['plot'] as String?)?.trim(),
             durationMin: durationMin,
             posterUrl: (infoMap['movie_image'] as String?)?.trim(),
-            streamUrl:
-                '$_normalizedServer/series/$username/$password/$id.$extResolved',
+            streamUrl: _streamUrl(
+              kind: StreamKind.series,
+              id: id,
+              ext: extResolved,
+            ),
             containerExt: extResolved,
           ),
         );

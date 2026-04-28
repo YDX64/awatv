@@ -9,6 +9,7 @@ library;
 
 // Clients
 export 'src/clients/epg_client.dart';
+export 'src/clients/provider_intel.dart';
 export 'src/clients/tmdb_client.dart';
 export 'src/clients/xtream_client.dart';
 // Models

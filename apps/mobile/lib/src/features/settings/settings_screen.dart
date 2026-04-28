@@ -92,6 +92,7 @@ class SettingsScreen extends ConsumerWidget {
             unlocked: canCloud,
             isSignedIn: auth is AuthSignedIn,
           ),
+          if (canCloud) const _SyncNowTile(),
           if (canCloud)
             ListTile(
               leading: const Icon(Icons.devices_outlined),
@@ -349,6 +350,95 @@ class _CloudSyncRow extends ConsumerWidget {
       onTap: onTap,
     );
   }
+}
+
+/// "Şimdi senkronize et" tile — surfaces a manual button that runs a
+/// pull → drain → push round-trip and reports the outcome inline. Visible
+/// only while the engine is unlocked (premium + signed in).
+///
+/// Tap behaviour:
+///   * idle           → calls `engine.syncNow()`, button shows spinner
+///   * already running → tap is a no-op (engine.syncNow is idempotent)
+///   * after success   → snackbar "Senkronizasyon tamamlandı"
+///   * after failure   → snackbar with the engine's error message
+class _SyncNowTile extends ConsumerStatefulWidget {
+  const _SyncNowTile();
+
+  @override
+  ConsumerState<_SyncNowTile> createState() => _SyncNowTileState();
+}
+
+class _SyncNowTileState extends ConsumerState<_SyncNowTile> {
+  bool _running = false;
+
+  Future<void> _trigger() async {
+    if (_running) return;
+    setState(() => _running = true);
+    final engine = ref.read(cloudSyncEnginePulseProvider);
+    try {
+      await engine.syncNow();
+      if (!mounted) return;
+      final status = engine.status;
+      if (status is SyncFailed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Senkron hatası: ${status.message}')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Senkronizasyon tamamlandı')),
+        );
+      }
+    } on Object catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Senkron hatası: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // We watch the status stream to drive rebuilds, but read the
+    // engine's `lastSyncAt` getter directly so the timestamp survives
+    // transient SyncPushing / SyncPulling phases — the engine keeps
+    // the last successful round-trip cached even mid-flight.
+    ref.watch(cloudSyncStatusProvider);
+    final engine = ref.read(cloudSyncEnginePulseProvider);
+    final lastAt = engine.lastSyncAt;
+    final subtitle = lastAt == null
+        ? 'Senkronizasyon henüz çalışmadı'
+        : 'Son senkron: ${_formatRelativeTr(lastAt)}';
+    return ListTile(
+      leading: const Icon(Icons.sync_outlined),
+      title: const Text('Şimdi senkronize et'),
+      subtitle: Text(subtitle),
+      trailing: _running
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.refresh_rounded),
+      onTap: _running ? null : _trigger,
+    );
+  }
+}
+
+/// Compact Turkish "X dakika önce" formatter, kept local to settings so
+/// it doesn't have to be exported from sync_status.dart (where the
+/// equivalent helper lives but is private).
+String _formatRelativeTr(DateTime when) {
+  final delta = DateTime.now().toUtc().difference(when.toUtc());
+  if (delta.inSeconds < 30) return 'az önce';
+  if (delta.inMinutes < 1) return '${delta.inSeconds} sn önce';
+  if (delta.inMinutes == 1) return '1 dakika önce';
+  if (delta.inMinutes < 60) return '${delta.inMinutes} dakika önce';
+  if (delta.inHours == 1) return '1 saat önce';
+  if (delta.inHours < 24) return '${delta.inHours} saat önce';
+  if (delta.inDays == 1) return 'dün';
+  return '${delta.inDays} gün önce';
 }
 
 class _MiniAvatar extends StatelessWidget {

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/shared/sync/sync_envelope.dart';
 import 'package:hive/hive.dart';
 
@@ -22,9 +21,12 @@ import 'package:hive/hive.dart';
 ///       "event":      <SyncEvent.toJson>
 ///     }
 class SyncQueue {
-  SyncQueue({required AwatvStorage storage}) : _storage = storage;
+  /// The [storage] argument used to be required so a future migration could
+  /// route the queue through [AwatvStorage]; today we open a dedicated Hive
+  /// box directly. Kept positional-optional to preserve callers without
+  /// triggering an "unused field" analyser warning on the held reference.
+  SyncQueue({Object? storage});
 
-  final AwatvStorage _storage;
   Box<String>? _box;
   final StreamController<int> _depthCtrl = StreamController<int>.broadcast();
 

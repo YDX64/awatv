@@ -81,6 +81,23 @@ class CloudSyncEngine {
   // flood the network. Map of itemId → (pendingTimer, latestEntry).
   final Map<String, Timer> _historyDebounces = <String, Timer>{};
 
+  // ---------------------------------------------------------------------------
+  // Remote-origin guard — prevents push/subscribe loops.
+  //
+  // When the engine receives a Realtime change it writes to Hive; the Hive
+  // listener would normally fire and re-enqueue the same row as a local
+  // mutation, which produces a forever loop. The guard records the (table,
+  // key) combo for a short TTL so the listener can recognise its own
+  // remote-applied write and skip the outgoing push.
+  // ---------------------------------------------------------------------------
+  final Map<String, DateTime> _remoteOriginUntil = <String, DateTime>{};
+  static const Duration _remoteOriginTtl = Duration(seconds: 5);
+
+  /// Cached most recent successful sync timestamp. Pulled from prefs on
+  /// activate so a sign-in/out round-trip keeps the value across cold
+  /// boots. The settings row reads it via [lastSyncAt].
+  DateTime? _lastSyncAt;
+
   final StreamController<SyncStatus> _statusCtrl =
       StreamController<SyncStatus>.broadcast();
 
@@ -93,6 +110,11 @@ class CloudSyncEngine {
 
   /// Public introspection for the manage-devices screen.
   String? get deviceRowId => _deviceRowId;
+
+  /// Most recent successful pull-or-push round-trip. `null` until the
+  /// engine has activated and finished its first reconcile. Settings UI
+  /// surfaces this as "Son güncelleme: 5 dakika önce".
+  DateTime? get lastSyncAt => _lastSyncAt;
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -113,6 +135,14 @@ class CloudSyncEngine {
       // Open the queue early so we can flush anything pending from a
       // previous session before we start subscribing.
       await _queue.ensureOpen();
+
+      // Restore the persisted last-sync timestamp so the settings row
+      // can render "5 dakika önce" immediately on activate, before the
+      // first network round-trip lands.
+      final persistedRaw = _storage.prefsBox.get(_kLastSyncAtKey);
+      if (persistedRaw is String) {
+        _lastSyncAt = DateTime.tryParse(persistedRaw);
+      }
 
       _fingerprint = DeviceFingerprint.resolve(_storage);
 
@@ -194,6 +224,30 @@ class CloudSyncEngine {
   Future<void> dispose() async {
     await deactivate();
     await _statusCtrl.close();
+  }
+
+  /// Force a manual reconcile: pull-down → drain queue → push-up. Wired
+  /// to the "Şimdi senkronize et" tile in settings so the user can verify
+  /// the cross-device round-trip on demand instead of waiting for the
+  /// 30-second drain ticker.
+  ///
+  /// Idempotent — safe to call while a tick is already running. Returns
+  /// once the round-trip completes (or fails). Surfaces failures via
+  /// [SyncStatus] rather than throwing so the UI never has to wrap the
+  /// call in a try/catch.
+  Future<void> syncNow() async {
+    if (!_active || _userId == null) return;
+    _setStatus(const SyncPulling());
+    try {
+      await _pull();
+      await _drainQueue();
+      await _initialPush();
+      await _stampLastSync();
+      _setStatus(SyncIdle(lastSyncAt: _lastSyncAt ?? DateTime.now().toUtc()));
+    } on Object catch (e) {
+      _log('syncNow failed: $e');
+      _setStatus(SyncFailed(e.toString()));
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -378,17 +432,25 @@ class CloudSyncEngine {
       case supa.PostgresChangeEvent.delete:
         final id = oldRow['item_id'] as String?;
         if (id != null) {
+          // Mark BEFORE the box mutation so the watch() listener sees the
+          // flag when Hive synchronously fires the BoxEvent.
+          _markRemoteOrigin('favorites', id);
           unawaited(box.delete(id));
         }
       case supa.PostgresChangeEvent.insert:
       case supa.PostgresChangeEvent.update:
         final id = newRow['item_id'] as String?;
         if (id != null && !box.containsKey(id)) {
+          _markRemoteOrigin('favorites', id);
           unawaited(box.put(id, 1));
         }
         _rememberRemoteFavoriteAt(
           id ?? '',
-          DateTime.tryParse(newRow['added_at'] as String? ?? '') ??
+          DateTime.tryParse(
+                newRow['updated_at'] as String? ??
+                    newRow['added_at'] as String? ??
+                    '',
+              ) ??
               DateTime.now().toUtc(),
         );
       case supa.PostgresChangeEvent.all:
@@ -406,6 +468,7 @@ class CloudSyncEngine {
       case supa.PostgresChangeEvent.delete:
         final id = oldRow['item_id'] as String?;
         if (id != null) {
+          _markRemoteOrigin('watch_history', id);
           unawaited(box.delete(id));
         }
       case supa.PostgresChangeEvent.insert:
@@ -415,6 +478,7 @@ class CloudSyncEngine {
         final remoteAt = entry.watchedAt;
         final local = _localHistory(entry.itemId);
         if (local == null || remoteAt.isAfter(local.watchedAt.toUtc())) {
+          _markRemoteOrigin('watch_history', entry.itemId);
           unawaited(_storage.putHistory(entry));
         }
         _rememberRemoteHistoryAt(entry.itemId, remoteAt);
@@ -431,17 +495,22 @@ class CloudSyncEngine {
       case supa.PostgresChangeEvent.delete:
         final clientId = oldRow['client_id'] as String?;
         if (clientId != null) {
+          _markRemoteOrigin('playlist_sources', clientId);
           unawaited(_storage.deleteSource(clientId));
         }
       case supa.PostgresChangeEvent.insert:
       case supa.PostgresChangeEvent.update:
         final clientId = newRow['client_id'] as String?;
         if (clientId == null) break;
+        // Prefer the new updated_at column, fall back to last_sync_at /
+        // added_at for rows written by builds running pre-migration.
         final remoteAt = DateTime.tryParse(
-              newRow['last_sync_at'] as String? ?? '',
+              newRow['updated_at'] as String? ?? '',
             ) ??
+            DateTime.tryParse(newRow['last_sync_at'] as String? ?? '') ??
             DateTime.tryParse(newRow['added_at'] as String? ?? '') ??
             DateTime.now().toUtc();
+        _markRemoteOrigin('playlist_sources', clientId);
         unawaited(_mergeRemoteSource(newRow, clientId));
         _rememberRemoteSourceAt(clientId, remoteAt);
       case supa.PostgresChangeEvent.all:
@@ -490,15 +559,21 @@ class CloudSyncEngine {
     final remoteFavIds = <String>{};
     for (final row in favs) {
       final id = row['item_id'] as String?;
-      final addedAt = DateTime.tryParse(row['added_at'] as String? ?? '');
+      // Prefer updated_at (added in 20260428000001) over the
+      // immutable added_at so re-toggle resolution stays correct.
+      final updatedAt = DateTime.tryParse(
+            row['updated_at'] as String? ??
+                row['added_at'] as String? ??
+                '',
+          ) ??
+          DateTime.now().toUtc();
       if (id == null) continue;
       remoteFavIds.add(id);
       if (!box.containsKey(id)) {
+        _markRemoteOrigin('favorites', id);
         await box.put(id, 1);
       }
-      if (addedAt != null) {
-        _rememberRemoteFavoriteAt(id, addedAt);
-      }
+      _rememberRemoteFavoriteAt(id, updatedAt);
     }
     // We do NOT remove local favourites that aren't on the server —
     // the user might have just added them on this device pre-pull. The
@@ -515,6 +590,7 @@ class CloudSyncEngine {
       if (entry == null) continue;
       final local = _localHistory(entry.itemId);
       if (local == null || entry.watchedAt.isAfter(local.watchedAt.toUtc())) {
+        _markRemoteOrigin('watch_history', entry.itemId);
         await _storage.putHistory(entry);
       }
       _rememberRemoteHistoryAt(entry.itemId, entry.watchedAt);
@@ -528,10 +604,12 @@ class CloudSyncEngine {
     for (final row in sources) {
       final clientId = row['client_id'] as String?;
       if (clientId == null) continue;
+      _markRemoteOrigin('playlist_sources', clientId);
       await _mergeRemoteSource(row, clientId);
       final remoteAt = DateTime.tryParse(
-            row['last_sync_at'] as String? ?? '',
+            row['updated_at'] as String? ?? '',
           ) ??
+          DateTime.tryParse(row['last_sync_at'] as String? ?? '') ??
           DateTime.tryParse(row['added_at'] as String? ?? '') ??
           DateTime.now().toUtc();
       _rememberRemoteSourceAt(clientId, remoteAt);
@@ -618,6 +696,10 @@ class CloudSyncEngine {
       if (!_active || _userId == null) return;
       final id = ev.key as String?;
       if (id == null) return;
+      // Loop guard: if this BoxEvent came from a remote-applied write,
+      // _markRemoteOrigin was just stamped — short-circuit so we don't
+      // ping-pong the same row back to the server.
+      if (_isRemoteOrigin('favorites', id)) return;
       final added = !ev.deleted;
       unawaited(upsertFavorite(id, added: added));
     });
@@ -629,6 +711,7 @@ class CloudSyncEngine {
       if (ev.deleted) {
         final id = ev.key as String?;
         if (id == null) return;
+        if (_isRemoteOrigin('watch_history', id)) return;
         unawaited(
           _enqueueAndDrain(
             HistoryRemoved(
@@ -646,6 +729,7 @@ class CloudSyncEngine {
         final entry = HistoryEntry.fromJson(
           jsonDecode(raw) as Map<String, dynamic>,
         );
+        if (_isRemoteOrigin('watch_history', entry.itemId)) return;
         scheduleHistoryUpsert(entry);
       } on Object {
         // Skip corrupt history rows.
@@ -661,6 +745,7 @@ class CloudSyncEngine {
         if (!_active || _userId == null) return;
         final id = ev.key as String?;
         if (id == null) return;
+        if (_isRemoteOrigin('playlist_sources', id)) return;
         if (ev.deleted) {
           unawaited(removePlaylistSource(id));
           return;
@@ -738,6 +823,11 @@ class CloudSyncEngine {
       throw SyncQueue.nonRetryable(event, 'user mismatch');
     }
     try {
+      // Every upsert below stamps `updated_at` explicitly so the server's
+      // last-writer-wins rule sees our exact mutation time, not the
+      // trigger's now() (which would be slightly later than the local
+      // clock and thus drift across devices).
+      final mutationAt = event.updatedAt.toUtc().toIso8601String();
       switch (event) {
         case FavoriteUpserted():
           await _client.from('favorites').upsert(<String, dynamic>{
@@ -745,6 +835,7 @@ class CloudSyncEngine {
             'item_id': event.itemId,
             'item_kind': event.itemKind.wire,
             'added_at': event.updatedAt.toUtc().toIso8601String(),
+            'updated_at': mutationAt,
           }, onConflict: 'user_id,item_id');
           _rememberRemoteFavoriteAt(event.itemId, event.updatedAt.toUtc());
         case FavoriteRemoved():
@@ -762,6 +853,7 @@ class CloudSyncEngine {
             'position_seconds': event.entry.position.inSeconds,
             'total_seconds': event.entry.total.inSeconds,
             'watched_at': event.entry.watchedAt.toUtc().toIso8601String(),
+            'updated_at': mutationAt,
           }, onConflict: 'user_id,item_id');
           _rememberRemoteHistoryAt(
             event.entry.itemId,
@@ -781,6 +873,7 @@ class CloudSyncEngine {
             'kind': event.kind.name,
             'client_id': event.clientId,
             'added_at': event.addedAt.toUtc().toIso8601String(),
+            'updated_at': mutationAt,
             if (event.lastSyncAt != null)
               'last_sync_at': event.lastSyncAt!.toUtc().toIso8601String(),
           }, onConflict: 'user_id,client_id');
@@ -935,13 +1028,52 @@ class CloudSyncEngine {
   }
 
   Future<void> _stampLastSync() async {
-    await _storage.prefsBox
-        .put(_kLastSyncAtKey, DateTime.now().toUtc().toIso8601String());
+    final now = DateTime.now().toUtc();
+    _lastSyncAt = now;
+    await _storage.prefsBox.put(_kLastSyncAtKey, now.toIso8601String());
   }
 
   void _setStatus(SyncStatus next) {
     _status = next;
     if (!_statusCtrl.isClosed) _statusCtrl.add(next);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Remote-origin guard
+  // ---------------------------------------------------------------------------
+
+  /// Mark a `(table, key)` combo as "just applied from remote" for the
+  /// next [_remoteOriginTtl] window. The local-box listener uses
+  /// [_isRemoteOrigin] before enqueuing an outgoing event, breaking the
+  /// realtime → Hive → listener → push loop.
+  void _markRemoteOrigin(String table, String key) {
+    final composite = '$table:$key';
+    _remoteOriginUntil[composite] =
+        DateTime.now().toUtc().add(_remoteOriginTtl);
+    // Lazy GC: every mark also evicts entries that have aged past the TTL
+    // so the map can't grow unbounded if Realtime delivers a flood without
+    // any local mutations to flush it.
+    _gcRemoteOrigin();
+  }
+
+  /// `true` if `(table, key)` was marked as remote-origin within the TTL.
+  /// Side-effect: a positive hit also clears the entry so a *second* local
+  /// write to the same key (genuine new mutation) is treated as local.
+  bool _isRemoteOrigin(String table, String key) {
+    final composite = '$table:$key';
+    final until = _remoteOriginUntil[composite];
+    if (until == null) return false;
+    if (DateTime.now().toUtc().isAfter(until)) {
+      _remoteOriginUntil.remove(composite);
+      return false;
+    }
+    _remoteOriginUntil.remove(composite);
+    return true;
+  }
+
+  void _gcRemoteOrigin() {
+    final now = DateTime.now().toUtc();
+    _remoteOriginUntil.removeWhere((_, until) => now.isAfter(until));
   }
 
   void _log(String msg) {

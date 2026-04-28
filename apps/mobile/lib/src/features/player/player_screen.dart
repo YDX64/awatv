@@ -113,8 +113,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _bootController() async {
     try {
-      final c = AwaPlayerController.create(widget.args.source);
+      // Constructing the controller can throw synchronously the first
+      // time per process (media_kit init); catching it below means the
+      // user sees a readable error panel instead of the screen never
+      // appearing. We deliberately use `.empty()` here so playback only
+      // starts via `openWithFallbacks` below — that gives us a single
+      // place to drive the variant chain instead of racing an immediate
+      // open() against subscriber wiring.
+      final c = AwaPlayerController.empty();
       _controller = c;
+      // Surface the controller into the build immediately so AwaPlayerView
+      // can attach its texture before bytes start flowing.
+      setState(() {});
 
       _stateSub = c.states.listen(
         _onPlayerState,
@@ -145,7 +155,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         setState(() => _videoHeight = h);
       });
 
-      await c.play();
+      // Walk the variant chain — each panel/stream may need a different
+      // URL shape (`.ts` vs `.m3u8`, `/live/` prefix, etc.). The first
+      // source that produces a Playing state wins; if all fail, the
+      // controller emits PlayerError and we surface the message in the
+      // panel.
+      final sources = widget.args.allSources;
+      try {
+        await c.openWithFallbacks(sources);
+      } on PlayerException catch (e) {
+        // Don't bail early — the screen still wants to register the
+        // history ticker (cheap) and surface the error via setState.
+        if (mounted) setState(() => _errorMessage = e.message);
+      }
 
       if (!widget.args.isLive && widget.args.itemId != null) {
         _startHistoryTicker();

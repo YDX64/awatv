@@ -4,6 +4,7 @@ import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/tv/d_pad.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -135,14 +136,25 @@ class TvLiveScreen extends ConsumerWidget {
     if (referer != null && referer.isNotEmpty) {
       headers['Referer'] = referer;
     }
-    final source = MediaSource(
-      url: proxify(channel.streamUrl),
+    final urls = streamUrlVariants(channel.streamUrl).map(proxify).toList();
+    final variants = MediaSource.variants(
+      urls,
       title: channel.name,
       userAgent: ua,
       headers: headers.isEmpty ? null : headers,
     );
     final args = PlayerLaunchArgs(
-      source: source,
+      source: variants.isEmpty
+          ? MediaSource(
+              url: proxify(channel.streamUrl),
+              title: channel.name,
+              userAgent: ua,
+              headers: headers.isEmpty ? null : headers,
+            )
+          : variants.first,
+      fallbacks: variants.length <= 1
+          ? const <MediaSource>[]
+          : variants.sublist(1),
       title: channel.name,
       subtitle: channel.groups.isEmpty ? null : channel.groups.first,
       itemId: channel.id,

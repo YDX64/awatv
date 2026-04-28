@@ -82,6 +82,10 @@ class XtreamClient {
 
   /// Live channels.
   Future<List<Channel>> liveChannels() async {
+    // Resolve category id → human-readable name (and parent chain) up front
+    // so each channel's `groups` ends up readable ("TR | Spor") rather
+    // than a numeric id ("12") in the UI.
+    final cats = await _safeCategories('get_live_categories');
     final data = await _getJson(_api({'action': 'get_live_streams'}));
     if (data is! List) return const <Channel>[];
 
@@ -114,7 +118,7 @@ class XtreamClient {
           logoUrl: (logo == null || logo.isEmpty) ? null : logo,
           streamUrl:
               '$_normalizedServer/$username/$password/$streamId.$ext',
-          groups: groupId == null ? const [] : [groupId],
+          groups: _resolveGroups(groupId, cats),
           kind: ChannelKind.live,
           extras: <String, String>{
             if (m['added'] != null) 'added': m['added'].toString(),
@@ -127,6 +131,7 @@ class XtreamClient {
 
   /// VOD movies.
   Future<List<VodItem>> vodItems() async {
+    final cats = await _safeCategories('get_vod_categories');
     final data = await _getJson(_api({'action': 'get_vod_streams'}));
     if (data is! List) return const <VodItem>[];
 
@@ -143,6 +148,24 @@ class XtreamClient {
       final rating = _toDouble(m['rating']);
       final year = _yearFromDate((m['releaseDate'] ?? m['releasedate']) as String?);
       final tmdbId = _toInt(m['tmdb_id'] ?? m['tmdb']);
+      final groupId = m['category_id']?.toString();
+
+      // Genres come either as a comma/pipe-delimited string or a list.
+      // Prepend the resolved category chain so users can browse by panel
+      // category alongside any tmdb-style genres.
+      final categoryChain = _resolveGroups(groupId, cats);
+      final genreField = m['genre'];
+      final genres = <String>[
+        ...categoryChain,
+        if (genreField is String)
+          ...genreField
+              .split(RegExp(r'[,|/]'))
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+        else if (genreField is List)
+          for (final g in genreField)
+            if (g is String && g.trim().isNotEmpty) g.trim(),
+      ];
 
       out.add(
         VodItem(
@@ -157,6 +180,7 @@ class XtreamClient {
               '$_normalizedServer/movie/$username/$password/$streamId.$extResolved',
           containerExt: extResolved,
           tmdbId: tmdbId,
+          genres: genres,
         ),
       );
     }
@@ -165,6 +189,7 @@ class XtreamClient {
 
   /// Series headers (no episodes; call [seriesEpisodes] for those).
   Future<List<SeriesItem>> series() async {
+    final cats = await _safeCategories('get_series_categories');
     final data = await _getJson(_api({'action': 'get_series'}));
     if (data is! List) return const <SeriesItem>[];
 
@@ -182,6 +207,21 @@ class XtreamClient {
       final year =
           _yearFromDate((m['releaseDate'] ?? m['releasedate']) as String?);
       final tmdbId = _toInt(m['tmdb'] ?? m['tmdb_id']);
+      final groupId = m['category_id']?.toString();
+
+      final categoryChain = _resolveGroups(groupId, cats);
+      final genreField = m['genre'];
+      final genres = <String>[
+        ...categoryChain,
+        if (genreField is String)
+          ...genreField
+              .split(RegExp(r'[,|/]'))
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+        else if (genreField is List)
+          for (final g in genreField)
+            if (g is String && g.trim().isNotEmpty) g.trim(),
+      ];
 
       out.add(
         SeriesItem(
@@ -193,11 +233,26 @@ class XtreamClient {
           rating: rating,
           year: year,
           tmdbId: tmdbId,
+          genres: genres,
         ),
       );
     }
     return out;
   }
+
+  /// Live category map: id → display name, with parent chain prepended
+  /// when the panel exposes a `parent_id`. Empty when the panel does not
+  /// expose categories (older Xtream forks).
+  Future<Map<String, String>> liveCategories() =>
+      _fetchCategories('get_live_categories');
+
+  /// VOD category map: id → display name (with parent chain prepended).
+  Future<Map<String, String>> vodCategories() =>
+      _fetchCategories('get_vod_categories');
+
+  /// Series category map: id → display name (with parent chain prepended).
+  Future<Map<String, String>> seriesCategories() =>
+      _fetchCategories('get_series_categories');
 
   /// Episodes for one series.
   Future<List<Episode>> seriesEpisodes(int seriesId) async {
@@ -282,6 +337,98 @@ class XtreamClient {
       );
     }
     return out;
+  }
+
+  // --- categories -----------------------------------------------------------
+
+  /// Fetches a category map for [action] without throwing on transport
+  /// errors. Older Xtream forks ship without category endpoints; we want a
+  /// missing/erroring categories call to degrade silently to "no names",
+  /// not to abort the whole catalog load.
+  Future<Map<String, _CategoryInfo>> _safeCategories(String action) async {
+    try {
+      return await _fetchCategoriesRaw(action);
+    } on Object {
+      return const <String, _CategoryInfo>{};
+    }
+  }
+
+  /// Public-facing variant: id → resolved display name (parent chain
+  /// joined with " > " when available).
+  Future<Map<String, String>> _fetchCategories(String action) async {
+    final raw = await _safeCategories(action);
+    return <String, String>{
+      for (final entry in raw.entries)
+        entry.key: _renderName(entry.key, raw),
+    };
+  }
+
+  Future<Map<String, _CategoryInfo>> _fetchCategoriesRaw(String action) async {
+    final data = await _getJson(_api({'action': action}));
+    if (data is! List) return const <String, _CategoryInfo>{};
+    final out = <String, _CategoryInfo>{};
+    for (final raw in data) {
+      if (raw is! Map) continue;
+      final m = raw.cast<String, dynamic>();
+      final id = m['category_id']?.toString();
+      final name = (m['category_name'] as String?)?.trim();
+      if (id == null || id.isEmpty || name == null || name.isEmpty) continue;
+      final parent = m['parent_id'];
+      final parentId = (parent == null ||
+              parent.toString().isEmpty ||
+              parent.toString() == '0')
+          ? null
+          : parent.toString();
+      out[id] = _CategoryInfo(name: name, parentId: parentId);
+    }
+    return out;
+  }
+
+  /// Renders the parent chain for [id] as `parent > child`, falling back
+  /// to the leaf name when no parent is set or to the raw id when the
+  /// category is unknown.
+  String _renderName(String id, Map<String, _CategoryInfo> cats) {
+    final info = cats[id];
+    if (info == null) return id;
+    final parts = <String>[info.name];
+    var pid = info.parentId;
+    final seen = <String>{id};
+    while (pid != null && !seen.contains(pid)) {
+      seen.add(pid);
+      final parent = cats[pid];
+      if (parent == null) break;
+      parts.insert(0, parent.name);
+      pid = parent.parentId;
+    }
+    return parts.join(' > ');
+  }
+
+  /// Returns the `groups` list for an item: each parent name as its own
+  /// entry (so chip filters can match either the parent or the leaf),
+  /// and a final "parent > leaf" entry when there's a chain. Falls back
+  /// to `[groupId]` when the category is unknown — preserving old
+  /// behaviour for panels without category endpoints.
+  List<String> _resolveGroups(
+    String? groupId,
+    Map<String, _CategoryInfo> cats,
+  ) {
+    if (groupId == null || groupId.isEmpty) return const <String>[];
+    final info = cats[groupId];
+    if (info == null) return <String>[groupId];
+
+    // Walk the parent chain, collecting names from root to leaf.
+    final names = <String>[info.name];
+    var pid = info.parentId;
+    final seen = <String>{groupId};
+    while (pid != null && !seen.contains(pid)) {
+      seen.add(pid);
+      final parent = cats[pid];
+      if (parent == null) break;
+      names.insert(0, parent.name);
+      pid = parent.parentId;
+    }
+    if (names.length == 1) return <String>[names.first];
+    return <String>[...names, names.join(' > ')];
   }
 
   // --- helpers --------------------------------------------------------------
@@ -370,4 +517,12 @@ class XtreamClient {
     }
     return s;
   }
+}
+
+/// Internal record of a panel category, used to resolve `category_id`
+/// references in stream / VOD / series payloads back to readable names.
+class _CategoryInfo {
+  const _CategoryInfo({required this.name, this.parentId});
+  final String name;
+  final String? parentId;
 }

@@ -3,6 +3,7 @@ import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
@@ -152,15 +153,25 @@ class ChannelsScreen extends ConsumerWidget {
       headers['Referer'] = referer;
     }
 
-    final source = MediaSource(
-      url: proxify(channel.streamUrl),
+    final urls = streamUrlVariants(channel.streamUrl).map(proxify).toList();
+    final variants = MediaSource.variants(
+      urls,
       title: channel.name,
       userAgent: ua,
       headers: headers.isEmpty ? null : headers,
     );
-
     final args = PlayerLaunchArgs(
-      source: source,
+      source: variants.isEmpty
+          ? MediaSource(
+              url: proxify(channel.streamUrl),
+              title: channel.name,
+              userAgent: ua,
+              headers: headers.isEmpty ? null : headers,
+            )
+          : variants.first,
+      fallbacks: variants.length <= 1
+          ? const <MediaSource>[]
+          : variants.sublist(1),
       title: channel.name,
       subtitle: channel.groups.isEmpty ? null : channel.groups.first,
       itemId: channel.id,
@@ -218,12 +229,25 @@ class ChannelDetailScreen extends ConsumerWidget {
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: const Text('Oynat'),
                   onPressed: () {
+                    final urls = streamUrlVariants(c.streamUrl)
+                        .map(proxify)
+                        .toList();
+                    final variants = MediaSource.variants(
+                      urls,
+                      title: c.name,
+                      userAgent: c.extras['http-user-agent'],
+                    );
                     final args = PlayerLaunchArgs(
-                      source: MediaSource(
-                        url: proxify(c.streamUrl),
-                        title: c.name,
-                        userAgent: c.extras['http-user-agent'],
-                      ),
+                      source: variants.isEmpty
+                          ? MediaSource(
+                              url: proxify(c.streamUrl),
+                              title: c.name,
+                              userAgent: c.extras['http-user-agent'],
+                            )
+                          : variants.first,
+                      fallbacks: variants.length <= 1
+                          ? const <MediaSource>[]
+                          : variants.sublist(1),
                       title: c.name,
                       itemId: c.id,
                       kind: HistoryKind.live,

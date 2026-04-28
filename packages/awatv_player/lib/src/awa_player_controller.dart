@@ -41,6 +41,15 @@ class AwaPlayerController {
     _videoController = VideoController(_player);
     _wireUpStreams();
   }
+
+  /// Builds an idle controller with no source loaded.
+  ///
+  /// Use this when the caller wants to subscribe to the unified state
+  /// stream before opening anything — typical for the player screen,
+  /// which wires its UI listeners first and then calls
+  /// [openWithFallbacks] with the variant chain.
+  factory AwaPlayerController.empty() => AwaPlayerController._();
+
   /// Builds a controller and immediately opens [source] with autoplay.
   factory AwaPlayerController.fromSource(MediaSource source) {
     final controller = AwaPlayerController._();
@@ -294,6 +303,87 @@ class AwaPlayerController {
       // Re-throw as a typed exception so awaiters can react if they want.
       throw PlayerException('open() failed', e);
     }
+  }
+
+  /// Opens [sources] in order until one starts playing.
+  ///
+  /// Tries each source in sequence: opens it, then waits up to
+  /// [perAttemptTimeout] for either a [PlayerPlaying] state (success) or
+  /// a [PlayerError] state (fail). Loading or buffering past the timeout
+  /// counts as a failure for the purposes of fallback so we don't get
+  /// stuck on a panel that returns 200 but never delivers bytes.
+  ///
+  /// If every source fails, surfaces a [PlayerError] with the message
+  /// from the last failed attempt and throws a [PlayerException].
+  ///
+  /// This is the canonical entry point for IPTV streams where the same
+  /// content is reachable under multiple URL shapes (`.ts` ↔ `.m3u8`,
+  /// `/live/` prefix optional, etc.). For a single source use [open].
+  Future<void> openWithFallbacks(
+    List<MediaSource> sources, {
+    Duration perAttemptTimeout = const Duration(seconds: 4),
+  }) async {
+    _ensureAlive();
+    if (sources.isEmpty) {
+      throw PlayerException('openWithFallbacks called with no sources');
+    }
+    String? lastError;
+    for (var i = 0; i < sources.length; i++) {
+      final source = sources[i];
+      final isLast = i == sources.length - 1;
+      try {
+        await open(source);
+      } on PlayerException catch (e) {
+        lastError = e.message;
+        if (isLast) break;
+        continue;
+      }
+
+      // Wait for the engine to reach a definitive state — playing means
+      // success, error means failure, timeout means "stuck loading; try
+      // next variant".
+      final completer = Completer<bool>();
+      late final StreamSubscription<PlayerState> sub;
+      sub = states.listen((PlayerState state) {
+        if (completer.isCompleted) return;
+        if (state is PlayerPlaying) {
+          completer.complete(true);
+        } else if (state is PlayerError) {
+          lastError = state.message;
+          completer.complete(false);
+        }
+      });
+      Timer? timer;
+      timer = Timer(perAttemptTimeout, () {
+        if (completer.isCompleted) return;
+        // If the engine is still loading, reading buffer state as a
+        // signal: any buffer at all means data is flowing — treat as
+        // success and let the user see whatever the engine produces.
+        if (_buffered > Duration.zero || _position > Duration.zero) {
+          completer.complete(true);
+        } else {
+          lastError = 'Stream did not start within '
+              '${perAttemptTimeout.inSeconds}s';
+          completer.complete(false);
+        }
+      });
+
+      final ok = await completer.future;
+      timer.cancel();
+      await sub.cancel();
+      if (ok) return;
+      if (isLast) break;
+      // Stop the failed source so the next open() starts cleanly.
+      try {
+        await _player.stop();
+      } on Object {
+        // Best-effort; we're about to open a fresh source anyway.
+      }
+    }
+
+    final msg = lastError ?? 'all sources failed';
+    _emitState(PlayerError(msg));
+    throw PlayerException('openWithFallbacks: $msg');
   }
 
   Future<void> play() async {

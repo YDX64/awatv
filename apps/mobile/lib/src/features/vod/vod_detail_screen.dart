@@ -3,6 +3,7 @@ import 'package:awatv_mobile/src/features/vod/vod_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -108,11 +109,23 @@ class _Body extends StatelessWidget {
                         icon: const Icon(Icons.play_arrow_rounded),
                         label: const Text('Oynat'),
                         onPressed: () {
+                          final urls = streamUrlVariants(vod.streamUrl)
+                              .map(proxify)
+                              .toList();
+                          final all = MediaSource.variants(
+                            urls,
+                            title: vod.title,
+                          );
                           final args = PlayerLaunchArgs(
-                            source: MediaSource(
-                              url: proxify(vod.streamUrl),
-                              title: vod.title,
-                            ),
+                            source: all.isEmpty
+                                ? MediaSource(
+                                    url: proxify(vod.streamUrl),
+                                    title: vod.title,
+                                  )
+                                : all.first,
+                            fallbacks: all.length <= 1
+                                ? const <MediaSource>[]
+                                : all.sublist(1),
                             title: vod.title,
                             subtitle:
                                 vod.year == null ? null : '${vod.year}',

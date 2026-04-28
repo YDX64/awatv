@@ -45,4 +45,44 @@ class MediaSource {
 
   /// True if the URL looks like a DASH manifest (`.mpd`).
   bool get isDash => url.toLowerCase().contains('.mpd');
+
+  /// Returns a copy of this source with [url] replaced. Headers, user
+  /// agent, referer, title and subtitle URL are preserved verbatim — used
+  /// to expand a single source into a fallback chain via [variants].
+  MediaSource copyWithUrl(String newUrl) => MediaSource(
+        url: newUrl,
+        headers: headers,
+        userAgent: userAgent,
+        referer: referer,
+        title: title,
+        subtitleUrl: subtitleUrl,
+      );
+
+  /// Builds an immutable list of [MediaSource]s for [urls], all sharing
+  /// the same headers / user agent / referer / title / subtitle URL.
+  ///
+  /// Convenience for callers that have computed multiple URL shapes (see
+  /// `streamUrlVariants`) and want to feed them into
+  /// `AwaPlayerController.openWithFallbacks` while keeping the rest of
+  /// the source metadata identical.
+  static List<MediaSource> variants(
+    List<String> urls, {
+    Map<String, String>? headers,
+    String? userAgent,
+    String? referer,
+    String? title,
+    String? subtitleUrl,
+  }) {
+    return <MediaSource>[
+      for (final u in urls)
+        MediaSource(
+          url: u,
+          headers: headers,
+          userAgent: userAgent,
+          referer: referer,
+          title: title,
+          subtitleUrl: subtitleUrl,
+        ),
+    ];
+  }
 }

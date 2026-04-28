@@ -4,6 +4,7 @@ import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -206,13 +207,23 @@ class _EpisodeTile extends ConsumerWidget {
             hasResume ? Icons.replay : Icons.play_arrow_rounded,
           ),
           onTap: () {
+            final epTitle =
+                '$seriesTitle  S${episode.season}E${episode.number}';
+            final urls = streamUrlVariants(episode.streamUrl)
+                .map(proxify)
+                .toList();
+            final all = MediaSource.variants(urls, title: epTitle);
             final args = PlayerLaunchArgs(
-              source: MediaSource(
-                url: proxify(episode.streamUrl),
-                title:
-                    '$seriesTitle  S${episode.season}E${episode.number}',
-              ),
-              title: '$seriesTitle  S${episode.season}E${episode.number}',
+              source: all.isEmpty
+                  ? MediaSource(
+                      url: proxify(episode.streamUrl),
+                      title: epTitle,
+                    )
+                  : all.first,
+              fallbacks: all.length <= 1
+                  ? const <MediaSource>[]
+                  : all.sublist(1),
+              title: epTitle,
               subtitle: episode.title,
               itemId: episode.id,
               kind: HistoryKind.series,

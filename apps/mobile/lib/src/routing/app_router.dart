@@ -301,6 +301,7 @@ GoRouter appRouter(Ref ref) {
 class PlayerLaunchArgs {
   const PlayerLaunchArgs({
     required this.source,
+    this.fallbacks = const <MediaSource>[],
     this.title,
     this.subtitle,
     this.itemId,
@@ -308,8 +309,15 @@ class PlayerLaunchArgs {
     this.isLive = false,
   });
 
-  /// MediaSource to play.
+  /// MediaSource to play first. Always consumed verbatim; the fallback
+  /// chain only kicks in if it fails.
   final MediaSource source;
+
+  /// Optional ordered list of alternate sources to try when [source]
+  /// fails to start playback. Identical headers/UA/referer/title across
+  /// entries, only the URL varies. See `streamUrlVariants` for the
+  /// canonical way to build this list.
+  final List<MediaSource> fallbacks;
 
   /// Foreground title shown in the player overlay.
   final String? title;
@@ -327,6 +335,10 @@ class PlayerLaunchArgs {
   /// True for live streams (no seek bar, no resume). Inferred from URL by
   /// default but callers can override.
   final bool isLive;
+
+  /// All sources to try in order: [source] first, then [fallbacks].
+  List<MediaSource> get allSources =>
+      <MediaSource>[source, ...fallbacks];
 }
 
 class _PlayerArgError extends StatelessWidget {

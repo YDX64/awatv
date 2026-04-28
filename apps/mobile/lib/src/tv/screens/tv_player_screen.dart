@@ -66,8 +66,11 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
 
   Future<void> _bootController() async {
     try {
-      final c = AwaPlayerController.create(widget.args.source);
+      // Use the empty controller so playback is driven by
+      // openWithFallbacks below — same rationale as the mobile player.
+      final c = AwaPlayerController.empty();
       _controller = c;
+      setState(() {});
 
       _stateSub = c.states.listen(
         _onPlayerState,
@@ -94,7 +97,11 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
         setState(() => _videoHeight = h);
       });
 
-      await c.play();
+      try {
+        await c.openWithFallbacks(widget.args.allSources);
+      } on PlayerException catch (e) {
+        if (mounted) setState(() => _errorMessage = e.message);
+      }
 
       if (!widget.args.isLive && widget.args.itemId != null) {
         _startHistoryTicker();

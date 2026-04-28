@@ -5,6 +5,7 @@ import 'package:awatv_mobile/src/features/vod/vod_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/tv/d_pad.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
@@ -155,13 +156,25 @@ class _TvSearchScreenState extends ConsumerState<TvSearchScreen> {
                               ? null
                               : c.groups.first,
                           onTap: () {
+                            final urls = streamUrlVariants(c.streamUrl)
+                                .map(proxify)
+                                .toList();
+                            final variants = MediaSource.variants(
+                              urls,
+                              title: c.name,
+                            );
                             context.push(
                               '/play',
                               extra: PlayerLaunchArgs(
-                                source: MediaSource(
-                                  url: proxify(c.streamUrl),
-                                  title: c.name,
-                                ),
+                                source: variants.isEmpty
+                                    ? MediaSource(
+                                        url: proxify(c.streamUrl),
+                                        title: c.name,
+                                      )
+                                    : variants.first,
+                                fallbacks: variants.length <= 1
+                                    ? const <MediaSource>[]
+                                    : variants.sublist(1),
                                 title: c.name,
                                 itemId: c.id,
                                 kind: HistoryKind.live,

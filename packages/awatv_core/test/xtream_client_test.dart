@@ -197,5 +197,80 @@ void main() {
         throwsA(isA<NetworkException>()),
       );
     });
+
+    test(
+      'liveChannels resolves category_id to readable names with parent chain',
+      () async {
+        // Route the two API calls based on the `action=` query parameter so
+        // categories and streams return distinct payloads.
+        when(() => dio.getUri<dynamic>(any())).thenAnswer((Invocation inv) async {
+          final uri = inv.positionalArguments.first as Uri;
+          final action = uri.queryParameters['action'] ?? '';
+          if (action == 'get_live_categories') {
+            return ok([
+              {'category_id': '1', 'category_name': 'TR', 'parent_id': 0},
+              {'category_id': '12', 'category_name': 'Spor', 'parent_id': '1'},
+              {'category_id': '15', 'category_name': 'EN', 'parent_id': 0},
+            ]);
+          }
+          if (action == 'get_live_streams') {
+            return ok([
+              {
+                'stream_id': 9001,
+                'name': 'beIN Sports',
+                'category_id': '12',
+              },
+              {
+                'stream_id': 9002,
+                'name': 'BBC One',
+                'category_id': '15',
+              },
+              {
+                'stream_id': 9003,
+                'name': 'Mystery',
+                'category_id': '999', // unknown id
+              },
+            ]);
+          }
+          return ok(<Object>[]);
+        });
+
+        final channels = await client.liveChannels();
+        expect(channels, hasLength(3));
+
+        // child + parent chain — parent name first, full path last.
+        expect(channels[0].groups, containsAll(<String>['TR', 'Spor', 'TR > Spor']));
+
+        // Single-level: just the leaf name (no chain entry).
+        expect(channels[1].groups, ['EN']);
+
+        // Unknown category id falls back to the raw id (preserves old
+        // behaviour for panels without categories).
+        expect(channels[2].groups, ['999']);
+      },
+    );
+
+    test(
+      'liveCategories returns id → resolved name map',
+      () async {
+        when(() => dio.getUri<dynamic>(any())).thenAnswer((Invocation inv) async {
+          final uri = inv.positionalArguments.first as Uri;
+          if (uri.queryParameters['action'] == 'get_live_categories') {
+            return ok([
+              {'category_id': '1', 'category_name': 'TR', 'parent_id': 0},
+              {
+                'category_id': '12',
+                'category_name': 'Spor',
+                'parent_id': '1',
+              },
+            ]);
+          }
+          return ok(<Object>[]);
+        });
+        final cats = await client.liveCategories();
+        expect(cats['1'], 'TR');
+        expect(cats['12'], 'TR > Spor');
+      },
+    );
   });
 }

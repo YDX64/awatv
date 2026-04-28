@@ -4,5 +4,17 @@
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+	<!-- Outbound network access — required for Xtream/M3U fetches,
+	     Supabase auth + sync, TMDB metadata, and the awa-proxy Worker. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Local listener — media_kit's libmpv occasionally binds a localhost
+	     port for HLS playback internals. Harmless to enable. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<!-- Read-only file access where the OS hands the user a file (e.g. M3U
+	     drag-drop in a future build). Enables NSOpenPanel-selected files. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
 </dict>
 </plist>

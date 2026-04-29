@@ -1,6 +1,8 @@
 import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
 import 'package:awatv_mobile/src/desktop/desktop_chrome.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
+import 'package:awatv_mobile/src/features/themes/custom_theme_builder.dart';
+import 'package:awatv_mobile/src/features/themes/custom_theme_controller.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/notifications/notification_tap_router.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_scoped_providers.dart';
@@ -9,16 +11,18 @@ import 'package:awatv_mobile/src/shared/sync/device_fingerprint.dart';
 import 'package:awatv_mobile/src/shared/updater/update_boot_check.dart';
 import 'package:awatv_mobile/src/tv/tv_router.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
-import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Root MaterialApp.
 ///
-/// Reads the current `ThemeMode` from Riverpod, hands the dark/light
-/// `ThemeData` from `awatv_ui`'s `AppTheme`, and delegates routing to one
-/// of two routers:
+/// Reads the current `ThemeMode` + custom theme profile from Riverpod
+/// and runs them through `CustomThemeBuilder` to produce the active
+/// light / dark `ThemeData`. Premium users can swap accent / variant /
+/// corner-radius from `/settings/theme`; everyone else gets the
+/// historical AWAtv brand palette via [AppCustomTheme.defaults].
+/// Routing is delegated to one of two routers:
 ///
 ///   * `appRouterProvider`     — phone / tablet shell (bottom nav).
 ///   * `appTvRouterProvider`   — Android TV shell (left rail, D-pad).
@@ -48,12 +52,18 @@ class AwaTvApp extends ConsumerWidget {
         ? ref.watch(appTvRouterProvider)
         : ref.watch(appRouterProvider);
     final themeMode = ref.watch(appThemeModeProvider);
+    // Custom theme — picks up the user's persisted (or live-preview)
+    // accent / variant / radius scale. Falls back to the historical
+    // BrandColors-seeded look when the user has never opened the
+    // theme picker. We always derive light + dark variants so the
+    // OS-driven mode switch keeps working without extra wiring.
+    final customTheme = ref.watch(customThemeControllerProvider);
 
     return MaterialApp.router(
       title: 'AWAtv',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: CustomThemeBuilder.build(customTheme, Brightness.light),
+      darkTheme: CustomThemeBuilder.build(customTheme, Brightness.dark),
       // TVs have no light theme — leanback launchers and most Android-TV
       // user flows live in the dark. Force dark when running on a TV.
       themeMode: isTv ? ThemeMode.dark : themeMode,

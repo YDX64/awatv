@@ -4,6 +4,7 @@ import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/desktop/always_on_top.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/keyboard_shortcuts.dart';
+import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/desktop/pip_window.dart';
 import 'package:awatv_mobile/src/desktop/widgets/now_playing_state.dart';
 import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
@@ -19,9 +20,14 @@ import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/background_playback/background_playback_controller.dart';
 import 'package:awatv_mobile/src/shared/cast/cast_provider.dart';
+import 'package:awatv_mobile/src/shared/channel_history/channel_history_provider.dart';
+import 'package:awatv_mobile/src/shared/channel_history/channel_switcher.dart';
+import 'package:awatv_mobile/src/shared/stream_url.dart';
+import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_controller.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_gate.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_settings.dart';
+import 'package:awatv_mobile/src/shared/pip/mobile_pip.dart';
 import 'package:awatv_mobile/src/shared/player/active_player_controller.dart';
 import 'package:awatv_mobile/src/shared/player/sleep_timer.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
@@ -96,6 +102,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String? _errorMessage;
   int? _videoHeight;
   bool _lowBandwidth = false;
+
+  /// Brief "Channel: BBC One" toast surfaced after a P+/P-/L switch.
+  /// Cleared after [_kChannelToastDuration] so the player surface
+  /// returns to a clean frame.
+  String? _channelToastText;
+  Timer? _channelToastTimer;
+  static const Duration _kChannelToastDuration = Duration(seconds: 2);
 
   // Brightness/volume mirrors that survive a single drag — actual
   // brightness control requires a native plugin and is intentionally
@@ -252,6 +265,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // the on-screen playback.
       }
 
+      // Push the active channel into the history so P+/P-/L work even
+      // on first launch. Best-effort; never blocks playback.
+      _pushChannelHistoryIfLive();
+
       // Evaluate parental gate against the active profile. Does nothing
       // when parental controls are disabled or the active profile is a
       // grown-up — see [ParentalGate.evaluate].
@@ -260,6 +277,117 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       setState(() => _errorMessage = e.toString());
     }
+  }
+
+  /// Pushes the launch's channel id onto the channel-history service so
+  /// the smart-switcher P+/P-/L buttons have a starting position. No-op
+  /// when the launch was for VOD or a series.
+  void _pushChannelHistoryIfLive() {
+    final id = widget.args.itemId;
+    if (id == null || id.isEmpty) return;
+    if (!widget.args.isLive) return;
+    final svc = ref.read(channelHistoryServiceProvider);
+    unawaited(svc.push(id));
+  }
+
+  /// Steps to the channel adjacent to the current one inside the live
+  /// channel pool. P+ -> next, P- -> previous. Wraps around at edges,
+  /// shows a toast with the resolved channel name.
+  Future<void> _stepChannel(ChannelStepDirection direction) async {
+    if (!widget.args.isLive) return;
+    final pool = await ref.read(liveChannelsProvider.future);
+    final next = pickAdjacentChannel(
+      pool: pool,
+      currentId: widget.args.itemId,
+      direction: direction,
+    );
+    if (next == null) return;
+    await _switchToChannel(next);
+  }
+
+  /// Toggles back to the second-most-recently-watched channel.
+  Future<void> _switchToLastChannel() async {
+    if (!widget.args.isLive) return;
+    final pool = await ref.read(liveChannelsProvider.future);
+    final history = ref.read(channelHistoryServiceProvider).entries;
+    final next = pickLastChannel(
+      pool: pool,
+      historyIds: history,
+      currentId: widget.args.itemId,
+    );
+    if (next == null) {
+      _showChannelToast('Son kanal yok');
+      return;
+    }
+    await _switchToChannel(next);
+  }
+
+  /// Numeric tune-to (Numpad 0..9). Picks the Nth live channel and
+  /// switches to it; no-op outside the live context.
+  Future<void> _tuneToNumericSlot(int slot) async {
+    if (!widget.args.isLive) return;
+    final pool = await ref.read(liveChannelsProvider.future);
+    final next = pickByNumericSlot(pool: pool, slot: slot);
+    if (next == null) return;
+    await _switchToChannel(next);
+  }
+
+  /// Replaces the current player route with [target]. We use go_router's
+  /// `pushReplacement` so the back stack stays the right depth — the
+  /// user pressed P+, not "open another player on top".
+  Future<void> _switchToChannel(Channel target) async {
+    final headers = <String, String>{};
+    final ua = target.extras['http-user-agent'] ??
+        target.extras['user-agent'];
+    final referer = target.extras['http-referrer'] ??
+        target.extras['referer'] ??
+        target.extras['Referer'];
+    if (referer != null && referer.isNotEmpty) headers['Referer'] = referer;
+
+    final urls =
+        streamUrlVariants(target.streamUrl).map(proxify).toList();
+    final variants = MediaSource.variants(
+      urls,
+      title: target.name,
+      userAgent: ua,
+      headers: headers.isEmpty ? null : headers,
+    );
+    final args = PlayerLaunchArgs(
+      source: variants.isEmpty
+          ? MediaSource(
+              url: proxify(target.streamUrl),
+              title: target.name,
+              userAgent: ua,
+              headers: headers.isEmpty ? null : headers,
+            )
+          : variants.first,
+      fallbacks: variants.length <= 1
+          ? const <MediaSource>[]
+          : variants.sublist(1),
+      title: target.name,
+      subtitle: target.groups.isEmpty ? null : target.groups.first,
+      itemId: target.id,
+      kind: HistoryKind.live,
+      isLive: true,
+    );
+
+    // Record the push BEFORE the route swap so the new player route's
+    // boot finds the up-to-date "current channel" at index 0.
+    await ref.read(channelHistoryServiceProvider).push(target.id);
+
+    _showChannelToast('Kanal: ${target.name}');
+
+    if (!mounted) return;
+    context.pushReplacement('/play', extra: args);
+  }
+
+  void _showChannelToast(String text) {
+    _channelToastTimer?.cancel();
+    setState(() => _channelToastText = text);
+    _channelToastTimer = Timer(_kChannelToastDuration, () {
+      if (!mounted) return;
+      setState(() => _channelToastText = null);
+    });
   }
 
   void _evaluateParentalGate() {
@@ -517,8 +645,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     // On desktop we toggle the compact always-on-top window. On mobile
-    // (iOS / Android) the OS-native PiP API still has to land — until
-    // then we surface the limitation honestly via a snack.
+    // (iOS / Android) we drive the OS-native PiP via [MobilePip].
     if (!kIsWeb && isDesktopRuntime()) {
       try {
         await ref.read(pipWindowControllerProvider).toggle();
@@ -530,12 +657,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       return;
     }
+    if (!MobilePip.isPlatformSupported) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bu platform PiP destegine sahip degil.'),
+        ),
+      );
+      return;
+    }
+    final result = await MobilePip.enter();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('PiP destegi mobilde platform kanali ile aktiflesir.'),
-      ),
-    );
+    switch (result) {
+      case MobilePipResult.entered:
+        // Mirror to the in-app provider so any UI that wants to slim
+        // the controls layer can pick it up. Best-effort — Android's
+        // status stream pushes the same value asynchronously.
+        ref.read(mobilePipModeProvider.notifier).set(true);
+      case MobilePipResult.unsupported:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Bu cihaz Picture-in-Picture desteklemiyor.'),
+          ),
+        );
+      case MobilePipResult.disabled:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'PiP kapali — Ayarlar > Uygulamalar > AWAtv menusunden ac.',
+            ),
+          ),
+        );
+      case MobilePipResult.failed:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PiP baslatilamadi.')),
+        );
+      case MobilePipResult.notMobile:
+        // Already handled above by the desktop branch.
+        break;
+    }
   }
 
   /// Handles a tap on the always-on-top toggle (top bar pin icon /
@@ -809,6 +970,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _historyTimer?.cancel();
     _hideTimer?.cancel();
     _lowBwTimer?.cancel();
+    _channelToastTimer?.cancel();
     _stateSub?.cancel();
     _positionSub?.cancel();
     _bufferedSub?.cancel();
@@ -874,10 +1036,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final bgEnabled = ref.read(backgroundPlaybackProvider);
     final canBg =
         ref.read(canUseFeatureProvider(PremiumFeature.backgroundPlayback));
-    final isMobileBackground = !kIsWeb &&
-        !isDesktopRuntime() &&
+    final canPip =
+        ref.read(canUseFeatureProvider(PremiumFeature.pictureInPicture));
+    final isMobile = !kIsWeb && !isDesktopRuntime();
+    final isMobileBackground = isMobile &&
         (state == AppLifecycleState.paused ||
             state == AppLifecycleState.inactive);
+    // If the user is premium with PiP unlocked and we're on a mobile
+    // platform that supports it, ask the OS to enter PiP rather than
+    // pausing. The OS will start a floating frame; on resume we don't
+    // need to do anything because the activity / scene comes back to
+    // its previous state. Best-effort: a failure falls through to the
+    // pause branch below.
+    if (isMobileBackground &&
+        canPip &&
+        !_isPaused &&
+        MobilePip.isPlatformSupported &&
+        state == AppLifecycleState.inactive) {
+      // Fire-and-forget — we can't await here without blocking the
+      // lifecycle callback. Best case: PiP enters before paused
+      // arrives. Worst case: we pause, then the user can rotate back.
+      unawaited(MobilePip.enter().then((MobilePipResult r) {
+        if (r == MobilePipResult.entered && mounted) {
+          ref.read(mobilePipModeProvider.notifier).set(true);
+        }
+      }));
+    }
     final shouldPauseOnBackground = isMobileBackground && !(bgEnabled && canBg);
     if (shouldPauseOnBackground) {
       // Remember we were playing so we can auto-resume on `resumed`.
@@ -887,9 +1071,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _controller?.pause();
       return;
     }
-    if (state == AppLifecycleState.resumed && _wasPlayingBeforeBackground) {
-      _wasPlayingBeforeBackground = false;
-      _controller?.play();
+    if (state == AppLifecycleState.resumed) {
+      // Coming back from PiP / background — clear the local PiP flag
+      // so the controls layer renders the full chrome again.
+      ref.read(mobilePipModeProvider.notifier).set(false);
+      if (_wasPlayingBeforeBackground) {
+        _wasPlayingBeforeBackground = false;
+        _controller?.play();
+      }
     }
   }
 
@@ -1080,6 +1269,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
               ),
+            // Smart channel switcher — P+ / Last / P- buttons stacked
+            // vertically near the bottom-right of the centre cluster.
+            // Only rendered for live streams (live=true). Visible only
+            // while the controls layer is shown.
+            if (widget.args.isLive && _showControls)
+              Positioned(
+                bottom: 96,
+                right: DesignTokens.spaceM,
+                child: _ChannelSwitcherCluster(
+                  onNext: () =>
+                      unawaited(_stepChannel(ChannelStepDirection.next)),
+                  onPrev: () => unawaited(
+                    _stepChannel(ChannelStepDirection.previous),
+                  ),
+                  onLast: () => unawaited(_switchToLastChannel()),
+                ),
+              ),
+            // "Channel: BBC One" toast — fades in for 2 seconds after
+            // a P+/P-/L switch.
+            if (_channelToastText != null)
+              Positioned(
+                top: 80,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _ChannelToast(text: _channelToastText!),
+                ),
+              ),
             // Parental lock overlay sits above gestures + controls when
             // the active profile is forbidden from this content. Wins
             // hit-test against everything underneath via Material's
@@ -1105,6 +1322,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             onToggleAlwaysOnTop: () {
               unawaited(_onAlwaysOnTopRequested());
             },
+            onChannelNext: widget.args.isLive
+                ? () => unawaited(
+                      _stepChannel(ChannelStepDirection.next),
+                    )
+                : null,
+            onChannelPrev: widget.args.isLive
+                ? () => unawaited(
+                      _stepChannel(ChannelStepDirection.previous),
+                    )
+                : null,
+            onChannelLast: widget.args.isLive
+                ? () => unawaited(_switchToLastChannel())
+                : null,
+            onChannelTuneTo: widget.args.isLive
+                ? (int slot) => unawaited(_tuneToNumericSlot(slot))
+                : null,
             child: scaffold,
           )
         : scaffold;
@@ -1444,3 +1677,115 @@ class _SleepTimerButton extends ConsumerWidget {
     return '$mm:$ss';
   }
 }
+
+/// Vertical cluster of three small buttons surfaced near the bottom-
+/// right of the live-channel player overlay. P+ steps to the next
+/// channel inside the current pool, P- to the previous, and the rotate
+/// arrow ("Last") flips back to the second-most-recently-watched.
+class _ChannelSwitcherCluster extends StatelessWidget {
+  const _ChannelSwitcherCluster({
+    required this.onNext,
+    required this.onPrev,
+    required this.onLast,
+  });
+
+  final VoidCallback onNext;
+  final VoidCallback onPrev;
+  final VoidCallback onLast;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _SwitcherBtn(
+          icon: Icons.keyboard_arrow_up_rounded,
+          tooltip: 'Sonraki kanal (P+)',
+          onTap: onNext,
+        ),
+        const SizedBox(height: 8),
+        _SwitcherBtn(
+          icon: Icons.swap_calls_rounded,
+          tooltip: 'Son kanal (L)',
+          onTap: onLast,
+        ),
+        const SizedBox(height: 8),
+        _SwitcherBtn(
+          icon: Icons.keyboard_arrow_down_rounded,
+          tooltip: 'Onceki kanal (P-)',
+          onTap: onPrev,
+        ),
+      ],
+    );
+  }
+}
+
+class _SwitcherBtn extends StatelessWidget {
+  const _SwitcherBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.45),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              icon,
+              size: 24,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Brief "Channel: X" toast surfaced after a P+/P-/L switch. Fades out
+/// automatically after [_PlayerScreenState._kChannelToastDuration].
+class _ChannelToast extends StatelessWidget {
+  const _ChannelToast({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: 1,
+      duration: const Duration(milliseconds: 220),
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(DesignTokens.radiusXL),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignTokens.spaceL,
+            vertical: DesignTokens.spaceS,
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

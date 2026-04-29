@@ -123,6 +123,25 @@ dependencies:
   flutter_local_notifications: ^17.2.4
   timezone: ^0.9.4
 
+  # Native Picture-in-Picture on Android. The package wraps the
+  # `enterPictureInPictureMode` API on Android 8+ (Oreo / API 26) and
+  # exposes a Flutter widget that re-lays itself out for the compact
+  # PiP frame. iOS is handled separately via a method channel that
+  # drives AVPictureInPictureController against media_kit's underlying
+  # AVPlayer surface. The plugin is a no-op on web / desktop / TV — we
+  # call it only after `Platform.isAndroid` short-circuits.
+  floating: ^5.0.0
+
+  # Voice search — wraps the platform speech-to-text engines:
+  #   * iOS / macOS  → SFSpeechRecognizer (system Siri infrastructure)
+  #   * Android       → SpeechRecognizer via Google services
+  #   * Web           → Web Speech API (Chromium-based browsers only)
+  # Used by the search bar mic button so users can dictate channel /
+  # film / dizi names in Turkish (`tr_TR`) instead of typing on a TV
+  # remote or an on-screen keyboard. Permission prompts surface on
+  # first listen via `available()` — never on app boot.
+  speech_to_text: ^7.0.0
+
   # Firebase production-readiness suite. All four are *opt-in* — the
   # native plugins won't activate until `GoogleService-Info.plist`
   # (iOS) / `google-services.json` (Android) ship in the platform

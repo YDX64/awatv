@@ -5,9 +5,13 @@ import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/channels/epg_providers.dart';
 import 'package:awatv_mobile/src/features/channels/group_filter_chips.dart';
 import 'package:awatv_mobile/src/features/channels/sort_mode_provider.dart';
+import 'package:awatv_mobile/src/features/multistream/multi_stream_session.dart';
+import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/discovery/share_helper.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
+import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
+import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
@@ -230,6 +234,58 @@ class ChannelsScreen extends ConsumerWidget {
     context.push('/play', extra: args);
   }
 
+  /// Adds [channel] to the multi-stream session and routes the user
+  /// to `/multistream` so they see it appear in the grid.
+  ///
+  /// Free users see the paywall sheet first; existing-channel and
+  /// session-full conditions surface as snacks so the user understands
+  /// why nothing happened.
+  void _addToMultiStream(
+    BuildContext sheetCtx,
+    WidgetRef ref,
+    Channel channel,
+  ) {
+    // Pop the long-press sheet first so the snack / paywall lands on
+    // a clean route rather than under the bottom sheet scrim.
+    Navigator.of(sheetCtx).pop();
+    final root = sheetCtx;
+    final allowed =
+        ref.read(canUseFeatureProvider(PremiumFeature.multiScreen));
+    if (!allowed) {
+      PremiumLockSheet.show(root, PremiumFeature.multiScreen);
+      return;
+    }
+    final session = ref.read(multiStreamSessionProvider);
+    if (session.isFull) {
+      ScaffoldMessenger.of(root).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Daha fazla ekleyemezsiniz, en az birini cikarin.',
+          ),
+        ),
+      );
+      return;
+    }
+    final addedIndex =
+        ref.read(multiStreamSessionProvider.notifier).addChannel(channel);
+    final messenger = ScaffoldMessenger.of(root);
+    if (addedIndex == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Kanal eklenemedi.')),
+      );
+      return;
+    }
+    // Navigate to the multi-stream view so the user sees the tile
+    // they just added. The route is already-open-aware: if /multistream
+    // is the current top-of-stack go_router still tolerates push() and
+    // simply paints over itself, but the cleaner path is `go` so the
+    // new route replaces the stack entry.
+    if (GoRouter.of(root).routerDelegate.currentConfiguration.uri.path !=
+        '/multistream') {
+      root.push('/multistream');
+    }
+  }
+
   /// Bottom-sheet surfaced via long-press on a [ChannelTile]. Hosts the
   /// favourite toggle, channel-detail link and the new "Paylas" entry
   /// (which builds a deep link via [ShareHelper.shareChannel]).
@@ -295,6 +351,14 @@ class ChannelsScreen extends ConsumerWidget {
                   Navigator.of(ctx).pop();
                   ShareHelper.shareChannel(context, channel);
                 },
+              ),
+              ListTile(
+                leading: const Icon(Icons.dashboard_customize_rounded),
+                title: const Text('Coklu izle'),
+                subtitle: const Text(
+                  'Bu kanali coklu izleme ekranina ekle',
+                ),
+                onTap: () => _addToMultiStream(ctx, ref, channel),
               ),
               const SizedBox(height: DesignTokens.spaceM),
             ],

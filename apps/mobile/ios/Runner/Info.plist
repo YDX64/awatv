@@ -105,5 +105,17 @@
 	-->
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>AWAtv yakinda baslayacak programlari sana hatirlatabilmek icin yerel bildirim gonderir.</string>
+	<!--
+	  Voice search — the search bar mic button records the user's
+	  voice and converts it to text via the system speech recogniser
+	  (SFSpeechRecognizer). iOS surfaces both prompts the first time
+	  the mic is tapped; without these strings the request is denied
+	  silently and the picker disappears. App Store review explicitly
+	  rejects builds that record audio without NSMicrophoneUsageDescription.
+	-->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AWAtv sesli arama yapabilmen icin mikrofona erisir. Konusman yalnizca arama metnine cevrilir, hicbir yere kaydedilmez.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>AWAtv soyledigin kanal, film ve dizi adlarini metne cevirebilmek icin konusma tanima sistemini kullanir.</string>
 </dict>
 </plist>

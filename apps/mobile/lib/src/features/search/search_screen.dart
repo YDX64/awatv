@@ -2,6 +2,7 @@ import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/series/series_providers.dart';
 import 'package:awatv_mobile/src/features/vod/vod_providers.dart';
+import 'package:awatv_mobile/src/features/voice_search/voice_search_button.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/breakpoints/breakpoints.dart';
 import 'package:awatv_mobile/src/shared/stream_url.dart';
@@ -83,6 +84,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           onChanged: (String v) => setState(() => _q = v),
         ),
         actions: <Widget>[
+          // Voice search — additive trailing button. Hides itself
+          // automatically on platforms without a speech recogniser
+          // (Windows / Linux desktop, Safari web). Tap to start /
+          // stop a session; final transcripts replace the query and
+          // immediately trigger the live filter via _setQuery.
+          VoiceSearchButton(onResult: _setQuery),
           if (_q.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.clear),
@@ -93,35 +100,70 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
         ],
       ),
-      body: ql.isEmpty
-          ? const EmptyState(
-              icon: Icons.search,
-              title: 'Aramaya basla',
-              message: 'Adi yaz, sonuclar an?nda gorunsun.',
-            )
-          : (filteredChannels.isEmpty &&
-                  filteredVod.isEmpty &&
-                  filteredSeries.isEmpty)
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 60),
-                  child: EmptyState(
-                    icon: Icons.search_off,
-                    title: 'Sonuc yok',
-                  ),
-                )
-              : deviceClass.isTablet
-                  ? _SearchTabletColumns(
-                      channels: filteredChannels,
-                      vods: filteredVod,
-                      series: filteredSeries,
-                      onPlayChannel: _playChannel,
-                    )
-                  : _SearchPhoneList(
-                      channels: filteredChannels,
-                      vods: filteredVod,
-                      series: filteredSeries,
-                      onPlayChannel: _playChannel,
-                    ),
+      body: Column(
+        children: <Widget>[
+          // Real-time partial-transcript hint pinned just below the
+          // app bar so the user can see what the mic is hearing while
+          // a session is still in progress. Empty / hidden otherwise.
+          const VoiceSearchPartialHint(),
+          Expanded(child: _buildResults(ql, deviceClass, filteredChannels, filteredVod, filteredSeries)),
+        ],
+      ),
+    );
+  }
+
+  /// Replace the search field's text + filter state from a programmatic
+  /// source (currently only the voice-search controller). Keeps the
+  /// caret at the end so a follow-up edit appends naturally.
+  void _setQuery(String text) {
+    final clean = text.trim();
+    if (clean.isEmpty) return;
+    _ctrl
+      ..text = clean
+      ..selection = TextSelection.fromPosition(
+        TextPosition(offset: clean.length),
+      );
+    setState(() => _q = clean);
+  }
+
+  Widget _buildResults(
+    String ql,
+    DeviceClass deviceClass,
+    List<Channel> filteredChannels,
+    List<VodItem> filteredVod,
+    List<SeriesItem> filteredSeries,
+  ) {
+    if (ql.isEmpty) {
+      return const EmptyState(
+        icon: Icons.search,
+        title: 'Aramaya basla',
+        message: 'Adi yaz, sonuclar an?nda gorunsun.',
+      );
+    }
+    if (filteredChannels.isEmpty &&
+        filteredVod.isEmpty &&
+        filteredSeries.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 60),
+        child: EmptyState(
+          icon: Icons.search_off,
+          title: 'Sonuc yok',
+        ),
+      );
+    }
+    if (deviceClass.isTablet) {
+      return _SearchTabletColumns(
+        channels: filteredChannels,
+        vods: filteredVod,
+        series: filteredSeries,
+        onPlayChannel: _playChannel,
+      );
+    }
+    return _SearchPhoneList(
+      channels: filteredChannels,
+      vods: filteredVod,
+      series: filteredSeries,
+      onPlayChannel: _playChannel,
     );
   }
 

@@ -95,6 +95,12 @@ class _WideShell extends StatelessWidget {
       route: '/catchup',
     ),
     SidebarSection(
+      icon: Icons.dashboard_customize_outlined,
+      activeIcon: Icons.dashboard_customize_rounded,
+      label: 'Coklu izle',
+      route: '/multistream',
+    ),
+    SidebarSection(
       icon: Icons.fiber_manual_record_outlined,
       activeIcon: Icons.fiber_manual_record_rounded,
       label: 'Kayitlar',
@@ -130,7 +136,12 @@ class _WideShell extends StatelessWidget {
       activeIcon: Icons.favorite_rounded,
       label: 'Favoriler',
       route: '/favorites',
-      comingSoon: true,
+    ),
+    SidebarSection(
+      icon: Icons.celebration_outlined,
+      activeIcon: Icons.celebration_rounded,
+      label: 'Watch parti',
+      route: '/party',
     ),
     SidebarSection(
       icon: Icons.history_rounded,
@@ -138,6 +149,16 @@ class _WideShell extends StatelessWidget {
       label: 'Gecmis',
       route: '/history',
       comingSoon: true,
+    ),
+    // Watch-time stats — inserted between Gecmis and Ayarlar so the
+    // navigation flow reads "what I watched → look at my numbers →
+    // tweak the app". Wiring rides on the same `_navigate` helper as
+    // the other non-shell entries so the highlight survives sub-routes.
+    SidebarSection(
+      icon: Icons.insights_outlined,
+      activeIcon: Icons.insights_rounded,
+      label: 'Istatistiklerim',
+      route: '/stats',
     ),
     SidebarSection(
       icon: Icons.settings_outlined,

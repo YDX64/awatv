@@ -8,7 +8,9 @@ import 'package:awatv_mobile/src/features/catchup/catchup_screen.dart';
 import 'package:awatv_mobile/src/features/channels/channels_screen.dart';
 import 'package:awatv_mobile/src/features/channels/epg_grid_screen.dart';
 import 'package:awatv_mobile/src/features/downloads/downloads_screen.dart';
+import 'package:awatv_mobile/src/features/favorites/favorites_screen.dart';
 import 'package:awatv_mobile/src/features/home/home_screen.dart';
+import 'package:awatv_mobile/src/features/multistream/multi_stream_screen.dart';
 import 'package:awatv_mobile/src/features/onboarding/welcome_screen.dart';
 import 'package:awatv_mobile/src/features/parental/parental_screen.dart';
 import 'package:awatv_mobile/src/features/player/player_screen.dart';
@@ -28,8 +30,12 @@ import 'package:awatv_mobile/src/features/series/series_detail_screen.dart';
 import 'package:awatv_mobile/src/features/series/series_screen.dart';
 import 'package:awatv_mobile/src/features/settings/manage_devices_screen.dart';
 import 'package:awatv_mobile/src/features/settings/settings_screen.dart';
+import 'package:awatv_mobile/src/features/stats/stats_screen.dart';
+import 'package:awatv_mobile/src/features/themes/theme_settings_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_detail_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_screen.dart';
+import 'package:awatv_mobile/src/features/watch_party/watch_party_landing_screen.dart';
+import 'package:awatv_mobile/src/features/watch_party/watch_party_screen.dart';
 import 'package:awatv_mobile/src/features/watchlist/watchlist_screen.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_guard.dart';
 import 'package:awatv_mobile/src/shared/home_shell.dart';
@@ -90,7 +96,22 @@ GoRouter appRouter(Ref ref) {
           // both have their own empty states that point the user back
           // at the relevant flow (TV Rehberi, Filmler / Diziler).
           loc.startsWith('/reminders') ||
-          loc.startsWith('/watchlist')) {
+          loc.startsWith('/watchlist') ||
+          // Favourites + watch-party + remote each have their own
+          // empty states / cloud-account guards, so don't bounce them
+          // through /onboarding when no playlist is configured yet.
+          loc.startsWith('/favorites') ||
+          loc.startsWith('/party') ||
+          loc.startsWith('/remote') ||
+          // Stats + theme picker each render their own empty state
+          // ("henuz izleme verisi yok" / "varsayilan tema") and never
+          // depend on a configured playlist.
+          loc.startsWith('/stats') ||
+          loc.startsWith('/settings/theme') ||
+          // Multi-stream view — premium-gated, but the screen has its
+          // own empty state ("Coklu izlemeye basla — kanal sec") and
+          // its own paywall trigger so it doesn't need a playlist gate.
+          loc.startsWith('/multistream')) {
         return null;
       }
       try {
@@ -216,6 +237,50 @@ GoRouter appRouter(Ref ref) {
         builder: (BuildContext context, GoRouterState state) =>
             const WatchlistScreen(),
       ),
+      // Favourites + folders. Replaces the legacy "coming soon" stub
+      // that the desktop sidebar used to surface.
+      GoRoute(
+        path: '/favorites',
+        name: 'favorites',
+        builder: (BuildContext context, GoRouterState state) =>
+            const FavoritesScreen(),
+      ),
+      // Watch-party hub + party room. Hub generates an 8-char id and
+      // pushes the room; the room subscribes to the matching Supabase
+      // Realtime broadcast channel and mirrors the host's playback.
+      GoRoute(
+        path: '/party',
+        name: 'party',
+        builder: (BuildContext context, GoRouterState state) =>
+            const WatchPartyLandingScreen(),
+        routes: <RouteBase>[
+          GoRoute(
+            path: ':partyId',
+            name: 'partyRoom',
+            builder: (BuildContext context, GoRouterState state) {
+              final id = state.pathParameters['partyId'] ?? '';
+              final isHost = state.uri.queryParameters['host'] == '1';
+              final name = state.uri.queryParameters['name']?.trim();
+              return WatchPartyScreen(
+                partyId: id,
+                userName: (name == null || name.isEmpty)
+                    ? (isHost ? 'Host' : 'Misafir')
+                    : name,
+                isHost: isHost,
+              );
+            },
+          ),
+        ],
+      ),
+      // Multi-stream view — up to 4 channels at once, sport-watching
+      // premium feature. The screen owns its own paywall + onboarding
+      // so it doesn't need a redirect through /onboarding.
+      GoRoute(
+        path: '/multistream',
+        name: 'multistream',
+        builder: (BuildContext context, GoRouterState state) =>
+            const MultiStreamScreen(),
+      ),
       // Remote-control hub. Two big buttons: receive (this device shows
       // video) or send (this device acts as a remote). The two child
       // routes own the actual pairing flow.
@@ -291,6 +356,24 @@ GoRouter appRouter(Ref ref) {
         name: 'settingsParental',
         builder: (BuildContext context, GoRouterState state) =>
             const ParentalScreen(),
+      ),
+      // Theme customisation — premium-gated picker for accent / variant /
+      // corner radius. The screen owns the paywall sheet so a stale deep
+      // link cannot bypass the gate.
+      GoRoute(
+        path: '/settings/theme',
+        name: 'settingsTheme',
+        builder: (BuildContext context, GoRouterState state) =>
+            const ThemeSettingsScreen(),
+      ),
+      // Watch-time stats — Spotify-Wrapped-style aggregate over the
+      // local HistoryService. Free tier sees the last 7 days + Top 3;
+      // premium unlocks 30-day / all-time totals + Top 5 lists.
+      GoRoute(
+        path: '/stats',
+        name: 'stats',
+        builder: (BuildContext context, GoRouterState state) =>
+            const StatsScreen(),
       ),
       // Profile picker — Netflix-style "who's watching" tile grid.
       // Bouncing through this route after login is handled by the

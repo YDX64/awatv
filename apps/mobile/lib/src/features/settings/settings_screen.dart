@@ -68,16 +68,20 @@ class SettingsScreen extends ConsumerWidget {
           _GatedTile(
             icon: Icons.palette_outlined,
             title: 'Ozel temalar',
-            subtitle: 'Vurgu rengini ve duvar kagidini secin',
+            subtitle: 'Vurgu rengini, varyantini ve kose yumusakligini sec',
             unlocked: canThemes,
             feature: PremiumFeature.customThemes,
-            onUnlockedTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Ozel temalar yakinda eklenecek.'),
-                ),
-              );
-            },
+            onUnlockedTap: () => context.push('/settings/theme'),
+          ),
+          // Watch-time stats — additive entry. Free users still see
+          // the headline + last 7 days; premium unlocks tum-zaman.
+          ListTile(
+            leading: const Icon(Icons.insights_outlined),
+            title: const Text('Izleme istatistiklerim'),
+            subtitle:
+                const Text('Haftalik ozet, en cok izlenenler, streak'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/stats'),
           ),
           const Divider(),
           const _SectionHeader('Icerik'),

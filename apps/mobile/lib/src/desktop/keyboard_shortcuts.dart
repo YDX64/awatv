@@ -54,6 +54,35 @@ class ToggleAlwaysOnTopIntent extends Intent {
   const ToggleAlwaysOnTopIntent();
 }
 
+/// Step to the next live channel inside the current pool. Wired to
+/// `P` and `Page Down` on desktop.
+class ChannelNextIntent extends Intent {
+  const ChannelNextIntent();
+}
+
+/// Step to the previous live channel. Wired to `Shift+P` and
+/// `Page Up` on desktop.
+class ChannelPrevIntent extends Intent {
+  const ChannelPrevIntent();
+}
+
+/// Toggle between the current and last channel. Wired to `L` on
+/// desktop. Note: `L` already collides with the YouTube-style
+/// "+10s seek" binding at the top of [defaultPlayerShortcuts]; the
+/// channel toggle is registered via [Shift+L] to keep the seek
+/// shortcut intact.
+class ChannelToggleLastIntent extends Intent {
+  const ChannelToggleLastIntent();
+}
+
+/// Numeric tune-to. [slot] is `0..9`; `0` maps to the 10th channel
+/// inside the current pool, matching how a TV remote labels its
+/// number row.
+class ChannelNumericTuneIntent extends Intent {
+  const ChannelNumericTuneIntent(this.slot);
+  final int slot;
+}
+
 /// Default shortcut bindings used by the player on desktop.
 ///
 /// Centralised so the table is auditable in one place — see the report
@@ -96,6 +125,46 @@ Map<ShortcutActivator, Intent> defaultPlayerShortcuts() {
       control: !isMac,
       shift: true,
     ): const ToggleAlwaysOnTopIntent(),
+    // Smart channel switcher — TiviMate-style P+/P-/Last toggle.
+    // P alone for next, Shift+P for previous (so it stays clear of
+    // the existing K/Space play-pause and J/L seek bindings). Page
+    // keys mirror the TV-remote experience for users that prefer
+    // them.
+    const SingleActivator(LogicalKeyboardKey.keyP):
+        const ChannelNextIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyP, shift: true):
+        const ChannelPrevIntent(),
+    const SingleActivator(LogicalKeyboardKey.pageDown):
+        const ChannelNextIntent(),
+    const SingleActivator(LogicalKeyboardKey.pageUp):
+        const ChannelPrevIntent(),
+    // Last-channel toggle — `L` already maps to "+10s seek" so we
+    // claim Shift+L and the dedicated dot key (matches how some
+    // TiviMate fork forks expose it on D-pad remotes).
+    const SingleActivator(LogicalKeyboardKey.keyL, shift: true):
+        const ChannelToggleLastIntent(),
+    // Numpad number row — direct tune-to for the first 10 channels
+    // in the active pool.
+    const SingleActivator(LogicalKeyboardKey.numpad0):
+        const ChannelNumericTuneIntent(0),
+    const SingleActivator(LogicalKeyboardKey.numpad1):
+        const ChannelNumericTuneIntent(1),
+    const SingleActivator(LogicalKeyboardKey.numpad2):
+        const ChannelNumericTuneIntent(2),
+    const SingleActivator(LogicalKeyboardKey.numpad3):
+        const ChannelNumericTuneIntent(3),
+    const SingleActivator(LogicalKeyboardKey.numpad4):
+        const ChannelNumericTuneIntent(4),
+    const SingleActivator(LogicalKeyboardKey.numpad5):
+        const ChannelNumericTuneIntent(5),
+    const SingleActivator(LogicalKeyboardKey.numpad6):
+        const ChannelNumericTuneIntent(6),
+    const SingleActivator(LogicalKeyboardKey.numpad7):
+        const ChannelNumericTuneIntent(7),
+    const SingleActivator(LogicalKeyboardKey.numpad8):
+        const ChannelNumericTuneIntent(8),
+    const SingleActivator(LogicalKeyboardKey.numpad9):
+        const ChannelNumericTuneIntent(9),
     if (isMac)
       const SingleActivator(LogicalKeyboardKey.keyQ, meta: true):
           const QuitAppIntent(),
@@ -129,6 +198,10 @@ class DesktopPlayerShortcuts extends StatefulWidget {
     required this.onToggleFullscreen,
     required this.onExit,
     required this.onToggleAlwaysOnTop,
+    this.onChannelNext,
+    this.onChannelPrev,
+    this.onChannelLast,
+    this.onChannelTuneTo,
     super.key,
   });
 
@@ -143,6 +216,14 @@ class DesktopPlayerShortcuts extends StatefulWidget {
   /// upsell sheet, and the actual `alwaysOnTopProvider.toggle()` call —
   /// this widget just dispatches the intent.
   final VoidCallback onToggleAlwaysOnTop;
+
+  /// TV-remote-style channel switcher hooks. Optional — when null the
+  /// matching shortcuts are silently ignored (e.g. on the VOD player
+  /// where channel-switching makes no sense).
+  final VoidCallback? onChannelNext;
+  final VoidCallback? onChannelPrev;
+  final VoidCallback? onChannelLast;
+  final ValueChanged<int>? onChannelTuneTo;
 
   @override
   State<DesktopPlayerShortcuts> createState() =>
@@ -253,6 +334,31 @@ class _DesktopPlayerShortcutsState extends State<DesktopPlayerShortcuts> {
               CallbackAction<ToggleAlwaysOnTopIntent>(
             onInvoke: (_) {
               widget.onToggleAlwaysOnTop();
+              return null;
+            },
+          ),
+          ChannelNextIntent: CallbackAction<ChannelNextIntent>(
+            onInvoke: (_) {
+              widget.onChannelNext?.call();
+              return null;
+            },
+          ),
+          ChannelPrevIntent: CallbackAction<ChannelPrevIntent>(
+            onInvoke: (_) {
+              widget.onChannelPrev?.call();
+              return null;
+            },
+          ),
+          ChannelToggleLastIntent: CallbackAction<ChannelToggleLastIntent>(
+            onInvoke: (_) {
+              widget.onChannelLast?.call();
+              return null;
+            },
+          ),
+          ChannelNumericTuneIntent:
+              CallbackAction<ChannelNumericTuneIntent>(
+            onInvoke: (ChannelNumericTuneIntent intent) {
+              widget.onChannelTuneTo?.call(intent.slot);
               return null;
             },
           ),

@@ -92,6 +92,16 @@ dependencies:
   app_settings: ^5.1.1
   network_info_plus: ^6.1.1
 
+  # Offline VOD downloads — survives app suspension on iOS/Android
+  # (background URLSession + WorkManager respectively) and persists
+  # the queue across cold starts. The mobile UI talks to this package
+  # directly through the awatv_core DownloadsService for sandbox path
+  # resolution. The audit prompt asked for ^5.8.0 but pub.dev never
+  # published a 5.x line — the package jumped straight from 4.x to
+  # 8.x and is now on 9.5.x at the time of writing. We pin to the
+  # current major to stay on a maintained release.
+  background_downloader: ^9.5.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

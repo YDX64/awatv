@@ -6,6 +6,7 @@ import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
+import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_player/awatv_player.dart';
@@ -226,8 +227,73 @@ class _EpgGridScreenState extends ConsumerState<EpgGridScreen> {
           _play(channel);
         },
         onRemind: () => _onRemind(sheetCtx, channel, p),
+        onCatchup: () => _onCatchup(sheetCtx, channel, p),
       ),
     );
+  }
+
+  Future<void> _onCatchup(
+    BuildContext sheetCtx,
+    Channel channel,
+    EpgGridProgramme p,
+  ) async {
+    final allowed =
+        ref.read(canUseFeatureProvider(PremiumFeature.catchup));
+    if (!allowed) {
+      Navigator.of(sheetCtx).pop();
+      if (!mounted) return;
+      await PremiumLockSheet.show(context, PremiumFeature.catchup);
+      return;
+    }
+    final svc = ref.read(catchupServiceProvider);
+    final epgProg = EpgProgramme(
+      channelTvgId: channel.tvgId ?? channel.id,
+      start: p.start,
+      stop: p.stop,
+      title: p.title,
+      description: p.description,
+      category: p.category,
+    );
+    final url = await svc.urlForEpg(channel, epgProg);
+    if (url == null) {
+      if (!mounted) return;
+      Navigator.of(sheetCtx).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bu kanal icin catchup URL olusturulamadi (M3U veya '
+            'Xtream disi kaynak).',
+          ),
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(sheetCtx).pop();
+
+    final headers = <String, String>{};
+    final ua = channel.extras['http-user-agent'] ??
+        channel.extras['user-agent'];
+    final referer = channel.extras['http-referrer'] ??
+        channel.extras['referer'] ??
+        channel.extras['Referer'];
+    if (referer != null && referer.isNotEmpty) {
+      headers['Referer'] = referer;
+    }
+    final src = MediaSource(
+      url: url,
+      title: '${channel.name} • ${p.title}',
+      userAgent: ua,
+      headers: headers.isEmpty ? null : headers,
+    );
+    final args = PlayerLaunchArgs(
+      source: src,
+      title: p.title,
+      subtitle: channel.name,
+      itemId: '${channel.id}::catchup::${p.start.toIso8601String()}',
+      kind: HistoryKind.live,
+    );
+    context.push('/play', extra: args);
   }
 
   Future<void> _onRemind(
@@ -261,6 +327,7 @@ class _ProgrammeDetailSheet extends StatelessWidget {
     required this.now,
     required this.onPlay,
     required this.onRemind,
+    required this.onCatchup,
   });
 
   final Channel channel;
@@ -268,6 +335,7 @@ class _ProgrammeDetailSheet extends StatelessWidget {
   final DateTime now;
   final VoidCallback onPlay;
   final VoidCallback onRemind;
+  final VoidCallback onCatchup;
 
   @override
   Widget build(BuildContext context) {
@@ -348,13 +416,19 @@ class _ProgrammeDetailSheet extends StatelessWidget {
                 icon: const Icon(Icons.notifications_active_outlined),
                 label: const Text('Hatirlat'),
               )
-            else if (isPast)
-              FilledButton.tonalIcon(
+            else if (isPast) ...<Widget>[
+              FilledButton.icon(
+                onPressed: onCatchup,
+                icon: const Icon(Icons.replay_rounded),
+                label: const Text('Geri sar'),
+              ),
+              const SizedBox(height: DesignTokens.spaceS),
+              OutlinedButton.icon(
                 onPressed: onPlay,
                 icon: const Icon(Icons.live_tv_outlined),
-                label: const Text('Kanali ac'),
-              )
-            else
+                label: const Text('Kanali simdi ac'),
+              ),
+            ] else
               FilledButton.icon(
                 onPressed: onPlay,
                 icon: const Icon(Icons.play_arrow_rounded),

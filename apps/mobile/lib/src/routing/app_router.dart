@@ -4,8 +4,10 @@ import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/features/auth/account_screen.dart';
 import 'package:awatv_mobile/src/features/auth/login_screen.dart';
 import 'package:awatv_mobile/src/features/auth/magic_link_callback_screen.dart';
+import 'package:awatv_mobile/src/features/catchup/catchup_screen.dart';
 import 'package:awatv_mobile/src/features/channels/channels_screen.dart';
 import 'package:awatv_mobile/src/features/channels/epg_grid_screen.dart';
+import 'package:awatv_mobile/src/features/downloads/downloads_screen.dart';
 import 'package:awatv_mobile/src/features/home/home_screen.dart';
 import 'package:awatv_mobile/src/features/onboarding/welcome_screen.dart';
 import 'package:awatv_mobile/src/features/parental/parental_screen.dart';
@@ -15,6 +17,7 @@ import 'package:awatv_mobile/src/features/profiles/profile_picker_screen.dart';
 import 'package:awatv_mobile/src/features/playlists/add_playlist_screen.dart';
 import 'package:awatv_mobile/src/features/playlists/playlists_screen.dart';
 import 'package:awatv_mobile/src/features/premium/premium_screen.dart';
+import 'package:awatv_mobile/src/features/recordings/recordings_screen.dart';
 import 'package:awatv_mobile/src/features/remote/receiver_screen.dart';
 import 'package:awatv_mobile/src/features/remote/remote_hub_screen.dart';
 import 'package:awatv_mobile/src/features/remote/sender_screen.dart';
@@ -71,7 +74,15 @@ GoRouter appRouter(Ref ref) {
           loc.startsWith('/account') ||
           loc.startsWith('/profiles') ||
           loc.startsWith('/settings/parental') ||
-          loc.startsWith('/settings/devices')) {
+          loc.startsWith('/settings/devices') ||
+          // The catchup / recordings / downloads hubs are reachable
+          // from the sidebar even without a playlist (they each own
+          // their own empty state that nudges the user to add a
+          // source / explains the Premium gate), so don't bounce them
+          // through /onboarding.
+          loc.startsWith('/catchup') ||
+          loc.startsWith('/recordings') ||
+          loc.startsWith('/downloads')) {
         return null;
       }
       try {
@@ -146,6 +157,27 @@ GoRouter appRouter(Ref ref) {
         name: 'premium',
         builder: (BuildContext context, GoRouterState state) =>
             const PremiumScreen(),
+      ),
+      // Catchup TV hub — Xtream `archive=1` / timeshift playback.
+      GoRoute(
+        path: '/catchup',
+        name: 'catchup',
+        builder: (BuildContext context, GoRouterState state) =>
+            const CatchupScreen(),
+      ),
+      // Live channel recording hub (active / completed / scheduled).
+      GoRoute(
+        path: '/recordings',
+        name: 'recordings',
+        builder: (BuildContext context, GoRouterState state) =>
+            const RecordingsScreen(),
+      ),
+      // Offline VOD downloads hub.
+      GoRoute(
+        path: '/downloads',
+        name: 'downloads',
+        builder: (BuildContext context, GoRouterState state) =>
+            const DownloadsScreen(),
       ),
       // Remote-control hub. Two big buttons: receive (this device shows
       // video) or send (this device acts as a remote). The two child

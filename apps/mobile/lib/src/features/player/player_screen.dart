@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/desktop/always_on_top.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/keyboard_shortcuts.dart';
 import 'package:awatv_mobile/src/desktop/pip_window.dart';
+import 'package:awatv_mobile/src/desktop/widgets/now_playing_state.dart';
 import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
 import 'package:awatv_mobile/src/features/player/widgets/cast_device_picker.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
@@ -19,6 +21,7 @@ import 'package:awatv_mobile/src/shared/cast/cast_provider.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_controller.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_gate.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_settings.dart';
+import 'package:awatv_mobile/src/shared/player/active_player_controller.dart';
 import 'package:awatv_mobile/src/shared/player/sleep_timer.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
@@ -70,6 +73,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Timer? _hideTimer;
   Timer? _historyTimer;
   Timer? _lowBwTimer;
+  // Last time we published a position update to [nowPlayingProvider]. The
+  // engine emits roughly 4 Hz; we throttle to 1 Hz so the persistent bar
+  // doesn't ride a high-frequency rebuild train while the player is
+  // composited on top of it.
+  DateTime _lastNowPlayingPositionAt =
+      DateTime.fromMillisecondsSinceEpoch(0);
 
   bool _showControls = true;
   bool _isPaused = false;
@@ -156,6 +165,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // can attach its texture before bytes start flowing.
       setState(() {});
 
+      // Publish to the persistent player bar + the controller registry as
+      // soon as we have a controller. The bar paints from `nowPlayingProvider`
+      // (display) and reaches back into `activePlayerControllerProvider`
+      // (control) — both come up front so the bar can flip from "hidden" to
+      // "visible with title + thumb" the instant the route mounts.
+      _publishNowPlaying(c);
+      ref.read(activePlayerControllerProvider.notifier).attach(c);
+
       _stateSub = c.states.listen(
         _onPlayerState,
         onError: (Object e, StackTrace s) {
@@ -172,6 +189,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _firstFrameSeen = true;
           }
         });
+        _tickNowPlayingPosition(p);
       });
 
       _bufferedSub = c.buffered.listen((Duration b) {
@@ -285,6 +303,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (context.canPop()) context.pop();
   }
 
+  /// Throttled position tee — pumps the engine's high-frequency position
+  /// stream into the persistent bar at ~1 Hz. Live streams skip the
+  /// duration write entirely (the bar paints the striped indicator
+  /// instead). The throttle is a wall-clock check rather than a Timer so
+  /// we avoid keeping a separate timer alive while the player itself is
+  /// already pulsing.
+  void _tickNowPlayingPosition(Duration position) {
+    final now = DateTime.now();
+    if (now.difference(_lastNowPlayingPositionAt).inMilliseconds < 1000) {
+      return;
+    }
+    _lastNowPlayingPositionAt = now;
+    ref.read(nowPlayingProvider.notifier).update(
+          position: position,
+          duration: widget.args.isLive ? Duration.zero : _total,
+          isPlaying: !_isPaused,
+        );
+  }
+
+  /// Pushes a fresh [NowPlaying] payload into the persistent-bar provider.
+  /// Called once at boot (so the bar flips from hidden to visible) and
+  /// then continuously through [_onPlayerState] / [_onPositionTick] for
+  /// position + isPlaying updates.
+  void _publishNowPlaying(AwaPlayerController c) {
+    final args = widget.args;
+    ref.read(nowPlayingProvider.notifier).start(
+          NowPlaying(
+            title: args.title ?? 'AWAtv',
+            kind: args.kind ?? HistoryKind.vod,
+            subtitle: args.subtitle,
+            thumbnailUrl: null, // Player launch args don't carry artwork.
+            itemId: args.itemId,
+            isLive: args.isLive,
+            isPlaying: true,
+            source: args.source,
+          ),
+        );
+  }
+
   /// Wires this player into the remote-control bridge and publishes the
   /// active playback context. We always publish (not just when a remote
   /// session is alive) so secondary consumers — the desktop system tray
@@ -323,6 +380,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _total = total;
           _errorMessage = null;
         });
+        // Force-publish on a transition (bypasses the position throttle)
+        // so the bar's icon flips the moment playback resumes.
+        _lastNowPlayingPositionAt =
+            DateTime.fromMillisecondsSinceEpoch(0);
+        ref.read(nowPlayingProvider.notifier).update(
+              position: position,
+              duration: widget.args.isLive ? Duration.zero : total,
+              isPlaying: true,
+            );
       case PlayerPaused(:final position, :final total):
         setState(() {
           _isPaused = true;
@@ -331,6 +397,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _total = total;
           _showControls = true;
         });
+        ref.read(nowPlayingProvider.notifier).update(
+              position: position,
+              duration: widget.args.isLive ? Duration.zero : total,
+              isPlaying: false,
+            );
       case PlayerLoading():
         setState(() {
           _buffering = true;
@@ -341,6 +412,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _isPaused = true;
           _showControls = true;
         });
+        ref.read(nowPlayingProvider.notifier).update(isPlaying: false);
       case PlayerError(:final message):
         setState(() => _errorMessage = message);
       case PlayerIdle():
@@ -634,6 +706,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _firstFrameSeen = false;
       _errorMessage = null;
     });
+    if (old != null) {
+      ref.read(activePlayerControllerProvider.notifier).detach(old);
+    }
     try {
       await old?.dispose();
     } on Object {
@@ -644,6 +719,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final fresh = AwaPlayerController.empty(backend: next);
     _controller = fresh;
     setState(() {});
+
+    // Hand the fresh controller to the persistent bar / control registry
+    // so its play-pause/volume buttons keep working across the swap.
+    _publishNowPlaying(fresh);
+    ref.read(activePlayerControllerProvider.notifier).attach(fresh);
 
     _stateSub = fresh.states.listen(
       _onPlayerState,
@@ -658,6 +738,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _position = p;
         if (!_firstFrameSeen && p > Duration.zero) _firstFrameSeen = true;
       });
+      _tickNowPlayingPosition(p);
     });
     _bufferedSub = fresh.buffered.listen((Duration b) {
       if (!mounted) return;
@@ -711,6 +792,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _positionSub?.cancel();
     _bufferedSub?.cancel();
     _heightSub?.cancel();
+    // Detach the persistent-bar control pointer + hide the bar. We do
+    // this before tearing the controller down so the bar's
+    // `ref.watch(activePlayerControllerProvider)` doesn't briefly point
+    // at a disposed engine.
+    try {
+      final c = _controller;
+      if (c != null) {
+        ref.read(activePlayerControllerProvider.notifier).detach(c);
+      }
+      ref.read(nowPlayingProvider.notifier).clear();
+    } on Object {
+      // best-effort
+    }
     // Detach this player from the remote-control bridge before tearing
     // down the controller so the bridge does not hold a dangling ref.
     // Wrapped because the provider scope may already be gone if the

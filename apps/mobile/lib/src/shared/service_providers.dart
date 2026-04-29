@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'service_providers.g.dart';
@@ -94,4 +97,79 @@ FavoritesService favoritesService(Ref ref) {
 @Riverpod(keepAlive: true)
 HistoryService historyService(Ref ref) {
   return HistoryService(storage: ref.watch(awatvStorageProvider));
+}
+
+/// Catchup / replay TV — resolves Xtream `archive=1` programmes and
+/// timeshift URLs so the EPG grid + Catchup screen can play past
+/// programmes. Returns a service even on web; the underlying calls
+/// degrade naturally because the playback URLs are HTTP-based.
+@Riverpod(keepAlive: true)
+CatchupService catchupService(Ref ref) {
+  return CatchupService(
+    storage: ref.watch(awatvStorageProvider),
+    dio: ref.watch(dioProvider),
+  );
+}
+
+/// On-disk path used for [recordingService] output. Each platform
+/// gets its own canonical sandbox:
+///   * macOS / Linux desktop → `Application Support/AWAtv/recordings`
+///   * Windows desktop       → `%APPDATA%\AWAtv\recordings`
+///   * iOS / Android mobile  → app documents `recordings` subfolder
+/// On web this provider throws, which the service treats as
+/// "unsupported platform" and surfaces the empty-state hint.
+@Riverpod(keepAlive: true)
+Future<Directory> Function() recordingsDirResolver(Ref ref) {
+  return () async {
+    if (kIsWeb) {
+      throw const FileSystemException(
+        'Recording is not available on the web build',
+      );
+    }
+    final base = (Platform.isMacOS || Platform.isLinux || Platform.isWindows)
+        ? await getApplicationSupportDirectory()
+        : await getApplicationDocumentsDirectory();
+    return Directory('${base.path}${Platform.pathSeparator}recordings');
+  };
+}
+
+/// On-disk path used for [downloadsService] output. Same per-platform
+/// rules as [recordingsDirResolver] but in a `downloads/` subfolder.
+@Riverpod(keepAlive: true)
+Future<Directory> Function() downloadsDirResolver(Ref ref) {
+  return () async {
+    if (kIsWeb) {
+      throw const FileSystemException(
+        'Downloads are not available on the web build',
+      );
+    }
+    final base = (Platform.isMacOS || Platform.isLinux || Platform.isWindows)
+        ? await getApplicationSupportDirectory()
+        : await getApplicationDocumentsDirectory();
+    return Directory('${base.path}${Platform.pathSeparator}downloads');
+  };
+}
+
+/// Recording service singleton. Boots the schedule poller so future
+/// scheduled recordings auto-start while the app is open.
+@Riverpod(keepAlive: true)
+RecordingService recordingService(Ref ref) {
+  final svc = RecordingService(
+    storage: ref.watch(awatvStorageProvider),
+    dio: ref.watch(dioProvider),
+    recordingsDir: ref.watch(recordingsDirResolverProvider),
+  );
+  if (!kIsWeb) svc.boot();
+  ref.onDispose(svc.dispose);
+  return svc;
+}
+
+/// Downloads service singleton. Default cap: 3 parallel downloads.
+@Riverpod(keepAlive: true)
+DownloadsService downloadsService(Ref ref) {
+  return DownloadsService(
+    storage: ref.watch(awatvStorageProvider),
+    dio: ref.watch(dioProvider),
+    downloadsDir: ref.watch(downloadsDirResolverProvider),
+  );
 }

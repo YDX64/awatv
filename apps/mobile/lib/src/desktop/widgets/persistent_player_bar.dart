@@ -1,8 +1,17 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/desktop/always_on_top.dart';
 import 'package:awatv_mobile/src/desktop/widgets/now_playing_state.dart';
+import 'package:awatv_mobile/src/features/home/category_tree_provider.dart';
+import 'package:awatv_mobile/src/features/player/widgets/cast_device_picker.dart';
+import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/cast/cast_provider.dart';
+import 'package:awatv_mobile/src/shared/player/active_player_controller.dart';
+import 'package:awatv_mobile/src/shared/stream_url.dart';
+import 'package:awatv_mobile/src/shared/web_proxy.dart';
+import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -332,32 +341,165 @@ class _TransportControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.watch(activePlayerControllerProvider);
+    final castActive = ref.watch(castIsActiveProvider);
+    final hasController = controller != null;
+
+    // Channel-prev/next is only meaningful for live broadcasts. VOD/series
+    // viewers use the detail screens to find the next item.
+    final liveNav = state.isLive;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _IconBtn(
-          icon: Icons.skip_previous_rounded,
-          tooltip: 'Onceki',
-          // Stub — neighbouring item nav requires player package wiring.
-          // Hide until the player feature exposes a callback.
-          onTap: null,
-        ),
+        if (liveNav)
+          _IconBtn(
+            icon: Icons.skip_previous_rounded,
+            tooltip: 'Onceki kanal',
+            onTap: hasController
+                ? () => _stepLiveChannel(context, ref, controller, -1)
+                : null,
+          ),
         _IconBtn(
           icon: state.isPlaying
               ? Icons.pause_rounded
               : Icons.play_arrow_rounded,
           tooltip: state.isPlaying ? 'Duraklat' : 'Oynat',
           accent: true,
-          onTap: () =>
-              ref.read(nowPlayingProvider.notifier).togglePlay(),
+          onTap: hasController
+              ? () => _togglePlay(ref, controller, castActive: castActive)
+              : null,
         ),
-        _IconBtn(
-          icon: Icons.skip_next_rounded,
-          tooltip: 'Sonraki',
-          onTap: null,
-        ),
+        if (liveNav)
+          _IconBtn(
+            icon: Icons.skip_next_rounded,
+            tooltip: 'Sonraki kanal',
+            onTap: hasController
+                ? () => _stepLiveChannel(context, ref, controller, 1)
+                : null,
+          ),
       ],
     );
+  }
+
+  /// Routes a play/pause through the cast session when one is connected,
+  /// otherwise toggles the local engine. The bar updates its mirror via
+  /// the player screen's state listener — we don't optimistically flip
+  /// the icon here because that would diverge from the engine's actual
+  /// state on slow devices.
+  Future<void> _togglePlay(
+    WidgetRef ref,
+    AwaPlayerController controller, {
+    required bool castActive,
+  }) async {
+    if (castActive) {
+      await ref.read(castControllerProvider).togglePlayPause();
+      return;
+    }
+    if (state.isPlaying) {
+      await controller.pause();
+    } else {
+      await controller.play();
+    }
+  }
+
+  /// Walks the current category's live-channels list ±[direction] and
+  /// asks the active controller to open the new source. Wraps around at
+  /// either end so the user can keep flicking through channels without
+  /// hitting a hard stop.
+  Future<void> _stepLiveChannel(
+    BuildContext context,
+    WidgetRef ref,
+    AwaPlayerController controller,
+    int direction,
+  ) async {
+    final selection = ref.read(categorySelectionProvider);
+    if (selection == null || selection.kind != CategoryKind.live) {
+      // No live category in play — surface a hint instead of failing
+      // silently. Picking a category brings the channel list to life.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kanal listesi açık değil — Canlı TV kategorisini seçin.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final channelsAsync = ref.read(selectedLiveChannelsProvider);
+    final channels = channelsAsync.valueOrNull;
+    if (channels == null || channels.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Geçilebilecek kanal bulunamadı.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final currentId = state.itemId;
+    var idx = currentId == null
+        ? -1
+        : channels.indexWhere((Channel c) => c.id == currentId);
+    if (idx < 0) idx = 0;
+    final nextIdx = (idx + direction) % channels.length;
+    final next = channels[nextIdx < 0 ? nextIdx + channels.length : nextIdx];
+
+    // Build the fallback chain the same way the channels screen does so
+    // panel-specific URL shapes still get tried in order.
+    final headers = <String, String>{};
+    final ua = next.extras['http-user-agent'] ?? next.extras['user-agent'];
+    final referer = next.extras['http-referrer'] ??
+        next.extras['referer'] ??
+        next.extras['Referer'];
+    if (referer != null && referer.isNotEmpty) {
+      headers['Referer'] = referer;
+    }
+    final urls = streamUrlVariants(next.streamUrl).map(proxify).toList();
+    final variants = MediaSource.variants(
+      urls,
+      title: next.name,
+      userAgent: ua,
+      headers: headers.isEmpty ? null : headers,
+    );
+
+    // Update the persistent bar payload eagerly so the title/subtitle/
+    // logo flip the moment the user clicks — the engine catches up
+    // through the player screen's state listener once the new stream
+    // produces frames.
+    ref.read(nowPlayingProvider.notifier).start(
+          NowPlaying(
+            title: next.name,
+            kind: HistoryKind.live,
+            subtitle: next.groups.isEmpty ? null : next.groups.first,
+            thumbnailUrl: next.logoUrl,
+            itemId: next.id,
+            isLive: true,
+            isPlaying: true,
+            source: variants.isEmpty ? null : variants.first,
+          ),
+        );
+
+    try {
+      if (variants.isEmpty) {
+        await controller.open(
+          MediaSource(
+            url: proxify(next.streamUrl),
+            title: next.name,
+            userAgent: ua,
+            headers: headers.isEmpty ? null : headers,
+          ),
+        );
+      } else {
+        await controller.openWithFallbacks(variants);
+      }
+    } on PlayerException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kanal açılamadı: ${e.message}')),
+      );
+    }
   }
 }
 
@@ -370,11 +512,14 @@ class _RightControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pinned = ref.watch(alwaysOnTopProvider);
     final itemId = state.itemId;
+    final controller = ref.watch(activePlayerControllerProvider);
+    final castActive = ref.watch(castIsActiveProvider);
+    final castDevice = ref.watch(castConnectedDeviceNameProvider);
 
-    // Detail / fullscreen routing leans on `itemId` — the bar can deep
-    // link to /channel/:id or /movie/:id without the full PlayerLaunchArgs
-    // payload. When no id is set we hide the button to avoid the
-    // defensive PlayerArgError fallback in the router.
+    // Expand prefers the player route when we still have the [MediaSource]
+    // — that re-opens the full-screen player without a round-trip through
+    // the detail screen. When the source isn't available (e.g. the bar
+    // was repainted with a stub state) we fall back to the detail page.
     String? expandRoute() {
       if (itemId == null || itemId.isEmpty) return null;
       switch (state.kind) {
@@ -387,16 +532,43 @@ class _RightControls extends ConsumerWidget {
       }
     }
 
+    void onExpand() {
+      final source = state.source;
+      if (source != null) {
+        context.push(
+          '/play',
+          extra: PlayerLaunchArgs(
+            source: source,
+            title: state.title,
+            subtitle: state.subtitle,
+            itemId: itemId,
+            kind: state.kind,
+            isLive: state.isLive,
+          ),
+        );
+        return;
+      }
+      final route = expandRoute();
+      if (route != null) context.push(route);
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _IconBtn(
-          icon: Icons.cast_rounded,
-          tooltip: 'Yayinla',
-          // Cast UI lives in the player package; until that feature
-          // exposes a "switch device" callback we leave this disabled
-          // rather than open a half-broken sheet.
-          onTap: null,
+        // Volume slider — collapses to an icon button on tight widths so
+        // the bar still fits on a 1100dp window. Hidden while a cast
+        // session is connected because volume is routed to the receiver
+        // through the cast control surface instead.
+        _VolumeControl(
+          controller: controller,
+          castActive: castActive,
+        ),
+        const SizedBox(width: DesignTokens.spaceXs),
+        _CastButton(
+          state: state,
+          controller: controller,
+          castActive: castActive,
+          castDeviceName: castDevice,
         ),
         _IconBtn(
           icon: pinned ? Icons.push_pin : Icons.push_pin_outlined,
@@ -407,10 +579,10 @@ class _RightControls extends ConsumerWidget {
         ),
         _IconBtn(
           icon: Icons.open_in_full_rounded,
-          tooltip: 'Detay sayfasini ac',
-          onTap: expandRoute() == null
+          tooltip: 'Tam ekrana ac',
+          onTap: (state.source == null && expandRoute() == null)
               ? null
-              : () => context.push(expandRoute()!),
+              : onExpand,
         ),
         _IconBtn(
           icon: Icons.close_rounded,
@@ -418,6 +590,214 @@ class _RightControls extends ConsumerWidget {
           onTap: () => ref.read(nowPlayingProvider.notifier).clear(),
         ),
       ],
+    );
+  }
+}
+
+/// Cast button — opens the existing [CastDevicePicker] modal. Hands the
+/// connect+mirror sequence into the cast controller; when a session is
+/// already active the icon flips to "connected" and the same tap reveals
+/// the disconnect path inside the picker (the picker already owns that
+/// state machine).
+class _CastButton extends StatelessWidget {
+  const _CastButton({
+    required this.state,
+    required this.controller,
+    required this.castActive,
+    required this.castDeviceName,
+  });
+
+  final NowPlaying state;
+  final AwaPlayerController? controller;
+  final bool castActive;
+  final String? castDeviceName;
+
+  @override
+  Widget build(BuildContext context) {
+    final tooltip = castActive
+        ? (castDeviceName == null
+            ? 'Yayın aktif'
+            : '$castDeviceName cihazına yayın aktif')
+        : 'Yayinla';
+    final icon = castActive
+        ? Icons.cast_connected_rounded
+        : Icons.cast_rounded;
+    return _IconBtn(
+      icon: icon,
+      tooltip: tooltip,
+      accent: castActive,
+      onTap: controller == null ? null : () => _openPicker(context),
+    );
+  }
+
+  Future<void> _openPicker(BuildContext context) async {
+    final c = controller;
+    if (c == null) return;
+    // Capture the source before showing the modal — once it pops the bar
+    // may have been re-painted with a different stream.
+    final source = state.source;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final cast = container.read(castControllerProvider);
+
+    await CastDevicePicker.show(
+      context,
+      onConnectAndMirror: (CastDevice device) async {
+        await cast.connect(device);
+        if (source == null) {
+          // The bar was opened against a stub state with no resolved
+          // source — skip the mirror step rather than crashing the
+          // engine. The user will need to re-open the player to mirror.
+          return;
+        }
+        try {
+          await cast.mirror(
+            source,
+            localController: c,
+            title: state.title,
+            subtitle: state.subtitle,
+            artworkUrl: state.thumbnailUrl,
+            isLive: state.isLive,
+          );
+        } on CastNotConnectedException {
+          // The picker is showing CastError — let it own the messaging.
+        } on Object catch (e) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Yayın başlatılamadı: $e')),
+          );
+        }
+      },
+      onDisconnect: () async {
+        await cast.unmirror(localController: c);
+      },
+    );
+  }
+}
+
+/// Compact volume slider that lives inline in the bar. We keep the
+/// surface stateful so the slider can scrub locally between engine
+/// reads — the engine doesn't echo volume changes back through any of
+/// our streams, so we treat this widget as the source of truth for the
+/// current level until the user re-opens the bar.
+class _VolumeControl extends StatefulWidget {
+  const _VolumeControl({
+    required this.controller,
+    required this.castActive,
+  });
+
+  final AwaPlayerController? controller;
+  final bool castActive;
+
+  @override
+  State<_VolumeControl> createState() => _VolumeControlState();
+}
+
+class _VolumeControlState extends State<_VolumeControl> {
+  // 0..1; the engine API takes 0..100, we scale at write time.
+  double _value = 1;
+  bool _expanded = false;
+  Timer? _collapseTimer;
+
+  @override
+  void dispose() {
+    _collapseTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleCollapse() {
+    _collapseTimer?.cancel();
+    _collapseTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      setState(() => _expanded = false);
+    });
+  }
+
+  IconData get _icon {
+    if (_value <= 0.001) return Icons.volume_off_rounded;
+    if (_value < 0.5) return Icons.volume_down_rounded;
+    return Icons.volume_up_rounded;
+  }
+
+  Future<void> _setVolume(double v) async {
+    setState(() => _value = v.clamp(0.0, 1.0));
+    final c = widget.controller;
+    if (c != null) {
+      try {
+        await c.setVolume(_value * 100);
+      } on Object {
+        // best-effort — losing a stray slider event isn't worth a UI
+        // surface, and the next drag will retry.
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.castActive) {
+      // Volume is routed to the receiver while casting. We hide the
+      // slider so users don't expect it to control local audio.
+      return const SizedBox.shrink();
+    }
+    final disabled = widget.controller == null;
+    return MouseRegion(
+      onEnter: (_) {
+        if (disabled) return;
+        setState(() => _expanded = true);
+        _collapseTimer?.cancel();
+      },
+      onExit: (_) {
+        if (disabled) return;
+        _scheduleCollapse();
+      },
+      child: AnimatedContainer(
+        duration: DesignTokens.motionFast,
+        curve: Curves.easeOut,
+        width: _expanded ? 144 : 32,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _IconBtn(
+              icon: _icon,
+              tooltip: disabled
+                  ? 'Ses seviyesi'
+                  : (_value <= 0.001 ? 'Sesi aç' : 'Sessize al'),
+              onTap: disabled
+                  ? null
+                  : () async {
+                      if (_value <= 0.001) {
+                        await _setVolume(0.7);
+                      } else {
+                        await _setVolume(0);
+                      }
+                    },
+            ),
+            if (_expanded)
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 2,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
+                    ),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 12,
+                    ),
+                  ),
+                  child: Slider(
+                    value: _value,
+                    onChanged: disabled
+                        ? null
+                        : (double v) {
+                            _collapseTimer?.cancel();
+                            _setVolume(v);
+                          },
+                    onChangeEnd: (_) => _scheduleCollapse(),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

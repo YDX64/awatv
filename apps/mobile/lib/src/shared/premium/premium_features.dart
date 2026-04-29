@@ -47,6 +47,22 @@ enum PremiumFeature {
   /// Mirrors the "always on top" toggle reference IPTV apps surface
   /// in their player overlay and tray menu.
   alwaysOnTop,
+
+  /// Catchup / replay TV — Xtream `archive=1` timeshift playback.
+  /// Free tier only gets the currently-airing programme; everything
+  /// past that is premium. Mirrors how IPTV Expert and ipTV gate
+  /// "Replay TV" behind their paywall.
+  catchup,
+
+  /// Recording live channels to disk (and the planned recording
+  /// scheduler). Premium-only because it consumes both bandwidth and
+  /// disk on the user's device.
+  recording,
+
+  /// Offline VOD downloads. Free tier is capped at 5 active downloads
+  /// at 720p; premium removes both caps and unlocks parallel
+  /// downloads beyond the default of 3.
+  downloads,
 }
 
 /// Display copy used by the paywall sheet and lock dialog. Kept as a
@@ -67,6 +83,9 @@ class PremiumFeatureCopy {
         PremiumFeature.noAds => 'Ad-free experience',
         PremiumFeature.backgroundPlayback => 'Arkaplan oynatma',
         PremiumFeature.alwaysOnTop => 'Pencereyi üstte sabitle',
+        PremiumFeature.catchup => 'Catchup / Geri sar TV',
+        PremiumFeature.recording => 'Canli yayin kaydi',
+        PremiumFeature.downloads => 'Cevrimdisi indirme',
       };
 
   static String subtitle(PremiumFeature f) => switch (f) {
@@ -94,5 +113,16 @@ class PremiumFeatureCopy {
         PremiumFeature.alwaysOnTop =>
           'Player penceresi diğer pencereler arkasında kalmaz — bilgisayarda '
               'çalışırken veya gezerken yayını gözden kaçırma.',
+        PremiumFeature.catchup =>
+          'Gecmis 24-72 saatin programlarini geri sar — Xtream timeshift ile '
+              'kacirilan macin tekrarini, yarismanin sonunu, bilim haberini '
+              'ne zaman istersen ac.',
+        PremiumFeature.recording =>
+          'Canli kanali diske kaydet — istedigin kadar uzun, tek dokunusla '
+              'baslat ve duraklat. Plan kayit ile yakin tarihli yayinlari '
+              'da otomatik yakala.',
+        PremiumFeature.downloads =>
+          'Filmleri ve bolumleri indir, ucakta veya internetsiz oynat. 3 '
+              'paralel indirme, duraklat / surdur / iptal kontrolu.',
       };
 }

@@ -1,4 +1,5 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_player/awatv_player.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// What is currently playing — surfaced by the persistent player bar.
@@ -6,8 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// This is a *display-only* mirror of the actual player state. The player
 /// screen writes to it as it loads / pauses / resumes a stream so the
 /// shell can paint a mini player without taking a dependency on
-/// `package:awatv_player` (which would require pulling the platform
-/// channels into every screen that hosts the bar).
+/// `package:awatv_player` (… well, almost — see [source] below).
 ///
 /// When nothing is playing — i.e. the user has never opened the player
 /// or has explicitly stopped — `state` is null and the bar hides.
@@ -22,6 +22,7 @@ class NowPlaying {
     this.position = Duration.zero,
     this.duration = Duration.zero,
     this.isPlaying = false,
+    this.source,
   });
 
   /// Foreground title — channel name / movie title / episode title.
@@ -55,6 +56,17 @@ class NowPlaying {
   /// pause icon for a play icon when false.
   final bool isPlaying;
 
+  /// The currently-loaded [MediaSource]. The persistent bar hands this
+  /// off to the cast engine when the user picks a device, so the receiver
+  /// gets the *exact* URL/headers/UA the local engine is using rather than
+  /// a guess. Null while the bar is mirroring a stub state (e.g. before
+  /// the controller has loaded its first source).
+  ///
+  /// Note: importing `awatv_player` here is intentional — `MediaSource`
+  /// is a pure value type with no platform dependencies, so widgets that
+  /// only consume the bar's display state still don't pull in libmpv.
+  final MediaSource? source;
+
   /// Convenience: progress in [0..1] for the slim filled bar. Zero for
   /// live; clamped for VOD even when the duration sneaks past total.
   double get progress {
@@ -74,6 +86,7 @@ class NowPlaying {
     Duration? position,
     Duration? duration,
     bool? isPlaying,
+    MediaSource? source,
   }) {
     return NowPlaying(
       title: title ?? this.title,
@@ -85,6 +98,7 @@ class NowPlaying {
       position: position ?? this.position,
       duration: duration ?? this.duration,
       isPlaying: isPlaying ?? this.isPlaying,
+      source: source ?? this.source,
     );
   }
 }
@@ -107,6 +121,10 @@ class NowPlayingNotifier extends Notifier<NowPlaying?> {
     Duration? position,
     Duration? duration,
     bool? isPlaying,
+    String? title,
+    String? subtitle,
+    String? thumbnailUrl,
+    MediaSource? source,
   }) {
     final current = state;
     if (current == null) return;
@@ -114,6 +132,10 @@ class NowPlayingNotifier extends Notifier<NowPlaying?> {
       position: position,
       duration: duration,
       isPlaying: isPlaying,
+      title: title,
+      subtitle: subtitle,
+      thumbnailUrl: thumbnailUrl,
+      source: source,
     );
   }
 

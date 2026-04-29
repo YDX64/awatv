@@ -30,6 +30,14 @@ bool _freeTierAllowed(PremiumFeature feature) {
     // *extended* (14-day) variant is premium only.
     case PremiumFeature.extendedEpgHistory:
       return false;
+    // Catchup is partially free — the airing-now programme is always
+    // playable (it's the same as live), but anything older requires
+    // premium. The screen / sheet enforces this finer-grained gate
+    // separately by checking `programme.isPast(now)`. Returning false
+    // here keeps the headline gate "premium" so the sidebar entry
+    // and screen header reflect the intent.
+    case PremiumFeature.catchup:
+      return false;
     case PremiumFeature.unlimitedPlaylists:
     case PremiumFeature.multiScreen:
     case PremiumFeature.pictureInPicture:
@@ -44,6 +52,12 @@ bool _freeTierAllowed(PremiumFeature feature) {
     // Always-on-top window pinning is a desktop-only premium perk —
     // matches the player-pin toggle reference IPTV apps expose.
     case PremiumFeature.alwaysOnTop:
+    // Recording requires sustained bandwidth + disk on the user's
+    // device — premium only.
+    case PremiumFeature.recording:
+    // Offline downloads are paywalled the same way IPTV Expert /
+    // ipTV.app gate them.
+    case PremiumFeature.downloads:
       return false;
   }
 }

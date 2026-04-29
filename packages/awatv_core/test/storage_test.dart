@@ -395,4 +395,75 @@ void main() {
       expect(identical(a, b), isTrue);
     });
   });
+
+  group('AwatvStorage recordings', () {
+    test('putRecording then listRecordings round-trips', () async {
+      final t = RecordingTask(
+        id: 'rec-1',
+        channelId: 'src::ch',
+        channelName: 'Channel',
+        streamUrl: 'http://example/live.ts',
+        status: RecordingStatus.scheduled,
+        createdAt: DateTime.utc(2026, 4, 28),
+      );
+      await storage.putRecording(t);
+      final list = await storage.listRecordings();
+      expect(list, hasLength(1));
+      expect(list.first.id, 'rec-1');
+      expect(list.first.status, RecordingStatus.scheduled);
+    });
+
+    test('deleteRecording removes the entry', () async {
+      final t = RecordingTask(
+        id: 'rec-2',
+        channelId: 'src::ch',
+        channelName: 'Channel',
+        streamUrl: 'http://example/live.ts',
+        status: RecordingStatus.completed,
+        createdAt: DateTime.utc(2026, 4, 28),
+      );
+      await storage.putRecording(t);
+      await storage.deleteRecording('rec-2');
+      final list = await storage.listRecordings();
+      expect(list, isEmpty);
+    });
+  });
+
+  group('AwatvStorage downloads', () {
+    test('putDownload then listDownloads round-trips with progress', () async {
+      final t = DownloadTask(
+        id: 'dl-1',
+        itemId: 'dl-1',
+        title: 'Movie',
+        sourceUrl: 'http://example/movie.mp4',
+        status: DownloadStatus.running,
+        createdAt: DateTime.utc(2026, 4, 28),
+        totalBytes: 1024 * 1024 * 200,
+        bytesReceived: 1024 * 1024 * 50,
+      );
+      await storage.putDownload(t);
+      final list = await storage.listDownloads();
+      expect(list, hasLength(1));
+      expect(list.first.totalBytes, 1024 * 1024 * 200);
+      expect(list.first.bytesReceived, 1024 * 1024 * 50);
+      expect(list.first.progress, closeTo(0.25, 0.001));
+    });
+
+    test('getDownload returns the right task and null for missing id',
+        () async {
+      final t = DownloadTask(
+        id: 'dl-2',
+        itemId: 'dl-2',
+        title: 'Movie',
+        sourceUrl: 'http://example/movie.mp4',
+        status: DownloadStatus.completed,
+        createdAt: DateTime.utc(2026, 4, 28),
+      );
+      await storage.putDownload(t);
+      final got = await storage.getDownload('dl-2');
+      expect(got, isNotNull);
+      expect(got!.title, 'Movie');
+      expect(await storage.getDownload('nope'), isNull);
+    });
+  });
 }

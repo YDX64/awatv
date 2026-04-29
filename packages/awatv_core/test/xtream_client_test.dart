@@ -272,5 +272,64 @@ void main() {
         expect(cats['12'], 'TR > Spor');
       },
     );
+
+    test('catchupUrl renders the canonical Xtream timeshift pattern', () {
+      // 2026-04-28 18:30 UTC → "2026-04-28:18-30"
+      final start = DateTime.utc(2026, 4, 28, 18, 30);
+      final url = client.catchupUrl(
+        streamId: 12345,
+        start: start,
+        duration: const Duration(minutes: 90),
+      );
+      expect(
+        url,
+        'http://provider.tv:8080/timeshift/u1/p1/90/2026-04-28:18-30/12345.ts',
+      );
+    });
+
+    test('catchupForChannel parses get_simple_data_table rows', () async {
+      when(() => dio.getUri<dynamic>(any())).thenAnswer(
+        (_) async => ok({
+          'epg_listings': [
+            {
+              'id': '101',
+              'title': 'TGl2ZSBOZXdz', // 'Live News' base64
+              'description': 'TmV3cyBidWxsZXRpbg==', // 'News bulletin'
+              'start_timestamp': '1714326600',
+              'stop_timestamp': '1714330200',
+              'now_playing': 1,
+              'has_archive': 1,
+            },
+            {
+              'id': '102',
+              'title': 'U3BvcnRz', // 'Sports' base64
+              'start_timestamp': '1714330200',
+              'stop_timestamp': '1714333800',
+              'has_archive': 0,
+            },
+          ],
+        }),
+      );
+      final list = await client.catchupForChannel(7);
+      expect(list, hasLength(2));
+      // Sorted ascending by start.
+      expect(list[0].streamId, 7);
+      expect(list[0].title, 'Live News');
+      expect(list[0].nowPlaying, isTrue);
+      expect(list[0].hasArchive, isTrue);
+      expect(list[1].title, 'Sports');
+      expect(list[1].hasArchive, isFalse);
+    });
+
+    test(
+      'catchupForChannel returns empty list when panel returns no listings',
+      () async {
+        when(() => dio.getUri<dynamic>(any())).thenAnswer(
+          (_) async => ok(<String, dynamic>{}),
+        );
+        final list = await client.catchupForChannel(7);
+        expect(list, isEmpty);
+      },
+    );
   });
 }

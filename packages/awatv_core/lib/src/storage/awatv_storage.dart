@@ -1,9 +1,11 @@
 import 'dart:convert';
 
 import 'package:awatv_core/src/models/channel.dart';
+import 'package:awatv_core/src/models/download_task.dart';
 import 'package:awatv_core/src/models/epg_programme.dart';
 import 'package:awatv_core/src/models/history_entry.dart';
 import 'package:awatv_core/src/models/playlist_source.dart';
+import 'package:awatv_core/src/models/recording_task.dart';
 import 'package:awatv_core/src/models/series_item.dart';
 import 'package:awatv_core/src/models/vod_item.dart';
 import 'package:awatv_core/src/utils/awatv_exceptions.dart';
@@ -37,6 +39,8 @@ class AwatvStorage {
   static const String boxFavorites = 'favorites';
   static const String boxHistory = 'history';
   static const String boxPrefs = 'prefs';
+  static const String boxRecordings = 'recordings';
+  static const String boxDownloads = 'downloads';
 
   static String channelsBoxName(String sourceId) => 'channels:$sourceId';
   static String vodBoxName(String sourceId) => 'vod:$sourceId';
@@ -58,6 +62,8 @@ class AwatvStorage {
       await Hive.openBox<int>(boxFavorites);
       await Hive.openBox<String>(boxHistory);
       await Hive.openBox<dynamic>(boxPrefs);
+      await Hive.openBox<String>(boxRecordings);
+      await Hive.openBox<String>(boxDownloads);
       _initialized = true;
       _log.info('storage initialised at ${subDir ?? "<default>"}');
     } on Exception catch (e) {
@@ -304,6 +310,83 @@ class AwatvStorage {
   Box<dynamic> get prefsBox {
     _assertInit();
     return Hive.box<dynamic>(boxPrefs);
+  }
+
+  // Recordings --------------------------------------------------------------
+  Future<void> putRecording(RecordingTask t) async {
+    _assertInit();
+    await Hive.box<String>(boxRecordings).put(t.id, jsonEncode(t.toJson()));
+  }
+
+  Future<void> deleteRecording(String id) async {
+    _assertInit();
+    await Hive.box<String>(boxRecordings).delete(id);
+  }
+
+  Future<List<RecordingTask>> listRecordings() async {
+    _assertInit();
+    final box = Hive.box<String>(boxRecordings);
+    final out = <RecordingTask>[];
+    for (final v in box.values) {
+      try {
+        out.add(RecordingTask.fromJson(jsonDecode(v) as Map<String, dynamic>));
+      } on Exception catch (e) {
+        _log.warn('skipping corrupt recording record: $e');
+      }
+    }
+    out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return out;
+  }
+
+  Stream<List<RecordingTask>> watchRecordings() async* {
+    _assertInit();
+    final box = Hive.box<String>(boxRecordings);
+    yield await listRecordings();
+    yield* box.watch().asyncMap((_) => listRecordings());
+  }
+
+  // Downloads ---------------------------------------------------------------
+  Future<void> putDownload(DownloadTask t) async {
+    _assertInit();
+    await Hive.box<String>(boxDownloads).put(t.id, jsonEncode(t.toJson()));
+  }
+
+  Future<void> deleteDownload(String id) async {
+    _assertInit();
+    await Hive.box<String>(boxDownloads).delete(id);
+  }
+
+  Future<DownloadTask?> getDownload(String id) async {
+    _assertInit();
+    final raw = Hive.box<String>(boxDownloads).get(id);
+    if (raw == null) return null;
+    try {
+      return DownloadTask.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } on Exception {
+      return null;
+    }
+  }
+
+  Future<List<DownloadTask>> listDownloads() async {
+    _assertInit();
+    final box = Hive.box<String>(boxDownloads);
+    final out = <DownloadTask>[];
+    for (final v in box.values) {
+      try {
+        out.add(DownloadTask.fromJson(jsonDecode(v) as Map<String, dynamic>));
+      } on Exception catch (e) {
+        _log.warn('skipping corrupt download record: $e');
+      }
+    }
+    out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return out;
+  }
+
+  Stream<List<DownloadTask>> watchDownloads() async* {
+    _assertInit();
+    final box = Hive.box<String>(boxDownloads);
+    yield await listDownloads();
+    yield* box.watch().asyncMap((_) => listDownloads());
   }
 
   // Helpers -----------------------------------------------------------------

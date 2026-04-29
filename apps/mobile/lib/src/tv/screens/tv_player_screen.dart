@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
+import 'package:awatv_mobile/src/desktop/widgets/now_playing_state.dart';
 import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/player/active_player_controller.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
@@ -43,6 +46,11 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
   StreamSubscription<Duration>? _bufferedSub;
   StreamSubscription<int?>? _heightSub;
   Timer? _historyTimer;
+  // Wall-clock throttle for [nowPlayingProvider] position writes — see the
+  // mobile player for the rationale. 1 Hz is plenty for the persistent
+  // bar's progress line.
+  DateTime _lastNowPlayingPositionAt =
+      DateTime.fromMillisecondsSinceEpoch(0);
 
   bool _showControls = true;
   bool _isPaused = false;
@@ -83,6 +91,10 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
       _controller = c;
       setState(() {});
 
+      // Persistent player bar wiring — same payload as the mobile player.
+      _publishNowPlaying();
+      ref.read(activePlayerControllerProvider.notifier).attach(c);
+
       _stateSub = c.states.listen(
         _onPlayerState,
         onError: (Object e, StackTrace _) {
@@ -98,6 +110,7 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
             _firstFrameSeen = true;
           }
         });
+        _tickNowPlayingPosition(p);
       });
       _bufferedSub = c.buffered.listen((Duration b) {
         if (!mounted) return;
@@ -134,6 +147,13 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
           _total = total;
           _errorMessage = null;
         });
+        _lastNowPlayingPositionAt =
+            DateTime.fromMillisecondsSinceEpoch(0);
+        ref.read(nowPlayingProvider.notifier).update(
+              position: position,
+              duration: widget.args.isLive ? Duration.zero : total,
+              isPlaying: true,
+            );
       case PlayerPaused(:final position, :final total):
         setState(() {
           _isPaused = true;
@@ -141,6 +161,11 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
           _position = position;
           _total = total;
         });
+        ref.read(nowPlayingProvider.notifier).update(
+              position: position,
+              duration: widget.args.isLive ? Duration.zero : total,
+              isPlaying: false,
+            );
       case PlayerLoading():
         setState(() {
           _buffering = true;
@@ -148,11 +173,42 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
         });
       case PlayerEnded():
         setState(() => _isPaused = true);
+        ref.read(nowPlayingProvider.notifier).update(isPlaying: false);
       case PlayerError(:final message):
         setState(() => _errorMessage = message);
       case PlayerIdle():
         break;
     }
+  }
+
+  /// See the mobile player's `_publishNowPlaying` for full rationale.
+  void _publishNowPlaying() {
+    final args = widget.args;
+    ref.read(nowPlayingProvider.notifier).start(
+          NowPlaying(
+            title: args.title ?? 'AWAtv',
+            kind: args.kind ?? HistoryKind.vod,
+            subtitle: args.subtitle,
+            itemId: args.itemId,
+            isLive: args.isLive,
+            isPlaying: true,
+            source: args.source,
+          ),
+        );
+  }
+
+  /// Wall-clock throttled position publish — matches the mobile player.
+  void _tickNowPlayingPosition(Duration position) {
+    final now = DateTime.now();
+    if (now.difference(_lastNowPlayingPositionAt).inMilliseconds < 1000) {
+      return;
+    }
+    _lastNowPlayingPositionAt = now;
+    ref.read(nowPlayingProvider.notifier).update(
+          position: position,
+          duration: widget.args.isLive ? Duration.zero : _total,
+          isPlaying: !_isPaused,
+        );
   }
 
   void _startHistoryTicker() {
@@ -262,6 +318,17 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen>
     _positionSub?.cancel();
     _bufferedSub?.cancel();
     _heightSub?.cancel();
+    // Persistent-bar cleanup — must run before _controller.dispose() so
+    // the bar's control pointer doesn't briefly reference a dead engine.
+    try {
+      final c = _controller;
+      if (c != null) {
+        ref.read(activePlayerControllerProvider.notifier).detach(c);
+      }
+      ref.read(nowPlayingProvider.notifier).clear();
+    } on Object {
+      // best-effort
+    }
     _controller?.dispose();
     _surfaceFocus.dispose();
     SystemChrome.setEnabledSystemUIMode(

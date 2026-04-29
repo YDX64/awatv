@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:awatv_core/src/clients/provider_intel.dart';
+import 'package:awatv_core/src/models/catchup_programme.dart';
 import 'package:awatv_core/src/models/channel.dart';
 import 'package:awatv_core/src/models/epg_programme.dart';
 import 'package:awatv_core/src/models/episode.dart';
@@ -393,6 +394,78 @@ class XtreamClient {
       );
     }
     return out;
+  }
+
+  // --- catchup / archive ----------------------------------------------------
+
+  /// Programmes that the panel marked as recordable / catchup-available.
+  ///
+  /// Backed by `get_simple_data_table` with `stream_id`. Each row carries
+  /// `epg_id`, `title`, `start_timestamp`, `stop_timestamp`,
+  /// `now_playing` and `has_archive`. Rows whose `has_archive == 0`
+  /// stay in the result so the UI can decide whether to grey them out
+  /// versus surface a CTA.
+  Future<List<CatchupProgramme>> catchupForChannel(int streamId) async {
+    final data = await _getJson(_api({
+      'action': 'get_simple_data_table',
+      'stream_id': '$streamId',
+    }));
+    if (data is! Map) return const <CatchupProgramme>[];
+
+    final listings = data['epg_listings'];
+    if (listings is! List) return const <CatchupProgramme>[];
+
+    final out = <CatchupProgramme>[];
+    for (final raw in listings) {
+      if (raw is! Map) continue;
+      final m = raw.cast<String, dynamic>();
+      final start = _xtreamTime(m['start_timestamp']) ?? _xtreamTime(m['start']);
+      final stop = _xtreamTime(m['stop_timestamp']) ?? _xtreamTime(m['end']);
+      if (start == null || stop == null) continue;
+      final hasArchiveRaw = m['has_archive'] ?? m['hasArchive'];
+      final hasArchive = hasArchiveRaw == 1 ||
+          hasArchiveRaw == '1' ||
+          hasArchiveRaw == true;
+      out.add(
+        CatchupProgramme(
+          streamId: streamId,
+          epgId: (m['id'] ?? m['epg_id'])?.toString(),
+          title: _decodeMaybeBase64(m['title']) ?? '',
+          description: _decodeMaybeBase64(m['description']),
+          start: start,
+          stop: stop,
+          nowPlaying: m['now_playing'] == 1 || m['now_playing'] == '1',
+          hasArchive: hasArchive,
+        ),
+      );
+    }
+    out.sort((a, b) => a.start.compareTo(b.start));
+    return out;
+  }
+
+  /// Build a catchup playback URL.
+  ///
+  /// Xtream timeshift URL pattern (de-facto standard):
+  /// `{server}/timeshift/{user}/{pass}/{durationMinutes}/{yyyy-MM-dd:HH-mm}/{streamId}.{ext}`.
+  ///
+  /// Some forks expose `streaming/timeshift.php?...&start=...&duration=...`
+  /// — we surface the canonical timeshift path here and let the player
+  /// fall back to alternate forms via the candidate system if needed.
+  String catchupUrl({
+    required int streamId,
+    required DateTime start,
+    required Duration duration,
+    String container = 'ts',
+  }) {
+    final utc = start.toUtc();
+    final yyyy = utc.year.toString().padLeft(4, '0');
+    final mm = utc.month.toString().padLeft(2, '0');
+    final dd = utc.day.toString().padLeft(2, '0');
+    final hh = utc.hour.toString().padLeft(2, '0');
+    final mi = utc.minute.toString().padLeft(2, '0');
+    final stamp = '$yyyy-$mm-$dd:$hh-$mi';
+    final mins = duration.inMinutes;
+    return '$_normalizedServer/timeshift/$username/$password/$mins/$stamp/$streamId.$container';
   }
 
   // --- categories -----------------------------------------------------------

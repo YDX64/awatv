@@ -86,7 +86,24 @@ jobs:
           } > apps/mobile/.env
 
       - name: Build macOS (release)
-        run: cd apps/mobile && flutter build macos --release
+        # CocoaPods clones git repos for Firebase pods. The macos-14 runner
+        # occasionally hits transient DNS lapses ("Could not resolve host:
+        # github.com") during `pod install`. Retry up to 3 times with
+        # exponential backoff before declaring the build failed; runners
+        # rarely have a sustained outage longer than this window.
+        run: |
+          cd apps/mobile
+          n=0
+          until [ $n -ge 3 ]; do
+            flutter build macos --release && break
+            n=$((n+1))
+            echo "::warning::flutter build macos failed on attempt $n; retrying in $((n*15))s"
+            sleep $((n*15))
+            # Drop pod cache so the next attempt re-resolves cleanly.
+            rm -rf macos/Pods macos/Podfile.lock || true
+          done
+          # Final attempt — surface failure if still unresolved.
+          [ $n -lt 3 ] || flutter build macos --release
 
       - name: Package .app + .dmg
         run: |
@@ -215,13 +232,19 @@ jobs:
         # libgtk-3-dev / libblkid / liblzma: stock GTK shell + udisks deps.
         # mpv + libmpv-dev: media_kit's native backend on Linux uses libmpv.
         # libfuse2 + appstream-util: required by appimagetool at runtime.
+        # libsecret-1-dev + libjsoncpp-dev: required by flutter_secure_storage_linux.
+        # network-manager + libnm-dev: required by network_info_plus_linux.
+        # libayatana-appindicator3-dev: tray_manager system-tray bindings.
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config \
             libgtk-3-dev libblkid-dev liblzma-dev \
             mpv libmpv-dev \
-            libfuse2 appstream
+            libfuse2 appstream \
+            libsecret-1-dev libjsoncpp-dev \
+            network-manager libnm-dev \
+            libayatana-appindicator3-dev
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2

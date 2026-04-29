@@ -172,6 +172,15 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # End-to-end smoke tests under apps/mobile/integration_test/. Runs
+  # in headless mode via `flutter test integration_test/`.
+  integration_test:
+    sdk: flutter
+  # Mock-based test doubles for the Riverpod provider overrides used
+  # by the integration suite (Dio interceptor stubs, in particular).
+  # awatv_core already pulls in 1.0.4; we re-declare here so the
+  # mobile workspace surfaces a clean dev-dependency graph.
+  mocktail: ^1.0.4
   build_runner: ^2.4.13
   riverpod_generator: ^2.6.4
   flutter_lints: ^6.0.0

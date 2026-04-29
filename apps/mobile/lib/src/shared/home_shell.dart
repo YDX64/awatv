@@ -1,5 +1,8 @@
+import 'package:awatv_mobile/src/shared/breakpoints/breakpoints.dart';
+import 'package:awatv_mobile/src/shared/remote_config/app_remote_config.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 /// Bottom-tab container for the four primary content sections + a More
@@ -12,7 +15,14 @@ import 'package:go_router/go_router.dart';
 /// Tab order matches IPTV-Expert-class apps: Home (category tree),
 /// Live, VOD, Series, More (drawer with Search, Settings, Favorites,
 /// History, Profiles, Premium, Account).
-class HomeShell extends StatelessWidget {
+///
+/// Adaptive behaviour:
+///   * **phone** (<600 dp) — bottom NavigationBar (Material 3 default).
+///   * **tablet** (600–1100 dp) — left-side NavigationRail (96 dp wide)
+///     with the same destinations + a "More" trigger; the body shifts
+///     right by the rail width. Above 1100 dp the desktop shell takes
+///     over entirely (handled outside this widget).
+class HomeShell extends ConsumerWidget {
   const HomeShell({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
@@ -95,6 +105,16 @@ class HomeShell extends StatelessWidget {
       label: 'Uzaktan kumanda',
       route: '/remote',
     ),
+    _MoreEntry(
+      icon: Icons.watch_later_outlined,
+      label: 'Watch list',
+      route: '/watchlist',
+    ),
+    _MoreEntry(
+      icon: Icons.notifications_active_outlined,
+      label: 'Hatirlatmalar',
+      route: '/reminders',
+    ),
   ];
 
   void _onTap(BuildContext context, int index) {
@@ -136,10 +156,42 @@ class HomeShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final activeIndex = _activeIndexFor(navigationShell.currentIndex);
+    final deviceClass = deviceClassFor(context);
+    final maintenance = ref.watch(maintenanceMessageProvider);
+
+    final body = Column(
+      children: <Widget>[
+        if (maintenance.isNotEmpty) _MaintenanceBanner(message: maintenance),
+        Expanded(child: navigationShell),
+      ],
+    );
+
+    // Tablet (600..1100 dp): use NavigationRail in the leading slot.
+    // Phones still get the bottom bar; desktop is handled by the
+    // dedicated desktop shell.
+    if (deviceClass.isTablet) {
+      return Scaffold(
+        body: SafeArea(
+          child: Row(
+            children: <Widget>[
+              _TabletRail(
+                activeIndex: activeIndex,
+                destinations: _destinations,
+                extended: deviceClass.isTabletLarge,
+                onTap: (int i) => _onTap(context, i),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(child: body),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
-      body: navigationShell,
+      body: body,
       bottomNavigationBar: NavigationBar(
         selectedIndex: activeIndex,
         onDestinationSelected: (int i) => _onTap(context, i),
@@ -201,6 +253,101 @@ class _MoreEntry {
   /// so the user lands on the same shell-managed tab they would reach via
   /// the bottom bar / sidebar elsewhere.
   final int? branchIndex;
+}
+
+/// Tablet-form NavigationRail.
+///
+/// Shows the same five destinations as the phone bottom-nav (4 main + a
+/// "More" trigger) but laid out vertically. Width is 96 dp at the
+/// "tablet" breakpoint and expands with labels on the wider tablet
+/// breakpoint to feel less cramped on landscape iPads / Android
+/// foldables in book mode.
+class _TabletRail extends StatelessWidget {
+  const _TabletRail({
+    required this.activeIndex,
+    required this.destinations,
+    required this.extended,
+    required this.onTap,
+  });
+
+  final int activeIndex;
+  final List<_NavDestination> destinations;
+  final bool extended;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    // NavigationRail's `selectedIndex` only accepts indices into the
+    // exact list of `destinations` passed to it. We have N + 1 slots
+    // (the trailing "More" item) so we pin selection to null when the
+    // current branch is one of the More-only routes.
+    final inMain = activeIndex < destinations.length;
+    return NavigationRail(
+      selectedIndex: inMain ? activeIndex : null,
+      groupAlignment: -0.85,
+      labelType: extended
+          ? NavigationRailLabelType.all
+          : NavigationRailLabelType.selected,
+      onDestinationSelected: onTap,
+      destinations: <NavigationRailDestination>[
+        for (final d in destinations)
+          NavigationRailDestination(
+            icon: Icon(d.icon),
+            selectedIcon: Icon(d.selectedIcon),
+            label: Text(d.label),
+          ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.more_horiz_rounded),
+          selectedIcon: Icon(Icons.more_horiz_rounded),
+          label: Text('Daha fazla'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Yellow banner pinned above the navigation shell when Remote Config
+/// publishes a `maintenance_message`. Hidden whenever the string is empty.
+class _MaintenanceBanner extends StatelessWidget {
+  const _MaintenanceBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.tertiaryContainer,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignTokens.spaceM,
+            vertical: DesignTokens.spaceS,
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                Icons.info_outline_rounded,
+                color: scheme.onTertiaryContainer,
+                size: 18,
+              ),
+              const SizedBox(width: DesignTokens.spaceS),
+              Expanded(
+                child: Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onTertiaryContainer,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _MoreSheet extends StatelessWidget {

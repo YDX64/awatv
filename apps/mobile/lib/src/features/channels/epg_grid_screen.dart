@@ -4,6 +4,8 @@ import 'package:awatv_mobile/src/features/channels/epg_providers.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
+import 'package:awatv_mobile/src/shared/notifications/awatv_notifications.dart';
+import 'package:awatv_mobile/src/shared/notifications/notifications_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
@@ -301,20 +303,88 @@ class _EpgGridScreenState extends ConsumerState<EpgGridScreen> {
     Channel channel,
     EpgGridProgramme p,
   ) async {
-    final allowed = ref.read(canUseFeatureProvider(PremiumFeature.cloudSync));
-    if (!allowed) {
-      Navigator.of(sheetCtx).pop();
+    final svc = ref.read(remindersServiceProvider);
+    // Free tier: max 5 reminders. Premium bypass — gated through the
+    // generic cloudSync flag for now (matches other premium-tier
+    // entitlements in this app).
+    final isPremium = ref.read(canUseFeatureProvider(PremiumFeature.cloudSync));
+    if (!isPremium) {
+      final existing = await svc.all();
+      if (existing.length >= RemindersService.freeMax) {
+        Navigator.of(sheetCtx).pop();
+        if (!mounted) return;
+        await PremiumLockSheet.show(context, PremiumFeature.cloudSync);
+        return;
+      }
+    }
+
+    // Already-scheduled? Cancel acts like a toggle.
+    final id = RemindersService.idFor(channel.id, p.start);
+    if (await svc.contains(channel.id, p.start)) {
+      await svc.cancel(id);
       if (!mounted) return;
-      await PremiumLockSheet.show(context, PremiumFeature.cloudSync);
+      Navigator.of(sheetCtx).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${p.title}" hatirlatmasi kaldirildi'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
-    // Premium reminder scheduling is deferred — confirm intent and close.
-    Navigator.of(sheetCtx).pop();
+
+    final epgProg = EpgProgramme(
+      channelTvgId: channel.tvgId ?? channel.id,
+      start: p.start,
+      stop: p.stop,
+      title: p.title,
+      description: p.description,
+      category: p.category,
+    );
+
+    try {
+      await svc.add(epgProg, channel: channel);
+    } on NotificationPermissionException {
+      // OS rejected permission — record the reminder anyway (the
+      // service does that already; the missing piece is the OS push).
+      // Then nudge the user toward Settings.
+      if (!mounted) return;
+      Navigator.of(sheetCtx).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: const Text(
+            'Bildirim izni reddedildi. Ayarlardan acabilirsin.',
+          ),
+          action: SnackBarAction(
+            label: 'Hatirlatmalarim',
+            onPressed: () => context.push('/reminders'),
+          ),
+        ),
+      );
+      return;
+    } on Object catch (e) {
+      if (!mounted) return;
+      Navigator.of(sheetCtx).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Hatirlatma eklenemedi: $e'),
+        ),
+      );
+      return;
+    }
+
     if (!mounted) return;
+    Navigator.of(sheetCtx).pop();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('"${p.title}" hatirlatici eklendi'),
         behavior: SnackBarBehavior.floating,
+        content: Text('"${p.title}" icin 5 dk once hatirlatma kuruldu'),
+        action: SnackBarAction(
+          label: 'Iptal',
+          onPressed: () => svc.cancel(id),
+        ),
       ),
     );
   }

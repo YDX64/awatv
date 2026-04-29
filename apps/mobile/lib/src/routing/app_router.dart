@@ -12,12 +12,14 @@ import 'package:awatv_mobile/src/features/home/home_screen.dart';
 import 'package:awatv_mobile/src/features/onboarding/welcome_screen.dart';
 import 'package:awatv_mobile/src/features/parental/parental_screen.dart';
 import 'package:awatv_mobile/src/features/player/player_screen.dart';
+import 'package:awatv_mobile/src/features/player/trailer_screen.dart';
 import 'package:awatv_mobile/src/features/profiles/profile_edit_screen.dart';
 import 'package:awatv_mobile/src/features/profiles/profile_picker_screen.dart';
 import 'package:awatv_mobile/src/features/playlists/add_playlist_screen.dart';
 import 'package:awatv_mobile/src/features/playlists/playlists_screen.dart';
 import 'package:awatv_mobile/src/features/premium/premium_screen.dart';
 import 'package:awatv_mobile/src/features/recordings/recordings_screen.dart';
+import 'package:awatv_mobile/src/features/reminders/reminders_screen.dart';
 import 'package:awatv_mobile/src/features/remote/receiver_screen.dart';
 import 'package:awatv_mobile/src/features/remote/remote_hub_screen.dart';
 import 'package:awatv_mobile/src/features/remote/sender_screen.dart';
@@ -28,6 +30,7 @@ import 'package:awatv_mobile/src/features/settings/manage_devices_screen.dart';
 import 'package:awatv_mobile/src/features/settings/settings_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_detail_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_screen.dart';
+import 'package:awatv_mobile/src/features/watchlist/watchlist_screen.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_guard.dart';
 import 'package:awatv_mobile/src/shared/home_shell.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
@@ -82,7 +85,12 @@ GoRouter appRouter(Ref ref) {
           // through /onboarding.
           loc.startsWith('/catchup') ||
           loc.startsWith('/recordings') ||
-          loc.startsWith('/downloads')) {
+          loc.startsWith('/downloads') ||
+          // Reminders + Watchlist are accessible without a playlist —
+          // both have their own empty states that point the user back
+          // at the relevant flow (TV Rehberi, Filmler / Diziler).
+          loc.startsWith('/reminders') ||
+          loc.startsWith('/watchlist')) {
         return null;
       }
       try {
@@ -152,6 +160,18 @@ GoRouter appRouter(Ref ref) {
           return PlayerScreen(args: extra);
         },
       ),
+      // YouTube trailer playback. The path parameter is the YouTube
+      // video id (11 chars); the optional `title` query string is
+      // shown in the top bar.
+      GoRoute(
+        path: '/trailer/:id',
+        name: 'trailer',
+        builder: (BuildContext context, GoRouterState state) {
+          final id = state.pathParameters['id'] ?? '';
+          final title = state.uri.queryParameters['title'];
+          return TrailerScreen(youtubeId: id, title: title);
+        },
+      ),
       GoRoute(
         path: '/premium',
         name: 'premium',
@@ -178,6 +198,23 @@ GoRouter appRouter(Ref ref) {
         name: 'downloads',
         builder: (BuildContext context, GoRouterState state) =>
             const DownloadsScreen(),
+      ),
+      // EPG reminders ("Hatirlat") — list of upcoming scheduled
+      // notifications the user has set from the TV Rehberi screen.
+      GoRoute(
+        path: '/reminders',
+        name: 'reminders',
+        builder: (BuildContext context, GoRouterState state) =>
+            const RemindersScreen(),
+      ),
+      // Watch later list — distinct from favourites; both VOD + series
+      // get a "saat" toggle on their detail screens that drops the item
+      // into this queue.
+      GoRoute(
+        path: '/watchlist',
+        name: 'watchlist',
+        builder: (BuildContext context, GoRouterState state) =>
+            const WatchlistScreen(),
       ),
       // Remote-control hub. Two big buttons: receive (this device shows
       // video) or send (this device acts as a remote). The two child

@@ -528,16 +528,21 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
   ),
 
   // ---------------------------------------------------------------------
-  // TivuStream-style — common in Italian / Balkan markets. Series
-  // episodes use a non-standard /tv/ prefix; live and VOD follow the
-  // generic Xtream layout.
+  // TivuStream-style — common in Italian / Balkan markets. The same
+  // panel family is also frequently exposed via Stalker / Ministra
+  // portal (`/portal.php` MAC-bound endpoint) on top of the standard
+  // Xtream layout. The URL templates here cover the Xtream face;
+  // [StalkerClient] handles the portal face when the user adds the
+  // source as `PlaylistKind.stalker`.
   ProviderFingerprint(
     id: 'tivustream',
-    label: 'TivuStream / IT-balkan flavor',
+    label: 'TivuStream / IT-balkan flavor (Xtream + Stalker)',
     hostPatterns: <String>['tivustream.tv', 'tivustream.live', 'tivunetwork.tv'],
     liveUrlTemplates: <String>[
       '{server}/{user}/{pass}/{id}.{ext}',
       '{server}/live/{user}/{pass}/{id}.{ext}',
+      // Stalker-flavoured fallback when the panel only exposes /play/.
+      '{server}/play/live/{id}',
     ],
     seriesUrlTemplates: <String>[
       '{server}/tv/{user}/{pass}/{id}.{ext}',
@@ -547,6 +552,9 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
     notes: <String>[
       'Series episodes resolve under /tv/, not /series/.',
       'Live and VOD follow the original Xtream Codes layout.',
+      'Many tivustream resellers also speak the Stalker / Ministra',
+      'portal protocol — add such sources as PlaylistKind.stalker',
+      'and the StalkerClient will hit /portal.php with MAC auth.',
     ],
   ),
 

@@ -13,6 +13,7 @@ import 'package:awatv_mobile/src/features/player/widgets/player_controls_layer.d
 import 'package:awatv_mobile/src/features/player/widgets/player_gestures.dart';
 import 'package:awatv_mobile/src/features/parental/widgets/parental_lock_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.dart';
+import 'package:awatv_mobile/src/features/player/widgets/player_track_picker_sheet.dart';
 import 'package:awatv_mobile/src/features/player/widgets/sleep_timer_sheet.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
@@ -631,7 +632,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final c = _controller;
     if (c == null) return;
     _hideTimer?.cancel();
-    await PlayerSettingsSheet.show(context, controller: c);
+    await PlayerSettingsSheet.show(
+      context,
+      controller: c,
+      onOpenTracks: _onTracksRequested,
+    );
+    if (!mounted) return;
+    _scheduleHide();
+  }
+
+  /// Opens the unified audio / subtitle / quality picker. Triggered from
+  /// the dedicated CC button in the top bar and from the "Audio /
+  /// Subtitle / Quality" entries inside the settings sheet.
+  Future<void> _onTracksRequested() async {
+    final c = _controller;
+    if (c == null) return;
+    _hideTimer?.cancel();
+    await PlayerTrackPickerSheet.show(
+      context,
+      controller: c,
+      searchHint: widget.args.title,
+    );
     if (!mounted) return;
     _scheduleHide();
   }
@@ -1042,6 +1063,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           onPressed: _onBackendToggleRequested,
                           icon: const Icon(
                             Icons.tune_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Altyazı / ses / kalite',
+                          onPressed: _onTracksRequested,
+                          icon: const Icon(
+                            Icons.closed_caption_rounded,
                             color: Colors.white,
                           ),
                         ),

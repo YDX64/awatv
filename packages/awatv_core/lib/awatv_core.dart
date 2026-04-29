@@ -9,7 +9,10 @@ library;
 
 // Clients
 export 'src/clients/epg_client.dart';
+export 'src/clients/logos_fallback.dart';
+export 'src/clients/opensubtitles_client.dart';
 export 'src/clients/provider_intel.dart';
+export 'src/clients/stalker_client.dart';
 export 'src/clients/tmdb_client.dart';
 export 'src/clients/xtream_client.dart';
 // Models
@@ -36,6 +39,9 @@ export 'src/services/history_service.dart';
 export 'src/services/metadata_service.dart';
 export 'src/services/playlist_service.dart';
 export 'src/services/recording_service.dart';
+export 'src/services/reminders_service.dart';
+export 'src/services/subtitles_service.dart';
+export 'src/services/watchlist_service.dart';
 // Storage
 export 'src/storage/awatv_storage.dart';
 export 'src/utils/awatv_exceptions.dart';

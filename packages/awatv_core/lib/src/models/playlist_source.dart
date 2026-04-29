@@ -10,6 +10,19 @@ enum PlaylistKind {
 
   /// Xtream Codes panel (server + username + password).
   xtream,
+
+  /// Stalker / Ministra portal (server + MAC address).
+  ///
+  /// In a `PlaylistSource` of this kind:
+  /// - [PlaylistSource.url] holds the portal base (e.g.
+  ///   `http://portal.example.tv:8080`).
+  /// - [PlaylistSource.username] holds the MAC address in
+  ///   colon-separated form (`00:1A:79:XX:XX:XX`). We reuse the
+  ///   `username` slot rather than introducing a `mac` field so existing
+  ///   secure-storage / sync paths keep working with no schema change.
+  /// - [PlaylistSource.password] holds an optional time-zone string
+  ///   (e.g. `Europe/Istanbul`); when null, defaults to UTC.
+  stalker,
 }
 
 /// A user-added playlist source.

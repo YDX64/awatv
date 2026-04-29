@@ -1,5 +1,6 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/series/series_providers.dart';
+import 'package:awatv_mobile/src/features/watchlist/watchlist_toggle.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
@@ -25,6 +26,41 @@ class SeriesDetailScreen extends ConsumerStatefulWidget {
 
 class _SeriesDetailScreenState extends ConsumerState<SeriesDetailScreen> {
   int? _selectedSeason;
+
+  Future<void> _onTrailer(BuildContext context, SeriesItem s) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final tmdbId = s.tmdbId;
+    if (tmdbId == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Fragman bulunamadi')),
+      );
+      return;
+    }
+    try {
+      final youtubeId = await ref
+          .read(metadataServiceProvider)
+          .trailerYoutubeId(tmdbId, MediaType.series);
+      if (youtubeId == null || youtubeId.isEmpty) {
+        if (!context.mounted) return;
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Fragman bulunamadi')),
+        );
+        return;
+      }
+      if (!context.mounted) return;
+      context.push(
+        Uri(
+          path: '/trailer/$youtubeId',
+          queryParameters: <String, String>{'title': s.title},
+        ).toString(),
+      );
+    } on Object catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Fragman yüklenemedi: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -97,8 +133,29 @@ class _SeriesDetailScreenState extends ConsumerState<SeriesDetailScreen> {
                           s.plot!,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        const SizedBox(height: DesignTokens.spaceL),
+                        const SizedBox(height: DesignTokens.spaceM),
                       ],
+                      Row(
+                        children: <Widget>[
+                          // Watchlist toggle (saat ikonu) — favoriden ayri
+                          // "sonra izle" listesine ekle / cikar.
+                          WatchlistToggleButton(
+                            itemId: s.id,
+                            kind: HistoryKind.series,
+                            title: s.title,
+                            posterUrl: s.posterUrl,
+                            year: s.year,
+                          ),
+                          const SizedBox(width: DesignTokens.spaceM),
+                          if (s.tmdbId != null)
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.movie_filter_outlined),
+                              label: const Text('Fragman'),
+                              onPressed: () => _onTrailer(context, s),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: DesignTokens.spaceL),
                       if (s.seasons.length > 1) ...[
                         Row(
                           children: [

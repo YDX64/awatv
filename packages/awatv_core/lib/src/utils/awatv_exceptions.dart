@@ -28,6 +28,14 @@ class XtreamAuthException extends AwatvException {
   const XtreamAuthException(super.message);
 }
 
+/// Stalker / Ministra portal rejected our MAC address (or the handshake
+/// failed in a way the server couldn't recover from). Carries the same
+/// shape as [XtreamAuthException] so callers can lump them together as
+/// "credentials rejected" for UI copy purposes.
+class StalkerAuthException extends AwatvException {
+  const StalkerAuthException(super.message);
+}
+
 /// Generic network problem (DNS, timeout, non-2xx, ...).
 class NetworkException extends AwatvException {
   const NetworkException(

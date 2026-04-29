@@ -20,6 +20,22 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- EPG "Hatirlat" reminders. Both required for
+         flutter_local_notifications:
+         * POST_NOTIFICATIONS — Android 13+ runtime permission for
+           displaying notifications at all.
+         * SCHEDULE_EXACT_ALARM — Android 12+ permission to fire on
+           the exact target time. The package falls back to inexact
+           windows when the user denies it.
+         * USE_EXACT_ALARM — Android 14+ alternative to the above for
+           apps with a calendar / reminder use case.
+         * RECEIVE_BOOT_COMPLETED — needed by the package's boot-time
+           rescheduler so phone reboots don't drop the alarm queue. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- Network plumbing — mDNS / Bonjour discovery (bonsoir),
          network_info_plus SSID lookup, and the OS-settings deep links.
          CHANGE_WIFI_MULTICAST_STATE is required for the multicast socket
@@ -103,6 +119,29 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </receiver>
+
+        <!-- flutter_local_notifications — reschedules pending alarms
+             after device boot / app upgrade so user-set EPG reminders
+             survive a reboot. The two receivers below ship with the
+             package; we declare them here because the package sets
+             `exported=false` and Android 12+ otherwise rejects the
+             implicit registration. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

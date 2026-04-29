@@ -96,5 +96,14 @@
 		<string>_googlecast._tcp</string>
 		<string>_airplay._tcp</string>
 	</array>
+	<!--
+	  Local notifications — used for EPG "Hatirlat" reminders. The
+	  string surfaces in the iOS Settings → AWAtv → Notifications
+	  panel and is what App Store reviewers expect for transparency
+	  even though local notifications technically don't require a
+	  usage-description key the way camera / location do.
+	-->
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>AWAtv yakinda baslayacak programlari sana hatirlatabilmek icin yerel bildirim gonderir.</string>
 </dict>
 </plist>

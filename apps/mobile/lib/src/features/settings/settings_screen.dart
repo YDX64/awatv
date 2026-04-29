@@ -6,6 +6,7 @@ import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/auth/cloud_sync_gate.dart';
 import 'package:awatv_mobile/src/shared/discovery/share_helper.dart';
 import 'package:awatv_mobile/src/shared/network/app_settings_helper.dart';
+import 'package:awatv_mobile/src/shared/observability/observability_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
@@ -212,6 +213,9 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => ShareHelper.shareApp(context),
           ),
+          const Divider(),
+          const _SectionHeader('Gizlilik'),
+          const _PrivacySection(),
           const Divider(),
           const _SectionHeader('Sürüm'),
           // Live version line + auto-update controls (desktop only).
@@ -518,6 +522,91 @@ class _MiniAvatar extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Privacy / observability opt-in section.
+///
+/// Two switches:
+///   * **Anonim hata bildirimi** — Crashlytics
+///   * **Anonim kullanim istatistikleri** — Analytics
+///
+/// Both are wired to the same Hive-backed flag (`observability.optIn`)
+/// because in practice users either accept *both* anonymous reporting
+/// channels or none — splitting the two led to an awkward "what do
+/// these even do" UX in playtests. We keep two rows so the disclosure
+/// stays explicit, but flip them together.
+///
+/// Caveat surfaced inline: Crashlytics' collection toggle is sticky
+/// for the lifetime of the process, so a freshly-disabled session can
+/// still send a crash. The hint text mentions a restart so users
+/// aren't surprised.
+class _PrivacySection extends ConsumerWidget {
+  const _PrivacySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final optIn = ref.watch(observabilityOptInProvider);
+    final theme = Theme.of(context);
+
+    return Column(
+      children: <Widget>[
+        SwitchListTile(
+          secondary: const Icon(Icons.bug_report_outlined),
+          title: const Text('Anonim hata bildirimi'),
+          subtitle: const Text(
+            'Coken islemler hakkinda anonim bilgi gonderir, '
+            'gelecekte hatalari onlemize yardimci olur.',
+          ),
+          value: optIn,
+          onChanged: (bool v) =>
+              _setOptIn(ref, context, v, restartHint: true),
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.insights_outlined),
+          title: const Text('Anonim kullanim istatistikleri'),
+          subtitle: const Text(
+            'Hangi ekranlarin daha sik kullanildigini ogrenmemize yardim et. '
+            'Kisisel bilgi toplanmaz.',
+          ),
+          value: optIn,
+          onChanged: (bool v) => _setOptIn(ref, context, v),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            DesignTokens.spaceM,
+            0,
+            DesignTokens.spaceM,
+            DesignTokens.spaceS,
+          ),
+          child: Text(
+            'Degisiklik bir sonraki uygulama acilisinda tam olarak gecerli olur. '
+            'Crashlytics gizlilik gereklilikleri nedeniyle calismakta olan '
+            'oturum icin geri alinamaz.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _setOptIn(
+    WidgetRef ref,
+    BuildContext context,
+    bool next, {
+    bool restartHint = false,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await ref.read(observabilityOptInProvider.notifier).setOptIn(next);
+    final label = next
+        ? 'Anonim raporlama acildi. Tesekkurler!'
+        : 'Anonim raporlama kapatildi.';
+    final hint = restartHint && !next
+        ? ' Uygulamayi yeniden baslattiginda tam olarak devre disi kalir.'
+        : '';
+    messenger.showSnackBar(SnackBar(content: Text('$label$hint')));
   }
 }
 

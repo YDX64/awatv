@@ -28,6 +28,7 @@ class PlayerSettingsSheet extends StatelessWidget {
     required this.controller,
     super.key,
     this.onBackendChanged,
+    this.onOpenTracks,
   });
 
   final AwaPlayerController controller;
@@ -37,11 +38,20 @@ class PlayerSettingsSheet extends StatelessWidget {
   /// to the chosen backend. Null disables the engine section entirely.
   final Future<void> Function(PlayerBackend next)? onBackendChanged;
 
+  /// Optional handler that opens the dedicated audio/subtitle/quality
+  /// picker (`PlayerTrackPickerSheet`). When supplied, the settings
+  /// sheet's "Görüntü kalitesi", "Ses parçası", and "Altyazı" rows
+  /// collapse into a single "Parçalar" entry that delegates here. This
+  /// keeps the two sheets discoverable from a single place without
+  /// double-rendering identical track lists.
+  final Future<void> Function()? onOpenTracks;
+
   /// Convenience — present the sheet with the standard AWAtv chrome.
   static Future<void> show(
     BuildContext context, {
     required AwaPlayerController controller,
     Future<void> Function(PlayerBackend next)? onBackendChanged,
+    Future<void> Function()? onOpenTracks,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -52,6 +62,7 @@ class PlayerSettingsSheet extends StatelessWidget {
       builder: (BuildContext sheetCtx) => PlayerSettingsSheet(
         controller: controller,
         onBackendChanged: onBackendChanged,
+        onOpenTracks: onOpenTracks,
       ),
     );
   }
@@ -92,6 +103,10 @@ class PlayerSettingsSheet extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (onOpenTracks != null) ...<Widget>[
+                    _TracksLink(onTap: onOpenTracks!),
+                    const SizedBox(height: DesignTokens.spaceL),
+                  ],
                   _QualitySection(controller: controller),
                   const SizedBox(height: DesignTokens.spaceL),
                   _AudioSection(controller: controller),
@@ -1083,6 +1098,88 @@ class _BackgroundPlaybackSection extends ConsumerWidget {
                 Switch.adaptive(
                   value: active,
                   onChanged: (_) => handleTap(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Headline "Parçalar" row that opens the dedicated three-tab picker
+/// (audio / subtitle / quality) so the user can browse OpenSubtitles
+/// results, load a local file, or switch between embedded tracks
+/// without scrolling past several mini-sections.
+class _TracksLink extends StatelessWidget {
+  const _TracksLink({required this.onTap});
+
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const _SectionHeader(
+          icon: Icons.queue_music_rounded,
+          title: 'Parçalar',
+        ),
+        InkWell(
+          borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+          onTap: () async {
+            // Pop the settings sheet first, then surface the picker so
+            // we don't end up stacking two modal sheets.
+            Navigator.of(context).pop();
+            await onTap();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: DesignTokens.spaceM,
+              vertical: DesignTokens.spaceM,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+              border: Border.all(
+                color: scheme.outline.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(Icons.subtitles_rounded, color: scheme.primary),
+                const SizedBox(width: DesignTokens.spaceM),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Altyazı / Ses / Kalite',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'OpenSubtitles ara, dosya yükle, parça değiştir',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: scheme.onSurface
+                                    .withValues(alpha: 0.7),
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: scheme.onSurface.withValues(alpha: 0.6),
                 ),
               ],
             ),

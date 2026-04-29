@@ -58,6 +58,8 @@ bool _freeTierAllowed(PremiumFeature feature) {
     // Offline downloads are paywalled the same way IPTV Expert /
     // ipTV.app gate them.
     case PremiumFeature.downloads:
+    // Auto-subtitle fetching is gated; the picker UI itself is free.
+    case PremiumFeature.autoSubtitles:
       return false;
   }
 }

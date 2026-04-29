@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/app/awa_tv_app.dart';
 import 'package:awatv_mobile/src/app/env.dart';
@@ -6,6 +8,8 @@ import 'package:awatv_mobile/src/desktop/desktop_window.dart';
 import 'package:awatv_mobile/src/desktop/system_tray.dart';
 import 'package:awatv_mobile/src/shared/background_playback/audio_session_config.dart';
 import 'package:awatv_mobile/src/shared/background_playback/background_playback_controller.dart';
+import 'package:awatv_mobile/src/shared/notifications/notifications_provider.dart';
+import 'package:awatv_mobile/src/shared/observability/awatv_observability.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_player/awatv_player.dart';
@@ -90,6 +94,34 @@ Future<void> main() async {
     // via the home screen instead of crashing here.
   }
 
+  // Firebase observability (Crashlytics + Analytics). Privacy-first:
+  // collection is *off* by default and only enabled once the user
+  // flips the switch in Settings → Gizlilik. The opt-in flag lives in
+  // the shared 'prefs' Hive box, opened on demand inside
+  // `AwatvObservability` to avoid a hard ordering dep with
+  // `AwatvStorage`. Failures (missing google-services config, web,
+  // unsupported platform) are completely silent — see the wrapper.
+  //
+  // The future is intentionally not awaited: a slow / unreachable
+  // Firebase project must never delay the first frame.
+  unawaited(
+    () async {
+      try {
+        // Open the prefs box up-front (it's idempotent if already open
+        // elsewhere). This way the boot path can read the opt-in flag
+        // without forcing every consumer to remember to open it.
+        if (!Hive.isBoxOpen(AwatvObservability.prefsBoxName)) {
+          await Hive.openBox<dynamic>(AwatvObservability.prefsBoxName);
+        }
+        final optIn = AwatvObservability.readOptIn();
+        await AwatvObservability.initialise(optIn: optIn);
+      } on Object {
+        // Wrapped twice on purpose — the inner wrapper logs, this one
+        // guarantees the outer fire-and-forget cannot throw.
+      }
+    }(),
+  );
+
   // Supabase: optional cloud-sync backend. The app remains fully usable
   // (guest mode, on-device only) when these env vars are blank or when
   // initialise itself throws — a misconfigured backend never blocks boot.
@@ -152,6 +184,30 @@ Future<void> main() async {
     // Worst case: profile-scoped boxes don't open. Fav/history fall
     // back to the legacy global boxes; the picker just renders empty
     // until the user creates a profile manually.
+  }
+
+  // Local notifications: register the OS channel + tap callback. We do
+  // *not* request notification permission here — that's deferred to the
+  // first time the user taps "Hatirlat" on an EPG programme. Failure
+  // (no plugin on this platform, missing tz data) is non-fatal.
+  if (!kIsWeb) {
+    try {
+      await container.read(awatvNotificationsProvider).init();
+    } on Object {
+      // Schedules will surface their own error UI when the user tries
+      // to add a reminder; the rest of the app keeps booting.
+    }
+    // Reschedule any persisted reminders that the OS may have lost
+    // (device reboot, app reinstall). Best-effort.
+    unawaited(
+      () async {
+        try {
+          await container.read(remindersServiceProvider).rescheduleAll();
+        } on Object {
+          // Logged inside the service; nothing to do here.
+        }
+      }(),
+    );
   }
 
   runApp(

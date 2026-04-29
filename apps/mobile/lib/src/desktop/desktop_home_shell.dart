@@ -107,6 +107,18 @@ class _WideShell extends StatelessWidget {
       route: '/downloads',
     ),
     SidebarSection(
+      icon: Icons.watch_later_outlined,
+      activeIcon: Icons.watch_later_rounded,
+      label: 'Watch list',
+      route: '/watchlist',
+    ),
+    SidebarSection(
+      icon: Icons.notifications_active_outlined,
+      activeIcon: Icons.notifications_active_rounded,
+      label: 'Hatirlatmalar',
+      route: '/reminders',
+    ),
+    SidebarSection(
       icon: Icons.search_outlined,
       activeIcon: Icons.search_rounded,
       label: 'Ara',

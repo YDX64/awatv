@@ -41,6 +41,8 @@ class AwatvStorage {
   static const String boxPrefs = 'prefs';
   static const String boxRecordings = 'recordings';
   static const String boxDownloads = 'downloads';
+  static const String boxReminders = 'reminders';
+  static const String boxWatchlist = 'watchlist';
 
   static String channelsBoxName(String sourceId) => 'channels:$sourceId';
   static String vodBoxName(String sourceId) => 'vod:$sourceId';
@@ -64,6 +66,8 @@ class AwatvStorage {
       await Hive.openBox<dynamic>(boxPrefs);
       await Hive.openBox<String>(boxRecordings);
       await Hive.openBox<String>(boxDownloads);
+      await Hive.openBox<String>(boxReminders);
+      await Hive.openBox<String>(boxWatchlist);
       _initialized = true;
       _log.info('storage initialised at ${subDir ?? "<default>"}');
     } on Exception catch (e) {

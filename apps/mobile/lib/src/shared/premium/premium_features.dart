@@ -63,6 +63,12 @@ enum PremiumFeature {
   /// at 720p; premium removes both caps and unlocks parallel
   /// downloads beyond the default of 3.
   downloads,
+
+  /// Auto-fetch the best Turkish OpenSubtitles entry as soon as the
+  /// player opens — saves one round-trip through the picker for the
+  /// most common case. The picker itself (manual search + selection)
+  /// is always free; only the "do it for me" automation is gated.
+  autoSubtitles,
 }
 
 /// Display copy used by the paywall sheet and lock dialog. Kept as a
@@ -86,6 +92,7 @@ class PremiumFeatureCopy {
         PremiumFeature.catchup => 'Catchup / Geri sar TV',
         PremiumFeature.recording => 'Canli yayin kaydi',
         PremiumFeature.downloads => 'Cevrimdisi indirme',
+        PremiumFeature.autoSubtitles => 'Otomatik altyazi',
       };
 
   static String subtitle(PremiumFeature f) => switch (f) {
@@ -124,5 +131,8 @@ class PremiumFeatureCopy {
         PremiumFeature.downloads =>
           'Filmleri ve bolumleri indir, ucakta veya internetsiz oynat. 3 '
               'paralel indirme, duraklat / surdur / iptal kontrolu.',
+        PremiumFeature.autoSubtitles =>
+          'Filmi her actigin anda Turkce altyaziyi senin icin bul ve yukle. '
+              'Manuel arama herkese acik kalir; bu otomasyon Premium uyelere ozel.',
       };
 }

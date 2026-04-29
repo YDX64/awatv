@@ -2,6 +2,7 @@ import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/downloads/downloads_providers.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/features/vod/vod_providers.dart';
+import 'package:awatv_mobile/src/features/watchlist/watchlist_toggle.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
@@ -173,19 +174,23 @@ class _ActionRow extends ConsumerWidget {
                 onPressed: () => _onPlay(context, localPath),
               ),
             ),
-            const SizedBox(width: DesignTokens.spaceM),
+            const SizedBox(width: DesignTokens.spaceS),
+            // Watchlist (saat ikonu) — favoriden ayri "sonra izle" listesi.
+            // Ayni satirda fragmanin yaninda dursun ki kullanici tek
+            // bakista kalp / saat / fragman ucusunu gorsun.
+            WatchlistToggleButton(
+              itemId: vod.id,
+              kind: HistoryKind.vod,
+              title: vod.title,
+              posterUrl: vod.posterUrl,
+              year: vod.year,
+              compact: true,
+            ),
+            const SizedBox(width: DesignTokens.spaceS),
             OutlinedButton.icon(
               icon: const Icon(Icons.movie_filter_outlined),
               label: const Text('Fragman'),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Fragman oynatici Phase 2 te eklenecek.',
-                    ),
-                  ),
-                );
-              },
+              onPressed: () => _onTrailer(context, ref),
             ),
           ],
         ),
@@ -195,6 +200,41 @@ class _ActionRow extends ConsumerWidget {
         ],
       ],
     );
+  }
+
+  Future<void> _onTrailer(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final tmdbId = vod.tmdbId;
+    if (tmdbId == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Fragman bulunamadi')),
+      );
+      return;
+    }
+    try {
+      final youtubeId = await ref
+          .read(metadataServiceProvider)
+          .trailerYoutubeId(tmdbId, MediaType.movie);
+      if (youtubeId == null || youtubeId.isEmpty) {
+        if (!context.mounted) return;
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Fragman bulunamadi')),
+        );
+        return;
+      }
+      if (!context.mounted) return;
+      context.push(
+        Uri(
+          path: '/trailer/$youtubeId',
+          queryParameters: <String, String>{'title': vod.title},
+        ).toString(),
+      );
+    } on Object catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Fragman yüklenemedi: $e')),
+      );
+    }
   }
 
   void _onPlay(BuildContext context, String? localPath) {

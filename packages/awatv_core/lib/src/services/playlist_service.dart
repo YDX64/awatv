@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:awatv_core/src/clients/stalker_client.dart';
 import 'package:awatv_core/src/clients/xtream_client.dart';
 import 'package:awatv_core/src/models/channel.dart';
 import 'package:awatv_core/src/models/episode.dart';
@@ -53,6 +54,8 @@ class PlaylistService {
         await _refreshM3u(src);
       case PlaylistKind.xtream:
         await _refreshXtream(src);
+      case PlaylistKind.stalker:
+        await _refreshStalker(src);
     }
 
     final updated = src.copyWith(lastSyncAt: DateTime.now().toUtc());
@@ -161,6 +164,56 @@ class PlaylistService {
     if (meta != null) {
       // Background enrichment — do not block return.
       unawaited(_enrich(meta, vod.map((v) => v.title).toList(), MediaType.movie));
+      unawaited(
+        _enrich(meta, series.map((s) => s.title).toList(), MediaType.series),
+      );
+    }
+  }
+
+  /// Refreshes a Stalker / Ministra portal source.
+  ///
+  /// We reuse the `username` slot for the device MAC and `password`
+  /// slot for the (optional) time-zone string — the dispatch above
+  /// chose this over schema-extending `PlaylistSource` so existing
+  /// secure-storage and sync code keeps working with no migration.
+  Future<void> _refreshStalker(PlaylistSource src) async {
+    final mac = src.username;
+    if (mac == null || mac.isEmpty) {
+      throw const StalkerAuthException(
+        'Stalker kaynaginda MAC adresi yok',
+      );
+    }
+
+    final client = StalkerClient(
+      portalUrl: src.url,
+      macAddress: mac,
+      timezone: (src.password == null || src.password!.isEmpty)
+          ? null
+          : src.password,
+      dio: _dio,
+    );
+
+    await client.handshake();
+
+    final live = await client.liveChannels();
+    await _storage.putChannels(src.id, live);
+
+    final vod = await client.vodItems();
+    await _storage.putVod(src.id, vod);
+
+    final series = await client.series();
+    await _storage.putSeries(src.id, series);
+
+    _log.info(
+      'Stalker ${src.name}: ${live.length} live, ${vod.length} VOD, '
+      '${series.length} series',
+    );
+
+    final meta = _metadata;
+    if (meta != null) {
+      unawaited(
+        _enrich(meta, vod.map((v) => v.title).toList(), MediaType.movie),
+      );
       unawaited(
         _enrich(meta, series.map((s) => s.title).toList(), MediaType.series),
       );

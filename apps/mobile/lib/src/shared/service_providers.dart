@@ -55,6 +55,29 @@ TmdbClient? tmdbClient(Ref ref) {
   return TmdbClient(apiKey: Env.tmdbApiKey, dio: ref.watch(dioProvider));
 }
 
+/// OpenSubtitles client. Returns `null` when the user has not configured
+/// an API key. The subtitles service treats null as "search returns
+/// empty list" so the UI degrades gracefully without checking the env
+/// at every call site.
+@Riverpod(keepAlive: true)
+OpenSubtitlesClient? openSubtitlesClient(Ref ref) {
+  if (!Env.hasOpenSubtitles) return null;
+  return OpenSubtitlesClient(
+    apiKey: Env.openSubtitlesKey,
+    dio: ref.watch(dioProvider),
+  );
+}
+
+/// Subtitle search + download service. Caches results in the metadata
+/// box so the player track picker stays responsive across reopens.
+@Riverpod(keepAlive: true)
+SubtitlesService subtitlesService(Ref ref) {
+  return SubtitlesService(
+    storage: ref.watch(awatvStorageProvider),
+    client: ref.watch(openSubtitlesClientProvider),
+  );
+}
+
 /// Metadata service — wraps TMDB lookups with on-disk caching. When the
 /// TMDB key is missing this returns a no-op service that always answers
 /// `null` so callers don't need to special-case the empty-env path.

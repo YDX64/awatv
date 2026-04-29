@@ -2,6 +2,8 @@ import 'dart:developer' as developer;
 
 import 'package:awatv_mobile/src/shared/premium/premium_status_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_tier.dart';
+import 'package:awatv_mobile/src/shared/remote_config/app_remote_config.dart';
+import 'package:awatv_mobile/src/shared/remote_config/rc_snapshot.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,6 +25,12 @@ class PremiumScreen extends ConsumerStatefulWidget {
 class _PremiumScreenState extends ConsumerState<PremiumScreen> {
   PremiumPlan _selected = PremiumPlan.yearly;
   bool _activating = false;
+
+  /// True once the user explicitly taps a plan card. Until then, the
+  /// build reseeds `_selected` to the variant-recommended plan so that
+  /// a slow Remote Config fetch landing mid-screen still steers the
+  /// user to the highlighted card.
+  bool _userPicked = false;
 
   Future<void> _activate() async {
     if (_activating) return;
@@ -86,6 +94,33 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tier = ref.watch(premiumStatusProvider);
+    final rc = ref.watch(appRemoteConfigProvider);
+
+    // Variant 'B' rearranges the card order to put Lifetime first and
+    // pre-selects it. Marketing splits the audience server-side; we just
+    // honour what RC tells us. Anything other than 'B' falls through to
+    // the default A layout.
+    final variantB = rc.paywallVariant.toUpperCase() == 'B';
+    final orderedPlans = variantB
+        ? const <PremiumPlan>[
+            PremiumPlan.lifetime,
+            PremiumPlan.yearly,
+            PremiumPlan.monthly,
+          ]
+        : const <PremiumPlan>[
+            PremiumPlan.monthly,
+            PremiumPlan.yearly,
+            PremiumPlan.lifetime,
+          ];
+    final highlighted =
+        variantB ? PremiumPlan.lifetime : PremiumPlan.yearly;
+
+    // First build seeds `_selected`; if the variant landed late we
+    // re-target the user to the highlighted plan unless they've already
+    // tapped one explicitly (the `_userPicked` flag remembers that).
+    if (!_userPicked) {
+      _selected = highlighted;
+    }
 
     return Scaffold(
       body: CustomScrollView(
@@ -118,9 +153,11 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
                           ),
                         ),
                         const SizedBox(height: DesignTokens.spaceXs),
-                        const Text(
-                          'Reklamsiz. Sinirsiz. Hizli.',
-                          style: TextStyle(color: Colors.white),
+                        Text(
+                          variantB
+                              ? 'Bir kez ode, sonsuza kadar premium.'
+                              : 'Reklamsiz. Sinirsiz. Hizli.',
+                          style: const TextStyle(color: Colors.white),
                         ),
                       ],
                     ),
@@ -147,7 +184,7 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
                     style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: DesignTokens.spaceM),
-                  for (final plan in PremiumPlan.values)
+                  for (final plan in orderedPlans)
                     Padding(
                       padding: const EdgeInsets.only(
                         bottom: DesignTokens.spaceM,
@@ -155,7 +192,12 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
                       child: _PlanCard(
                         plan: plan,
                         selected: _selected == plan,
-                        onTap: () => setState(() => _selected = plan),
+                        highlighted: plan == highlighted,
+                        rc: rc,
+                        onTap: () => setState(() {
+                          _selected = plan;
+                          _userPicked = true;
+                        }),
                       ),
                     ),
                   const SizedBox(height: DesignTokens.spaceM),
@@ -280,11 +322,20 @@ class _PlanCard extends StatelessWidget {
   const _PlanCard({
     required this.plan,
     required this.selected,
+    required this.highlighted,
+    required this.rc,
     required this.onTap,
   });
 
   final PremiumPlan plan;
   final bool selected;
+
+  /// True for the plan flagged as "best value" by the active RC variant.
+  /// Highlighted cards get a tinted background, a subtle glow border,
+  /// and a "ONERILEN" badge above the price row.
+  final bool highlighted;
+
+  final RcSnapshot rc;
   final VoidCallback onTap;
 
   @override
@@ -292,62 +343,108 @@ class _PlanCard extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
+    // Title + badge labels are still local; only the price string is
+    // server-driven so the marketing team can move pricing without a
+    // store release.
     final (String title, String price, String? badge) = switch (plan) {
-      PremiumPlan.monthly => ('Aylik', 'EUR 3,99 / ay', null),
-      PremiumPlan.yearly => ('Yillik', 'EUR 29,99 / yil', '%37 indirim'),
-      PremiumPlan.lifetime => ('Omur boyu', 'EUR 69,99', 'Tek seferlik'),
+      PremiumPlan.monthly => ('Aylik', rc.priceMonthly, null),
+      PremiumPlan.yearly => ('Yillik', rc.priceYearly, '%37 indirim'),
+      PremiumPlan.lifetime =>
+        ('Omur boyu', rc.priceLifetime, 'Tek seferlik'),
     };
+
+    final borderColor = selected
+        ? cs.primary
+        : (highlighted
+            ? cs.primary.withValues(alpha: 0.6)
+            : cs.outline.withValues(alpha: 0.4));
+    final bgColor = highlighted
+        ? cs.primary.withValues(alpha: 0.06)
+        : cs.surface;
 
     return InkWell(
       borderRadius: BorderRadius.circular(DesignTokens.radiusL),
       onTap: onTap,
       child: Ink(
         decoration: BoxDecoration(
-          color: cs.surface,
+          color: bgColor,
           borderRadius: BorderRadius.circular(DesignTokens.radiusL),
           border: Border.all(
-            color: selected ? cs.primary : cs.outline.withValues(alpha: 0.4),
+            color: borderColor,
             width: selected ? 2 : 1,
           ),
         ),
         padding: const EdgeInsets.all(DesignTokens.spaceM),
-        child: Row(
-          children: [
-            Icon(
-              selected
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
-              color: selected ? cs.primary : cs.onSurface.withValues(alpha: 0.6),
-            ),
-            const SizedBox(width: DesignTokens.spaceM),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 2),
-                  Text(price, style: theme.textTheme.bodyMedium),
-                ],
-              ),
-            ),
-            if (badge != null)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: DesignTokens.spaceS,
-                  vertical: DesignTokens.spaceXs,
-                ),
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(DesignTokens.radiusS),
-                ),
-                child: Text(
-                  badge,
-                  style: theme.textTheme.labelSmall?.copyWith(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            if (highlighted)
+              Padding(
+                padding: const EdgeInsets.only(bottom: DesignTokens.spaceS),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: DesignTokens.spaceS,
+                    vertical: DesignTokens.spaceXs,
+                  ),
+                  decoration: BoxDecoration(
                     color: cs.primary,
-                    fontWeight: FontWeight.w600,
+                    borderRadius: BorderRadius.circular(
+                      DesignTokens.radiusS,
+                    ),
+                  ),
+                  child: Text(
+                    'ONERILEN',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: cs.onPrimary,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                    ),
                   ),
                 ),
               ),
+            Row(
+              children: [
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: selected
+                      ? cs.primary
+                      : cs.onSurface.withValues(alpha: 0.6),
+                ),
+                const SizedBox(width: DesignTokens.spaceM),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(price, style: theme.textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+                if (badge != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: DesignTokens.spaceS,
+                      vertical: DesignTokens.spaceXs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: cs.primary.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(
+                        DesignTokens.radiusS,
+                      ),
+                    ),
+                    child: Text(
+                      badge,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: cs.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ],
         ),
       ),

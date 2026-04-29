@@ -2,6 +2,7 @@ import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
 import 'package:awatv_mobile/src/desktop/desktop_chrome.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/notifications/notification_tap_router.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_scoped_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/device_fingerprint.dart';
@@ -64,7 +65,12 @@ class AwaTvApp extends ConsumerWidget {
       // snackbar when a newer release is on offer.
       builder: (BuildContext context, Widget? child) {
         final body = child ?? const SizedBox.shrink();
-        final wrapped = UpdateBootCheck(child: body);
+        // The notification-tap router needs a router context to push,
+        // so it must sit *inside* MaterialApp.router's builder. Mount
+        // it here so reminder notifications can deep-link into /play
+        // / /reminders without going through main.dart.
+        final tapped = NotificationTapRouter(child: body);
+        final wrapped = UpdateBootCheck(child: tapped);
         if (isDesktop && !isTv) {
           return DesktopChrome(child: wrapped);
         }

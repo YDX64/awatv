@@ -6,15 +6,17 @@ import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 /// Form for adding a new playlist.
 ///
-/// Two segments:
+/// Three segments:
 ///   - **M3U / M3U8**: just a URL.
 ///   - **Xtream Codes**: server URL + username + password.
+///   - **Stalker Portal**: portal URL + MAC address (+ optional time-zone).
 ///
 /// Submission goes through `PlaylistService.add(...)`, which both persists
 /// the source AND triggers an initial sync. Errors bubble up as a SnackBar.
@@ -32,10 +34,29 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _epgCtrl = TextEditingController();
+  final _macCtrl = TextEditingController();
 
   PlaylistKind _kind = PlaylistKind.m3u;
   bool _busy = false;
   bool _showPassword = false;
+  String _stalkerTimezone = 'Europe/Istanbul';
+
+  /// Common IANA time-zones surfaced as a dropdown for the Stalker form.
+  /// Rolling our own short list rather than pulling in `flutter_timezone`
+  /// keeps the bundle small; the user can still pick "Diger / UTC" if
+  /// their region isn't one of these.
+  static const List<String> _timezones = <String>[
+    'Europe/Istanbul',
+    'Europe/Berlin',
+    'Europe/London',
+    'Europe/Paris',
+    'Europe/Moscow',
+    'America/New_York',
+    'America/Los_Angeles',
+    'Asia/Tehran',
+    'Asia/Dubai',
+    'UTC',
+  ];
 
   @override
   void dispose() {
@@ -44,6 +65,7 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
     _userCtrl.dispose();
     _passCtrl.dispose();
     _epgCtrl.dispose();
+    _macCtrl.dispose();
     super.dispose();
   }
 
@@ -70,8 +92,22 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
     return null;
   }
 
+  String? _validateStalkerServer(String? v) {
+    final base = _validateUrl(v);
+    if (base != null) return base;
+    return null;
+  }
+
   String? _validateXtreamCreds(String? v) {
     if (v == null || v.trim().isEmpty) return 'Bu alan zorunlu';
+    return null;
+  }
+
+  String? _validateMac(String? v) {
+    if (v == null || v.trim().isEmpty) return 'MAC adresi gerekli';
+    if (!StalkerClient.isValidMac(v.trim())) {
+      return 'Format: 00:1A:79:XX:XX:XX';
+    }
     return null;
   }
 
@@ -83,20 +119,37 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
     final navigator = GoRouter.of(context);
 
     try {
+      // For the Stalker kind we reuse `username` for the MAC (canonicalised)
+      // and `password` for the timezone hint — see PlaylistKind.stalker doc.
+      String? username;
+      String? password;
+      switch (_kind) {
+        case PlaylistKind.m3u:
+          username = null;
+          password = null;
+        case PlaylistKind.xtream:
+          username = _userCtrl.text.trim();
+          password = _passCtrl.text;
+        case PlaylistKind.stalker:
+          username = StalkerClient.normaliseMac(_macCtrl.text.trim());
+          password = _stalkerTimezone;
+      }
+
       final source = PlaylistSource(
         id: const Uuid().v4(),
         name: _nameCtrl.text.trim(),
         kind: _kind,
         url: _urlCtrl.text.trim(),
         addedAt: DateTime.now(),
-        username: _kind == PlaylistKind.xtream ? _userCtrl.text.trim() : null,
-        password: _kind == PlaylistKind.xtream ? _passCtrl.text : null,
+        username: username,
+        password: password,
         epgUrl: _epgCtrl.text.trim().isEmpty ? null : _epgCtrl.text.trim(),
       );
 
       await ref.read(playlistServiceProvider).add(source);
-      ref.invalidate(playlistsProvider);
-      ref.invalidate(allChannelsProvider);
+      ref
+        ..invalidate(playlistsProvider)
+        ..invalidate(allChannelsProvider);
 
       if (!mounted) return;
       messenger.showSnackBar(
@@ -107,6 +160,11 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text('Kimlik dogrulanamadi: ${e.message}')),
+      );
+    } on StalkerAuthException catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Stalker portal hatasi: ${e.message}')),
       );
     } on PlaylistParseException catch (e) {
       if (!mounted) return;
@@ -122,6 +180,58 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text('Eklenemedi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// "Bul" button on the Stalker tab — probes the URL by visiting
+  /// `/portal.php?type=stb&action=ping` and surfaces the result.
+  Future<void> _probeStalker() async {
+    final url = _urlCtrl.text.trim();
+    final mac = _macCtrl.text.trim();
+    if (_validateStalkerServer(url) != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Once gecerli bir portal URL gir')),
+      );
+      return;
+    }
+    if (_validateMac(mac) != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Once gecerli bir MAC adresi gir')),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final client = StalkerClient(
+        portalUrl: url,
+        macAddress: mac,
+        timezone: _stalkerTimezone,
+        dio: ref.read(dioProvider),
+      );
+      await client.handshake();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Portal bulundu, MAC yetkili.')),
+      );
+    } on StalkerAuthException catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Portal reddetti: ${e.message}')),
+      );
+    } on NetworkException catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Portala ulasilamadi: ${e.message}')),
+      );
+    } on Object catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Probe basarisiz: $e')),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -156,6 +266,11 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                         label: Text('Xtream Codes'),
                         icon: Icon(Icons.vpn_key_outlined),
                       ),
+                      ButtonSegment<PlaylistKind>(
+                        value: PlaylistKind.stalker,
+                        label: Text('Stalker Portal'),
+                        icon: Icon(Icons.dns_outlined),
+                      ),
                     ],
                     selected: <PlaylistKind>{_kind},
                     onSelectionChanged: (Set<PlaylistKind> set) {
@@ -186,7 +301,7 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                       ),
                       validator: _validateUrl,
                     ),
-                  ] else ...[
+                  ] else if (_kind == PlaylistKind.xtream) ...[
                     TextFormField(
                       controller: _urlCtrl,
                       keyboardType: TextInputType.url,
@@ -201,9 +316,6 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                     const SizedBox(height: DesignTokens.spaceS),
                     _LocalDiscoveryPanel(
                       onPick: (DiscoveredIptvServer s) {
-                        // Push the suggested URL into the Server URL field
-                        // and let the user fill creds. Re-runs validators
-                        // by calling validate() once focus moves on.
                         _urlCtrl.text = s.suggestedUrl;
                         if (_nameCtrl.text.trim().isEmpty) {
                           _nameCtrl.text = s.name;
@@ -240,6 +352,69 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                         ),
                       ),
                       validator: _validateXtreamCreds,
+                    ),
+                  ] else ...[
+                    // Stalker Portal
+                    TextFormField(
+                      controller: _urlCtrl,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Portal URL',
+                        hintText: 'http://portal.example.tv:8080',
+                        helperText:
+                            '/portal.php yolunu eklemen gerekmez, otomatik tespit edilir',
+                      ),
+                      validator: _validateStalkerServer,
+                    ),
+                    const SizedBox(height: DesignTokens.spaceM),
+                    TextFormField(
+                      controller: _macCtrl,
+                      autocorrect: false,
+                      textCapitalization: TextCapitalization.characters,
+                      textInputAction: TextInputAction.next,
+                      inputFormatters: <TextInputFormatter>[
+                        _MacAddressFormatter(),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'MAC adresi',
+                        hintText: '00:1A:79:XX:XX:XX',
+                      ),
+                      validator: _validateMac,
+                    ),
+                    const SizedBox(height: DesignTokens.spaceM),
+                    DropdownButtonFormField<String>(
+                      initialValue: _stalkerTimezone,
+                      decoration: const InputDecoration(
+                        labelText: 'Saat dilimi (opsiyonel)',
+                      ),
+                      items: <DropdownMenuItem<String>>[
+                        for (final tz in _timezones)
+                          DropdownMenuItem<String>(
+                            value: tz,
+                            child: Text(tz),
+                          ),
+                      ],
+                      onChanged: (String? v) {
+                        if (v == null) return;
+                        setState(() => _stalkerTimezone = v);
+                      },
+                    ),
+                    const SizedBox(height: DesignTokens.spaceM),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _probeStalker,
+                      icon: const Icon(Icons.search_rounded),
+                      label: const Text('Bul'),
+                    ),
+                    const SizedBox(height: DesignTokens.spaceS),
+                    Text(
+                      'Portal MAC adresimizi tanimak zorunda. Saglayicidan '
+                      'cihazi yetkilendirmesini iste.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface
+                            .withValues(alpha: 0.6),
+                      ),
                     ),
                   ],
                   const SizedBox(height: DesignTokens.spaceL),
@@ -285,6 +460,31 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Auto-formats input as a colon-separated MAC. Drops anything that
+/// isn't a hex digit, then re-inserts colons every 2 chars (cap 12).
+class _MacAddressFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final hex = newValue.text
+        .toUpperCase()
+        .replaceAll(RegExp('[^0-9A-F]'), '');
+    final capped = hex.length > 12 ? hex.substring(0, 12) : hex;
+    final buf = StringBuffer();
+    for (var i = 0; i < capped.length; i++) {
+      if (i > 0 && i.isEven) buf.write(':');
+      buf.write(capped[i]);
+    }
+    final out = buf.toString();
+    return TextEditingValue(
+      text: out,
+      selection: TextSelection.collapsed(offset: out.length),
     );
   }
 }

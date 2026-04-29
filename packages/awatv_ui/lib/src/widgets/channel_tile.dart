@@ -227,7 +227,10 @@ class _ChannelLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (logoUrl == null || logoUrl!.isEmpty) {
+    final fallbacks = _ChannelLogoFallback.candidatesFor(name);
+    final hasPrimary = logoUrl != null && logoUrl!.isNotEmpty;
+
+    if (!hasPrimary && fallbacks.isEmpty) {
       return _LogoPlaceholder(
         name: name,
         surface: surface,
@@ -235,17 +238,14 @@ class _ChannelLogo extends StatelessWidget {
         onSurface: onSurface,
       );
     }
+
     return Container(
       color: surface,
       padding: const EdgeInsets.all(DesignTokens.spaceXs),
-      child: CachedNetworkImage(
-        imageUrl: logoUrl!,
-        fit: BoxFit.contain,
-        fadeInDuration: DesignTokens.motionFast,
-        placeholder: (BuildContext _, String __) =>
-            const SizedBox.expand(),
-        errorWidget: (BuildContext _, String __, Object ___) =>
-            _LogoPlaceholder(
+      child: _ChainedNetworkImage(
+        primaryUrl: hasPrimary ? logoUrl : null,
+        fallbacks: fallbacks,
+        onAllFailed: () => _LogoPlaceholder(
           name: name,
           surface: surface,
           primary: primary,
@@ -253,6 +253,130 @@ class _ChannelLogo extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Renders a CachedNetworkImage that walks down a list of candidate URLs
+/// when each preceding URL errors out (404, CORS, parse, …).
+///
+/// Used by the channel-tile logo so we can transparently fall back from
+/// the playlist's `logoUrl` to `tv-logos/turkey/<slug>.png` and then
+/// `tv-logos/world/<slug>.png` before finally rendering the gradient
+/// placeholder. (Bracketed slug shown in backticks here so the dart-doc
+/// parser doesn't treat it as HTML.)
+class _ChainedNetworkImage extends StatefulWidget {
+  const _ChainedNetworkImage({
+    required this.primaryUrl,
+    required this.fallbacks,
+    required this.onAllFailed,
+  });
+
+  final String? primaryUrl;
+  final List<String> fallbacks;
+  final Widget Function() onAllFailed;
+
+  @override
+  State<_ChainedNetworkImage> createState() => _ChainedNetworkImageState();
+}
+
+class _ChainedNetworkImageState extends State<_ChainedNetworkImage> {
+  late List<String> _chain;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuildChain();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ChainedNetworkImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.primaryUrl != widget.primaryUrl ||
+        !_listsEqual(oldWidget.fallbacks, widget.fallbacks)) {
+      _rebuildChain();
+      _index = 0;
+    }
+  }
+
+  void _rebuildChain() {
+    _chain = <String>[
+      if (widget.primaryUrl != null && widget.primaryUrl!.isNotEmpty)
+        widget.primaryUrl!,
+      ...widget.fallbacks,
+    ];
+  }
+
+  bool _listsEqual(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_chain.isEmpty || _index >= _chain.length) {
+      return widget.onAllFailed();
+    }
+    final url = _chain[_index];
+    return CachedNetworkImage(
+      key: ValueKey<String>(url),
+      imageUrl: url,
+      fit: BoxFit.contain,
+      fadeInDuration: DesignTokens.motionFast,
+      placeholder: (BuildContext _, String __) => const SizedBox.expand(),
+      errorWidget: (BuildContext _, String __, Object ___) {
+        // Schedule the index advance for the next frame so we don't try
+        // to call setState during build.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _index = _index + 1;
+          });
+        });
+        return const SizedBox.expand();
+      },
+    );
+  }
+}
+
+/// Tiny in-package slug helper. Mirrors `LogosFallback` in awatv_core
+/// so awatv_ui stays a leaf package (no cross-package deps). Kept in
+/// sync by keeping the algorithm dead simple.
+class _ChannelLogoFallback {
+  static const String _base =
+      'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries';
+
+  static List<String> candidatesFor(String name) {
+    final slug = _slug(name);
+    if (slug.isEmpty) return const <String>[];
+    return <String>[
+      '$_base/turkey/$slug.png',
+      '$_base/world/$slug.png',
+    ];
+  }
+
+  static final RegExp _quality = RegExp(
+    r'\b(uhd|fhd|hd|sd|4k|8k|1080p|720p|480p)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _punct =
+      RegExp(r'[^\p{L}\p{N}\s_-]+', unicode: true);
+  static final RegExp _spaces = RegExp(r'\s+');
+  static final RegExp _multiDash = RegExp('-{2,}');
+
+  static String _slug(String value) {
+    if (value.isEmpty) return '';
+    var s = value.trim().toLowerCase();
+    s = s.replaceAll(_quality, ' ');
+    s = s.replaceAll(_punct, ' ');
+    s = s.replaceAll('_', ' ');
+    s = s.replaceAll(_spaces, '-');
+    s = s.replaceAll(_multiDash, '-');
+    s = s.replaceAll(RegExp(r'^-+|-+$'), '');
+    return s;
   }
 }
 

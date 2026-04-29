@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/channels/epg_providers.dart';
+import 'package:awatv_mobile/src/features/channels/group_filter_chips.dart';
+import 'package:awatv_mobile/src/features/channels/sort_mode_provider.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/discovery/share_helper.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
@@ -17,27 +19,30 @@ import 'package:go_router/go_router.dart';
 
 /// Live-channel grid.
 ///
-/// Top: horizontally scrollable group filter chips.
+/// Top: horizontally scrollable group filter chips (with multi-select +
+/// per-surface persisted selection).
 /// Body: 2-column responsive grid of `ChannelTile`s. On wider devices it
 /// scales up to 3-4 columns.
+///
+/// The grid runs the chip-selected groups through the active sort mode
+/// before rendering — see [_filtered] for the pipeline.
 class ChannelsScreen extends ConsumerWidget {
   const ChannelsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final channels = ref.watch(filteredLiveChannelsProvider);
-    final groups = ref.watch(liveChannelGroupsProvider);
-    final activeGroup = ref.watch(channelGroupFilterProvider);
+    // Use the un-filtered `liveChannelsProvider` directly so the new
+    // chip-based multi-select filter is the only filter in play —
+    // otherwise the legacy `channelGroupFilterProvider` (single-group)
+    // would silently double-filter behind the new UI.
+    final channelsAsync = ref.watch(liveChannelsProvider);
+    final groupsAsync = ref.watch(liveChannelGroupsProvider);
+    final filter = ref.watch(groupFilterProvider(SortSurface.live));
+    final mode = ref.watch(sortModeProvider(SortSurface.live));
 
-    // First-render: pick a sensible default view mode based on form factor
-    // (grid on tablets/desktop, list on phones), but only if the user has
-    // never chosen one explicitly. Auto-route into the grid the first time
-    // a tablet user hits the screen.
     final width = MediaQuery.sizeOf(context).width;
     final isWide = width >= 720;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Fire-and-forget: persisting the default is best-effort and only
-      // happens once per install.
       unawaited(
         ref.read(liveViewModePrefProvider.notifier).setIfUnset(
               isWide ? LiveViewMode.grid : LiveViewMode.list,
@@ -49,6 +54,7 @@ class ChannelsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Canli Kanallar'),
         actions: [
+          const SortModeButton(surface: SortSurface.live),
           IconButton(
             tooltip: 'TV Rehberi',
             icon: const Icon(Icons.grid_view_outlined),
@@ -69,69 +75,52 @@ class ChannelsScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          SizedBox(
-            height: 56,
-            child: groups.when(
-              loading: () => const SizedBox.shrink(),
-              error: (Object err, StackTrace st) => const SizedBox.shrink(),
-              data: (List<String> values) {
-                if (values.isEmpty) return const SizedBox.shrink();
-                return ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: DesignTokens.spaceM,
-                    vertical: DesignTokens.spaceS,
-                  ),
-                  itemCount: values.length + 1,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(width: DesignTokens.spaceS),
-                  itemBuilder: (BuildContext ctx, int i) {
-                    if (i == 0) {
-                      return ChoiceChip(
-                        label: const Text('Tumu'),
-                        selected: activeGroup == null,
-                        onSelected: (_) => ref
-                            .read(channelGroupFilterProvider.notifier)
-                            .select(null),
-                      );
-                    }
-                    final g = values[i - 1];
-                    return ChoiceChip(
-                      label: Text(g),
-                      selected: activeGroup == g,
-                      onSelected: (_) => ref
-                          .read(channelGroupFilterProvider.notifier)
-                          .select(g),
-                    );
-                  },
-                );
-              },
+          groupsAsync.when(
+            loading: () => const SizedBox(height: 56),
+            error: (Object _, StackTrace __) => const SizedBox.shrink(),
+            data: (List<String> values) => channelsAsync.when(
+              loading: () => GroupFilterChips(
+                surface: SortSurface.live,
+                groups: values,
+                counts: const <String, int>{},
+              ),
+              error: (Object _, StackTrace __) => GroupFilterChips(
+                surface: SortSurface.live,
+                groups: values,
+                counts: const <String, int>{},
+              ),
+              data: (List<Channel> all) => GroupFilterChips(
+                surface: SortSurface.live,
+                groups: values,
+                counts: _countByGroup(all, values),
+              ),
             ),
           ),
           Expanded(
-            child: channels.when(
+            child: channelsAsync.when(
               loading: () => const LoadingView(label: 'Kanallar yukleniyor'),
               error: (Object err, StackTrace st) => ErrorView(
                 message: err.toString(),
-                onRetry: () => ref.invalidate(filteredLiveChannelsProvider),
+                onRetry: () => ref.invalidate(liveChannelsProvider),
               ),
               data: (List<Channel> values) {
-                if (values.isEmpty) {
+                final filtered = _filtered(values, filter, mode);
+                if (filtered.isEmpty) {
                   return EmptyState(
                     icon: Icons.live_tv_outlined,
                     title: 'Kanal bulunamadi',
-                    message: activeGroup == null
+                    message: filter.selected.isEmpty
                         ? 'Listeni yenileyip tekrar dene.'
-                        : '"$activeGroup" grubunda kanal yok.',
+                        : 'Secili gruplarda kanal yok.',
                     actionLabel: 'Yenile',
                     onAction: () =>
-                        ref.invalidate(filteredLiveChannelsProvider),
+                        ref.invalidate(liveChannelsProvider),
                   );
                 }
                 return RefreshIndicator(
                   onRefresh: () async {
-                    ref.invalidate(filteredLiveChannelsProvider);
-                    await ref.read(filteredLiveChannelsProvider.future);
+                    ref.invalidate(liveChannelsProvider);
+                    await ref.read(liveChannelsProvider.future);
                   },
                   child: LayoutBuilder(
                     builder: (BuildContext ctx, BoxConstraints c) {
@@ -150,9 +139,9 @@ class ChannelsScreen extends ConsumerWidget {
                           mainAxisSpacing: DesignTokens.spaceM,
                           childAspectRatio: DesignTokens.channelTileAspect,
                         ),
-                        itemCount: values.length,
+                        itemCount: filtered.length,
                         itemBuilder: (BuildContext ctx, int i) {
-                          final ch = values[i];
+                          final ch = filtered[i];
                           return ChannelTile(
                             name: ch.name,
                             logoUrl: ch.logoUrl,
@@ -175,6 +164,30 @@ class ChannelsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Pipeline: groups (chips) → sort. When [filter] selects nothing, no
+  /// group filtering is applied (i.e. "Tumu").
+  List<Channel> _filtered(
+    List<Channel> all,
+    GroupFilterState filter,
+    SortMode mode,
+  ) {
+    final scoped = filter.selected.isEmpty
+        ? all
+        : all
+            .where((Channel c) =>
+                c.groups.any((String g) => filter.selected.contains(g)))
+            .toList();
+    return mode.sortChannels(scoped);
+  }
+
+  Map<String, int> _countByGroup(List<Channel> items, List<String> groups) {
+    final out = <String, int>{};
+    for (final g in groups) {
+      out[g] = items.where((Channel c) => c.groups.contains(g)).length;
+    }
+    return out;
   }
 
   void _play(BuildContext context, Channel channel) {

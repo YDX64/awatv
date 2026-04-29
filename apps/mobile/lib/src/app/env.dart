@@ -14,6 +14,17 @@ class Env {
   /// (no posters / backdrops, but the app still works).
   static String get tmdbApiKey => _read('TMDB_API_KEY');
 
+  /// OpenSubtitles REST API v1 key (free tier). Required to power the
+  /// "OpenSubtitles" section in the player track picker. Empty means the
+  /// section degrades to a polite "configure key" notice; embedded
+  /// subtitle tracks and the local-file picker keep working.
+  static String get openSubtitlesKey => _read('OPENSUBTITLES_API_KEY');
+
+  /// True when the user has configured an OpenSubtitles key — the player
+  /// track picker uses this to hide the OpenSubtitles section entirely
+  /// when nothing can ever come back.
+  static bool get hasOpenSubtitles => openSubtitlesKey.isNotEmpty;
+
   // --- AdMob ---------------------------------------------------------------
   static String get admobAppIdIos => _read('ADMOB_APP_ID_IOS');
   static String get admobAppIdAndroid => _read('ADMOB_APP_ID_ANDROID');

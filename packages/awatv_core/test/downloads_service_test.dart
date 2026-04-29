@@ -168,14 +168,18 @@ void main() {
         ],
         contains(t!.status),
       );
-      // Tear-down race guard: cancel the in-flight runner so its async
-      // HTTP attempt doesn't try to write back to Hive after the test's
-      // `tearDown` closes the storage. Without this, the runner's
-      // `_storage.putDownload(failed)` step throws StorageException
-      // and surfaces as a test failure even though the assertion above
-      // succeeded.
+      // Tear-down race guard: cancel the in-flight runner AND force-close
+      // the Dio so the queued HTTP attempt errors out immediately rather
+      // than trying to connect to 127.0.0.1:1. Without this, the runner's
+      // post-error `_storage.putDownload(failed)` writeback fires after
+      // tearDown's `storage.close()` and trips StorageException.
       await svc.cancel(id);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      dio.close(force: true);
+      // Re-instantiate Dio for any other tearDown work and to keep the
+      // shared `dio` field pointing at a closeable instance for the next
+      // test setUp.
+      dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 1)));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
     });
 
     test('cancel removes partial file when present', () async {

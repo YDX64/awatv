@@ -47,6 +47,15 @@ dependencies:
   flutter_dotenv: ^5.2.1
   intl: ^0.20.0
 
+  # Runtime translation lookup. JSON dictionaries live under
+  # `assets/i18n/` and are loaded via `EasyLocalization.ensureInitialized`
+  # in main.dart. The framework persists the active locale to the
+  # `EasyLocalization` shared-prefs slot, so the user's last pick survives
+  # cold starts. Default & fallback locale is Turkish; English is the
+  # secondary supported locale. Adding more languages is a matter of
+  # dropping a `<code>.json` next to en.json + updating supportedLocales.
+  easy_localization: ^3.0.7
+
   # Auth / cloud sync (optional — only enabled when SUPABASE_URL is set).
   supabase_flutter: ^2.8.0
 

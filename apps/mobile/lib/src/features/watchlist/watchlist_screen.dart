@@ -1,6 +1,7 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/shared/notifications/notifications_provider.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,13 +32,13 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Watch list'),
+        title: Text('watchlist.title'.tr()),
         bottom: TabBar(
           controller: _tab,
-          tabs: const <Widget>[
-            Tab(text: 'Hepsi'),
-            Tab(text: 'Filmler'),
-            Tab(text: 'Diziler'),
+          tabs: <Widget>[
+            Tab(text: 'common.all'.tr()),
+            Tab(text: 'watchlist.filter_movies'.tr()),
+            Tab(text: 'watchlist.filter_series'.tr()),
           ],
         ),
       ),

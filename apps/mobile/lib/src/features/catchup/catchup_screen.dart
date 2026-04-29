@@ -9,6 +9,7 @@ import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,10 +32,10 @@ class CatchupScreen extends ConsumerWidget {
     final channelsAsync = ref.watch(catchupChannelsProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Catchup'),
+        title: Text('catchup.title'.tr()),
         actions: <Widget>[
           IconButton(
-            tooltip: 'Yenile',
+            tooltip: 'common.refresh'.tr(),
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () =>
                 ref.invalidate(catchupChannelsProvider),

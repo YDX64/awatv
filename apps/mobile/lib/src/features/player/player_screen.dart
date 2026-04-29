@@ -15,6 +15,7 @@ import 'package:awatv_mobile/src/features/player/widgets/player_gestures.dart';
 import 'package:awatv_mobile/src/features/parental/widgets/parental_lock_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_track_picker_sheet.dart';
+import 'package:awatv_mobile/src/features/player/widgets/are_you_still_watching.dart';
 import 'package:awatv_mobile/src/features/player/widgets/sleep_timer_sheet.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
@@ -204,6 +205,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           }
         });
         _tickNowPlayingPosition(p);
+        // Push a tick into the "Are you still watching?" tracker. The
+        // tracker only counts wall-clock seconds while playback is
+        // emitting position updates, so a paused / stalled player will
+        // not advance the threshold.
+        if (!_isPaused) {
+          ref.read(stillWatchingProvider.notifier).tick();
+        }
       });
 
       _bufferedSub = c.buffered.listen((Duration b) {
@@ -423,6 +431,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     setState(() => _parentalOutcome = ParentalGateOutcome.allowed);
     // Resume playback if the controller was paused by the gate.
     _controller?.play();
+  }
+
+  /// User confirmed they are still watching — resume + reset the run.
+  void _onStillWatchingContinue() {
+    ref.read(stillWatchingProvider.notifier).acknowledged();
+    _controller?.play();
+  }
+
+  /// User chose to stop — keep the player paused and pop the route so
+  /// they return to wherever they came from. The reset call tears down
+  /// the cumulative counter so the next session starts clean.
+  void _onStillWatchingExit() {
+    ref.read(stillWatchingProvider.notifier).reset();
+    if (context.canPop()) context.pop();
   }
 
   void _onParentalCancel() {
@@ -1005,6 +1027,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } on Object {
       // best-effort
     }
+    // Reset the still-watching tracker so the next launch starts at
+    // zero. We deliberately don't keep accumulating across distinct
+    // playback sessions — the threshold gate is meant to catch the
+    // user who fell asleep, not the user who watches a 90-min movie
+    // every night.
+    try {
+      ref.read(stillWatchingProvider.notifier).reset();
+    } on Object {
+      // best-effort
+    }
     // Tear down the OS media-session bridge so the lock-screen tile
     // disappears and the foreground-service notification gets cancelled
     // on Android. Wrapped because the audio handler may be null on web
@@ -1097,6 +1129,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final controller = _controller;
     final isDesktop = ref.watch(isDesktopFormProvider);
     final inPip = isDesktop ? ref.watch(pipModeProvider) : false;
+    // "Hala izliyor musun?" — after 4h of contiguous playback the
+    // tracker flips this true. We watch it here so the build reacts
+    // immediately (the tracker also pauses the engine for us).
+    final stillWatching = ref.watch(stillWatchingProvider);
+    if (stillWatching.shouldPrompt && !_isPaused) {
+      // Pause once when the prompt rises — guarded by `!_isPaused`
+      // to avoid pausing repeatedly on every rebuild.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_controller != null && !_isPaused) {
+          unawaited(_controller!.pause());
+        }
+      });
+    }
     final statusKind = _statusKindForOverlay();
     final showBuffering = _buffering && !_isPaused && _firstFrameSeen;
     // Cast affordances are mobile-only — Chromecast on Android, AirPlay on
@@ -1306,6 +1352,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 outcome: _parentalOutcome,
                 onUnlocked: _onParentalUnlocked,
                 onCancel: _onParentalCancel,
+              ),
+            // "Hala izliyor musun?" overlay. Sits above the parental
+            // lock so a user who stepped away during a long film still
+            // sees the right gate first.
+            if (stillWatching.shouldPrompt &&
+                _parentalOutcome == ParentalGateOutcome.allowed)
+              AreYouStillWatchingOverlay(
+                onContinue: _onStillWatchingContinue,
+                onExit: _onStillWatchingExit,
               ),
           ],
         ),

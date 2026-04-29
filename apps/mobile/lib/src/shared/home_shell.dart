@@ -120,6 +120,16 @@ class HomeShell extends ConsumerWidget {
       label: 'Hatirlatmalar',
       route: '/reminders',
     ),
+    _MoreEntry(
+      icon: Icons.bolt_outlined,
+      label: 'Akilli uyarilar',
+      route: '/alerts',
+    ),
+    _MoreEntry(
+      icon: Icons.tune_rounded,
+      label: 'Kanal gruplari',
+      route: '/settings/groups',
+    ),
     // Watch-time stats — additive More-sheet entry. Free tier sees
     // the headline numbers; premium unlocks 30-day / all-time totals
     // and the full Top 5 lists. Stats screen has its own empty state

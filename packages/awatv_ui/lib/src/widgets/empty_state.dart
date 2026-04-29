@@ -52,44 +52,70 @@ class EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final text = theme.textTheme;
+    final body = message ?? subtitle;
 
-    return Padding(
-      padding: padding ??
-          const EdgeInsets.symmetric(
-            horizontal: DesignTokens.spaceXl,
-            vertical: DesignTokens.spaceXxl,
-          ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          _Halo(
-            icon: icon,
-            primary: scheme.primary,
-            secondary: scheme.secondary,
-            onSurface: scheme.onSurface,
-          ),
-          const SizedBox(height: DesignTokens.spaceL),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: text.headlineSmall,
-          ),
-          if (subtitle != null && subtitle!.isNotEmpty) ...<Widget>[
-            const SizedBox(height: DesignTokens.spaceS),
-            Text(
-              subtitle!,
-              textAlign: TextAlign.center,
-              style: text.bodyMedium?.copyWith(
-                color: scheme.onSurface.withValues(alpha: 0.7),
+    // Pre-built CTA wins over the shorthand. When neither is set we
+    // render no CTA at all.
+    final Widget? cta = action ??
+        (actionLabel != null && onAction != null
+            ? FilledButton(
+                onPressed: onAction,
+                child: Text(actionLabel!),
+              )
+            : null);
+
+    return Semantics(
+      // The whole empty-state surface reads as one logical group so
+      // screen readers announce title + body + CTA together rather
+      // than fragmenting into "Boş; Henüz içerik yok; Listeye git".
+      container: true,
+      // headline label gives the screen-reader user the headline first;
+      // children render in order beneath.
+      label: title,
+      hint: body,
+      child: Padding(
+        padding: padding ??
+            const EdgeInsets.symmetric(
+              horizontal: DesignTokens.spaceXl,
+              vertical: DesignTokens.spaceXxl,
+            ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            // The illustration glyph is decorative only — exclude it
+            // from the semantic tree so VoiceOver / TalkBack don't
+            // announce "image" before the title.
+            ExcludeSemantics(
+              child: _Halo(
+                icon: icon,
+                primary: scheme.primary,
+                secondary: scheme.secondary,
+                onSurface: scheme.onSurface,
               ),
             ),
-          ],
-          if (action != null) ...<Widget>[
             const SizedBox(height: DesignTokens.spaceL),
-            action!,
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: text.headlineSmall,
+            ),
+            if (body != null && body.isNotEmpty) ...<Widget>[
+              const SizedBox(height: DesignTokens.spaceS),
+              Text(
+                body,
+                textAlign: TextAlign.center,
+                style: text.bodyMedium?.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+            if (cta != null) ...<Widget>[
+              const SizedBox(height: DesignTokens.spaceL),
+              cta,
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

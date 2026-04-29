@@ -83,10 +83,23 @@ class ShimmerSkeleton extends StatelessWidget {
     // reads as anticipation rather than urgency and matches the rest
     // of our motion system. Documented here so a future reader doesn't
     // accidentally tighten it back to the old 1000-1400ms range.
-    return Shimmer.fromColors(
-      baseColor: base,
-      highlightColor: highlight,
-      child: child,
+    //
+    // a11y: announce "loading" to screen readers so users on
+    // assistive tech know content is on its way. The shimmer animation
+    // itself is purely visual — without this label TalkBack/VoiceOver
+    // would announce nothing while the surface is in its skeleton
+    // state, leaving the user unsure whether the screen had stalled.
+    return Semantics(
+      label: 'Loading',
+      liveRegion: true,
+      // The animated bars are decorative — exclude descendants so the
+      // screen reader doesn't read out shimmer placeholder rectangles.
+      excludeSemantics: true,
+      child: Shimmer.fromColors(
+        baseColor: base,
+        highlightColor: highlight,
+        child: child,
+      ),
     );
   }
 }

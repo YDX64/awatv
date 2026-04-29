@@ -11,8 +11,8 @@ import 'package:awatv_mobile/src/shared/sync/device_fingerprint.dart';
 import 'package:awatv_mobile/src/shared/updater/update_boot_check.dart';
 import 'package:awatv_mobile/src/tv/tv_router.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Root MaterialApp.
@@ -86,17 +86,14 @@ class AwaTvApp extends ConsumerWidget {
         }
         return wrapped;
       },
-      // Default Material localizations — full i18n is wired in Phase 2 via
-      // easy_localization (see ROADMAP.md).
-      localizationsDelegates: const <LocalizationsDelegate<Object>>[
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const <Locale>[
-        Locale('en'),
-        Locale('tr'),
-      ],
+      // Wire easy_localization. The package's delegates package up the
+      // GlobalMaterial / Widgets / Cupertino delegates so we get Material
+      // shelf strings (e.g. "next month" in the date picker) localized
+      // alongside our own JSON translations. The active locale is
+      // persisted by easy_localization itself across app launches.
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
     );
   }
 }

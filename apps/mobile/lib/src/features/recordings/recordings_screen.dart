@@ -10,6 +10,7 @@ import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,14 +42,14 @@ class _RecordingsScreenState extends ConsumerState<RecordingsScreen>
   Widget build(BuildContext context) {
     if (kIsWeb) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Kayitlar')),
+        appBar: AppBar(title: Text('recordings.title'.tr())),
         body: const _UnsupportedPlatform(),
       );
     }
     final recordingsAsync = ref.watch(recordingsProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kayitlar'),
+        title: Text('recordings.title'.tr()),
         bottom: TabBar(
           controller: _tabs,
           tabs: const <Widget>[

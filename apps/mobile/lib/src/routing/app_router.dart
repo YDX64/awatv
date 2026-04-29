@@ -11,7 +11,10 @@ import 'package:awatv_mobile/src/features/downloads/downloads_screen.dart';
 import 'package:awatv_mobile/src/features/favorites/favorites_screen.dart';
 import 'package:awatv_mobile/src/features/home/home_screen.dart';
 import 'package:awatv_mobile/src/features/multistream/multi_stream_screen.dart';
+import 'package:awatv_mobile/src/features/groups/groups_screen.dart';
 import 'package:awatv_mobile/src/features/onboarding/welcome_screen.dart';
+import 'package:awatv_mobile/src/features/onboarding/wizard_screen.dart';
+import 'package:awatv_mobile/src/features/smart_alerts/smart_alerts_screen.dart';
 import 'package:awatv_mobile/src/features/parental/parental_screen.dart';
 import 'package:awatv_mobile/src/features/player/player_screen.dart';
 import 'package:awatv_mobile/src/features/player/trailer_screen.dart';
@@ -97,6 +100,11 @@ GoRouter appRouter(Ref ref) {
           // at the relevant flow (TV Rehberi, Filmler / Diziler).
           loc.startsWith('/reminders') ||
           loc.startsWith('/watchlist') ||
+          // Smart alerts + groups customisation each render their
+          // own empty states ("Akilli uyari yok" / "Grup yok") and
+          // never depend on a configured playlist.
+          loc.startsWith('/alerts') ||
+          loc.startsWith('/settings/groups') ||
           // Favourites + watch-party + remote each have their own
           // empty states / cloud-account guards, so don't bounce them
           // through /onboarding when no playlist is configured yet.
@@ -130,6 +138,17 @@ GoRouter appRouter(Ref ref) {
         name: 'onboarding',
         builder: (BuildContext context, GoRouterState state) =>
             const WelcomeScreen(),
+        routes: <RouteBase>[
+          // Multi-step wizard (welcome → privacy → notifications →
+          // first playlist → all-set). The wrapper above redirects
+          // here when the user has not yet completed the wizard.
+          GoRoute(
+            path: 'wizard',
+            name: 'onboardingWizard',
+            builder: (BuildContext context, GoRouterState state) =>
+                const OnboardingWizardScreen(),
+          ),
+        ],
       ),
       GoRoute(
         path: '/playlists',
@@ -227,6 +246,15 @@ GoRouter appRouter(Ref ref) {
         name: 'reminders',
         builder: (BuildContext context, GoRouterState state) =>
             const RemindersScreen(),
+      ),
+      // Smart alerts — keyword-driven EPG alerts. Scans favourite
+      // channels for upcoming programmes matching the user's keywords
+      // and schedules a reminder 5 minutes before air.
+      GoRoute(
+        path: '/alerts',
+        name: 'alerts',
+        builder: (BuildContext context, GoRouterState state) =>
+            const SmartAlertsScreen(),
       ),
       // Watch later list — distinct from favourites; both VOD + series
       // get a "saat" toggle on their detail screens that drops the item
@@ -365,6 +393,17 @@ GoRouter appRouter(Ref ref) {
         name: 'settingsTheme',
         builder: (BuildContext context, GoRouterState state) =>
             const ThemeSettingsScreen(),
+      ),
+      // Channel groups customisation — drag-to-reorder, hide and
+      // rename groups inside Live / Movies / Series buckets. Wires
+      // through to [customisedCategoryTreeProvider] so the sidebar
+      // tree, home chip row and group-filter strip all reflect the
+      // user's preferences.
+      GoRoute(
+        path: '/settings/groups',
+        name: 'settingsGroups',
+        builder: (BuildContext context, GoRouterState state) =>
+            const GroupsScreen(),
       ),
       // Watch-time stats — Spotify-Wrapped-style aggregate over the
       // local HistoryService. Free tier sees the last 7 days + Top 3;

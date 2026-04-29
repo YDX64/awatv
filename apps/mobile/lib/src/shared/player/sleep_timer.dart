@@ -3,6 +3,23 @@ import 'dart:async';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// What triggered the active sleep timer. Surfaced in the chip / sheet
+/// so the user can tell at a glance whether the player will stop after
+/// "30 dakika" or "Bolum sonunda".
+enum SleepTriggerKind {
+  /// User-picked fixed duration (15/30/45/60/90/custom minutes).
+  duration,
+
+  /// Fire when the current EPG programme ends (live channels).
+  endOfProgramme,
+
+  /// Fire when the current VOD/episode duration runs out.
+  endOfEpisode,
+
+  /// User picked an absolute time-of-day.
+  custom,
+}
+
 /// Snapshot of the sleep-timer state. Player widgets watch this via
 /// [sleepTimerProvider].
 class SleepTimerSnapshot {
@@ -11,13 +28,14 @@ class SleepTimerSnapshot {
     this.duration,
     this.endsAt,
     this.fading = false,
+    this.trigger,
   });
 
   /// `true` while a timer is counting down.
   final bool isActive;
 
   /// Total duration the user picked. `null` when the timer is off or the
-  /// user picked the special "end of programme" option (in which case
+  /// user picked one of the EPG / episode triggers (in which case
   /// [endsAt] is still set).
   final Duration? duration;
 
@@ -27,6 +45,10 @@ class SleepTimerSnapshot {
   /// `true` while we're inside the 10-second audio fade. UI can show
   /// the fade in the chip ("Sönüyor…").
   final bool fading;
+
+  /// What kind of trigger produced this snapshot. Helps the chip render
+  /// the right secondary line ("Bolum sonu" vs "30 dakika kaldi").
+  final SleepTriggerKind? trigger;
 
   /// Live remaining time. `null` when inactive.
   Duration? remaining(DateTime now) {
@@ -57,8 +79,12 @@ class SleepTimerNotifier extends StateNotifier<SleepTimerSnapshot> {
     _attached = controller;
   }
 
-  /// Set or replace the timer. Pass `null` to cancel.
-  void set(Duration? duration) {
+  /// Set or replace the timer with a fixed [duration]. Pass `null`
+  /// (or `Duration.zero`) to cancel.
+  void set(
+    Duration? duration, {
+    SleepTriggerKind trigger = SleepTriggerKind.duration,
+  }) {
     cancel();
     if (duration == null || duration <= Duration.zero) return;
     final endsAt = DateTime.now().toUtc().add(duration);
@@ -66,20 +92,27 @@ class SleepTimerNotifier extends StateNotifier<SleepTimerSnapshot> {
       isActive: true,
       duration: duration,
       endsAt: endsAt,
+      trigger: trigger,
     );
     _timer = Timer(duration, _fire);
   }
 
-  /// Special "stop at programme end" preset — accepts a precomputed
-  /// `endsAt` so callers (player_screen) can derive it from the EPG /
-  /// VOD duration before scheduling.
-  void setUntil(DateTime endsAt) {
+  /// Special "stop at programme end" / "end of episode" / "custom time"
+  /// preset — accepts a precomputed `endsAt` so callers can derive it
+  /// from the EPG / VOD duration / user-picked clock-time before
+  /// scheduling. [trigger] tags the snapshot so UI can label it
+  /// correctly.
+  void setUntil(
+    DateTime endsAt, {
+    SleepTriggerKind trigger = SleepTriggerKind.endOfProgramme,
+  }) {
     cancel();
     final delta = endsAt.toUtc().difference(DateTime.now().toUtc());
     if (delta <= Duration.zero) return;
     state = SleepTimerSnapshot(
       isActive: true,
       endsAt: endsAt.toUtc(),
+      trigger: trigger,
     );
     _timer = Timer(delta, _fire);
   }
@@ -101,6 +134,7 @@ class SleepTimerNotifier extends StateNotifier<SleepTimerSnapshot> {
       isActive: state.isActive,
       duration: state.duration,
       endsAt: state.endsAt,
+      trigger: state.trigger,
       fading: true,
     );
     final c = _attached;
@@ -172,3 +206,118 @@ final sleepTimerTickProvider = StreamProvider<DateTime>((Ref ref) async* {
     (_) => DateTime.now(),
   );
 });
+
+// ---------------------------------------------------------------------------
+// "Are you still watching?" continuous-playback gate
+// ---------------------------------------------------------------------------
+
+/// Snapshot of the continuous-watching tracker.
+///
+/// The player publishes start/stop ticks here; once we accumulate
+/// [StillWatchingNotifier.threshold] of *consecutive* playback, the
+/// notifier flips [shouldPrompt] true. The player widget watches this
+/// flag and pauses + shows the overlay when it goes high.
+class StillWatchingState {
+  const StillWatchingState({
+    this.shouldPrompt = false,
+    this.startedAt,
+    this.lastTickAt,
+  });
+
+  /// True when the threshold has been crossed. Cleared by
+  /// [StillWatchingNotifier.acknowledged].
+  final bool shouldPrompt;
+
+  /// UTC time the current contiguous run began.
+  final DateTime? startedAt;
+
+  /// Last time the player published a tick — used to detect pauses
+  /// longer than [StillWatchingNotifier.idleResetWindow] and reset.
+  final DateTime? lastTickAt;
+}
+
+/// Tracks "is the user still watching?" state.
+///
+/// The player calls [tick] roughly once per second while playback is
+/// going; [paused] when the user manually pauses. After
+/// [threshold] of contiguous play (default 4h), the notifier flips
+/// [StillWatchingState.shouldPrompt] high and the player overlay takes
+/// over. [acknowledged] clears the flag and resets the run, so the
+/// next 4h of uninterrupted playback fires the overlay again.
+class StillWatchingNotifier extends StateNotifier<StillWatchingState> {
+  StillWatchingNotifier({
+    Duration threshold = const Duration(hours: 4),
+    Duration idleResetWindow = const Duration(minutes: 5),
+  })  : threshold = threshold,
+        idleResetWindow = idleResetWindow,
+        super(const StillWatchingState());
+
+  final Duration threshold;
+  final Duration idleResetWindow;
+
+  /// Called from the player while playback is alive. If the gap since
+  /// [StillWatchingState.lastTickAt] is bigger than [idleResetWindow]
+  /// the run resets — the user clearly wandered off and came back.
+  void tick() {
+    final now = DateTime.now().toUtc();
+    final last = state.lastTickAt;
+    final started = state.startedAt;
+    if (started == null || last == null) {
+      state = StillWatchingState(
+        startedAt: now,
+        lastTickAt: now,
+        shouldPrompt: state.shouldPrompt,
+      );
+      return;
+    }
+    if (now.difference(last) > idleResetWindow) {
+      state = StillWatchingState(
+        startedAt: now,
+        lastTickAt: now,
+        shouldPrompt: false,
+      );
+      return;
+    }
+    final cumulative = now.difference(started);
+    final shouldPrompt = state.shouldPrompt || cumulative >= threshold;
+    state = StillWatchingState(
+      startedAt: started,
+      lastTickAt: now,
+      shouldPrompt: shouldPrompt,
+    );
+  }
+
+  /// Player paused — pause the count too. We keep [startedAt] so a
+  /// short pause (under [idleResetWindow]) still counts toward the
+  /// threshold.
+  void paused() {
+    state = StillWatchingState(
+      shouldPrompt: state.shouldPrompt,
+      startedAt: state.startedAt,
+      lastTickAt: state.lastTickAt,
+    );
+  }
+
+  /// User answered the prompt with "Evet" — clear the flag and reset
+  /// the run so the next 4h of contiguous playback gates again.
+  void acknowledged() {
+    final now = DateTime.now().toUtc();
+    state = StillWatchingState(
+      startedAt: now,
+      lastTickAt: now,
+    );
+  }
+
+  /// Player closed entirely — drop everything.
+  void reset() {
+    state = const StillWatchingState();
+  }
+}
+
+/// Shared notifier — single instance per app. `StateNotifierProvider`
+/// lifecycle persists for the app's lifetime so the run survives
+/// navigation between the player and other screens.
+final stillWatchingProvider =
+    StateNotifierProvider<StillWatchingNotifier, StillWatchingState>(
+  (Ref ref) => StillWatchingNotifier(),
+);

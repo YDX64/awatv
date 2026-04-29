@@ -13,6 +13,7 @@ import 'package:awatv_mobile/src/shared/observability/awatv_observability.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_mobile/src/tv/tv_runtime.dart';
 import 'package:awatv_player/awatv_player.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -36,6 +37,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// degraded feature surfaces a friendly error instead.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // easy_localization needs SharedPreferences to remember the user's
+  // last picked locale and the JSON loader to resolve translation keys.
+  // Failure is non-fatal: in degraded mode the `tr()` extension still
+  // returns the key string, so the UI keeps rendering English-ish copy.
+  try {
+    await EasyLocalization.ensureInitialized();
+  } on Object {
+    // Continue boot even if shared_prefs is unavailable (rare on web).
+  }
 
   try {
     await dotenv.load();
@@ -211,9 +222,26 @@ Future<void> main() async {
   }
 
   runApp(
-    UncontrolledProviderScope(
-      container: container,
-      child: const AwaTvApp(),
+    EasyLocalization(
+      // Two locales today: Turkish (default + fallback) and English.
+      // Adding a new language is a matter of dropping
+      // `assets/i18n/<code>.json` next to the existing files and adding
+      // the locale here — the Settings → Dil chooser picks them up via
+      // `context.supportedLocales` automatically.
+      supportedLocales: const <Locale>[
+        Locale('tr'),
+        Locale('en'),
+      ],
+      path: 'assets/i18n',
+      fallbackLocale: const Locale('tr'),
+      // Use device locale on first launch; pin to TR if the device is
+      // on a language we don't have JSON for so the UI never falls back
+      // to raw key strings.
+      useOnlyLangCode: true,
+      child: UncontrolledProviderScope(
+        container: container,
+        child: const AwaTvApp(),
+      ),
     ),
   );
 }

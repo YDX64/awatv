@@ -13,6 +13,7 @@ import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,7 +31,7 @@ class FavoritesScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Favoriler'),
+        title: Text('favorites.title'.tr()),
       ),
       body: foldersAsync.when(
         loading: () => const LoadingView(label: 'Klasorler yukleniyor'),

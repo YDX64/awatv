@@ -1,4 +1,7 @@
 import 'package:awatv_mobile/src/features/channels/sort_mode_provider.dart';
+import 'package:awatv_mobile/src/features/groups/group_customisation_provider.dart';
+import 'package:awatv_mobile/src/features/groups/group_customisation_service.dart';
+import 'package:awatv_mobile/src/features/home/category_tree_provider.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
@@ -145,8 +148,17 @@ class GroupFilterChips extends ConsumerWidget {
     final filter = ref.watch(groupFilterProvider(surface));
     final notifier = ref.read(groupFilterProvider(surface).notifier);
     final scheme = Theme.of(context).colorScheme;
+    // Apply user customisations: hidden groups disappear, custom
+    // order is honoured, and aliases override the visible chip
+    // label. The selection state still keys on the original group
+    // name (notifier.toggle(originalName)) so persisted filter state
+    // never breaks when the user renames a chip.
+    final customs = ref.watch(groupCustomisationsProvider).valueOrNull ??
+        GroupCustomisations.empty;
+    final kind = _kindFor(surface);
+    final visibleGroups = _applyCustomisationOrder(groups, customs, kind);
 
-    if (groups.isEmpty) return const SizedBox.shrink();
+    if (visibleGroups.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
       height: 56,
@@ -156,7 +168,7 @@ class GroupFilterChips extends ConsumerWidget {
           horizontal: DesignTokens.spaceM,
           vertical: DesignTokens.spaceS,
         ),
-        itemCount: groups.length + (filter.multiMode ? 2 : 1),
+        itemCount: visibleGroups.length + (filter.multiMode ? 2 : 1),
         separatorBuilder: (_, __) =>
             const SizedBox(width: DesignTokens.spaceS),
         itemBuilder: (BuildContext ctx, int i) {
@@ -174,7 +186,7 @@ class GroupFilterChips extends ConsumerWidget {
 
           // After "Tumu" come the group chips, then (optionally) the
           // "Bitir" exit-multi chip at the tail.
-          if (filter.multiMode && i == groups.length + 1) {
+          if (filter.multiMode && i == visibleGroups.length + 1) {
             return _Chip(
               label: 'Bitir',
               count: null,
@@ -186,10 +198,11 @@ class GroupFilterChips extends ConsumerWidget {
             );
           }
 
-          final g = groups[i - 1];
+          final g = visibleGroups[i - 1];
           final selected = filter.selected.contains(g);
+          final label = customs.displayName(kind, g);
           return _Chip(
-            label: g,
+            label: label,
             count: counts[g],
             selected: selected,
             accent: scheme.primary,
@@ -200,6 +213,47 @@ class GroupFilterChips extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  /// Map the chip surface to a [CategoryKind] so we can look up the
+  /// matching customisation slice.
+  CategoryKind _kindFor(SortSurface s) {
+    switch (s) {
+      case SortSurface.live:
+        return CategoryKind.live;
+      case SortSurface.vod:
+        return CategoryKind.movies;
+      case SortSurface.series:
+        return CategoryKind.series;
+    }
+  }
+
+  /// Filter [groups] by hidden + reorder by user-defined order. Items
+  /// without a custom order keep their upstream alphabetical position.
+  List<String> _applyCustomisationOrder(
+    List<String> groups,
+    GroupCustomisations customs,
+    CategoryKind kind,
+  ) {
+    final hidden = customs.hidden[kind] ?? const <String>{};
+    final visible = <String>[
+      for (final g in groups)
+        if (!hidden.contains(g)) g,
+    ];
+    final order = customs.order[kind] ?? const <String>[];
+    if (order.isEmpty) return visible;
+    final idx = <String, int>{
+      for (var i = 0; i < order.length; i++) order[i]: i,
+    };
+    visible.sort((String a, String b) {
+      final ai = idx[a];
+      final bi = idx[b];
+      if (ai != null && bi != null) return ai.compareTo(bi);
+      if (ai != null) return -1;
+      if (bi != null) return 1;
+      return a.toLowerCase().compareTo(b.toLowerCase());
+    });
+    return visible;
   }
 }
 

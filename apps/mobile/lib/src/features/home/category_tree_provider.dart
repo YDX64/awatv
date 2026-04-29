@@ -1,5 +1,4 @@
 import 'package:awatv_core/awatv_core.dart';
-import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/playlists/playlist_providers.dart';
 import 'package:awatv_mobile/src/features/series/series_providers.dart';
 import 'package:awatv_mobile/src/features/vod/vod_providers.dart';

@@ -38,55 +38,76 @@ class ErrorView extends StatelessWidget {
     final text = theme.textTheme;
     final resolvedTitle = title ?? 'Something went wrong';
 
-    return Padding(
-      padding: padding ??
-          const EdgeInsets.symmetric(
-            horizontal: DesignTokens.spaceXl,
-            vertical: DesignTokens.spaceXl,
-          ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: scheme.error.withValues(alpha: 0.12),
-              border: Border.all(
-                color: scheme.error.withValues(alpha: 0.4),
+    return Semantics(
+      // Group the error-illustration + body so VoiceOver announces it
+      // as one unit. liveRegion=true ensures the error is read out the
+      // moment it lands on screen — screen-reader users shouldn't have
+      // to discover an error by re-scanning the page.
+      container: true,
+      liveRegion: true,
+      label: resolvedTitle,
+      hint: message,
+      child: Padding(
+        padding: padding ??
+            const EdgeInsets.symmetric(
+              horizontal: DesignTokens.spaceXl,
+              vertical: DesignTokens.spaceXl,
+            ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            // The error halo is purely decorative — its meaning is
+            // already in the title text. Exclude it so the screen
+            // reader doesn't read out "image" before the title.
+            ExcludeSemantics(
+              child: Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: scheme.error.withValues(alpha: 0.12),
+                  border: Border.all(
+                    color: scheme.error.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  size: 36,
+                  color: scheme.error,
+                ),
               ),
             ),
-            child: Icon(
-              icon,
-              size: 36,
-              color: scheme.error,
-            ),
-          ),
-          const SizedBox(height: DesignTokens.spaceL),
-          Text(
-            resolvedTitle,
-            textAlign: TextAlign.center,
-            style: text.titleLarge,
-          ),
-          const SizedBox(height: DesignTokens.spaceS),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: text.bodyMedium?.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.75),
-            ),
-          ),
-          if (onRetry != null) ...<Widget>[
             const SizedBox(height: DesignTokens.spaceL),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try again'),
+            Text(
+              resolvedTitle,
+              textAlign: TextAlign.center,
+              style: text.titleLarge,
             ),
+            const SizedBox(height: DesignTokens.spaceS),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: text.bodyMedium?.copyWith(
+                color: scheme.onSurface.withValues(alpha: 0.75),
+              ),
+            ),
+            if (onRetry != null) ...<Widget>[
+              const SizedBox(height: DesignTokens.spaceL),
+              // FilledButton.icon already exposes Semantics; we pass
+              // an explicit semanticsLabel via Tooltip so users on
+              // touch devices also get a long-press hint.
+              Tooltip(
+                message: 'Try again',
+                child: FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Try again'),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

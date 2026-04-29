@@ -7,10 +7,13 @@ import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+// Use the easy_localization-provided `.tr()` extension. easy_localization
+// re-exports `package:intl`'s `DateFormat` so we don't need a separate
+// `intl` import here.
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 /// Lists every upcoming "Hatirlat" the user has set.
 ///
@@ -32,7 +35,7 @@ class RemindersScreen extends ConsumerWidget {
     final asyncList = ref.watch(upcomingRemindersProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hatirlatmalar'),
+        title: Text('reminders.title'.tr()),
       ),
       body: asyncList.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -42,10 +45,9 @@ class RemindersScreen extends ConsumerWidget {
           if (list.isEmpty) {
             return EmptyState(
               icon: Icons.notifications_active_outlined,
-              title: 'Henuz hatirlatma yok',
-              message: 'Bir programi kacirmak istemiyorsan TV Rehberi '
-                  'ekraninda "Hatirlat" dugmesine bas.',
-              actionLabel: 'Rehbere git',
+              title: 'reminders.empty_title'.tr(),
+              message: 'reminders.empty_message'.tr(),
+              actionLabel: 'epg.live_now'.tr(),
               onAction: () => context.go('/live/epg'),
             );
           }

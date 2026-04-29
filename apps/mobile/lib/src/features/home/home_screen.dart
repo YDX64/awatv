@@ -1,5 +1,6 @@
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/channels/epg_providers.dart';
+import 'package:awatv_mobile/src/features/groups/group_customisation_provider.dart';
 import 'package:awatv_mobile/src/features/home/category_tree_provider.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/network/network_chip.dart';
@@ -29,7 +30,7 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final treeAsync = ref.watch(categoryTreeProvider);
+    final treeAsync = ref.watch(customisedCategoryTreeProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -38,7 +39,7 @@ class HomeScreen extends ConsumerWidget {
           loading: () => const _HomeLoading(),
           error: (Object e, StackTrace _) => ErrorView(
             message: e.toString(),
-            onRetry: () => ref.invalidate(categoryTreeProvider),
+            onRetry: () => ref.invalidate(customisedCategoryTreeProvider),
           ),
           data: (CategoryTree tree) {
             final hasAny = tree.live.isNotEmpty ||

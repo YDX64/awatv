@@ -6,6 +6,7 @@ import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,7 +38,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
   Widget build(BuildContext context) {
     if (kIsWeb) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Indirilenler')),
+        appBar: AppBar(title: Text('downloads.title'.tr())),
         body: const _UnsupportedPlatform(),
       );
     }
@@ -45,7 +46,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Indirilenler'),
+        title: Text('downloads.title'.tr()),
         actions: <Widget>[
           IconButton(
             tooltip: 'Tumunu sil',

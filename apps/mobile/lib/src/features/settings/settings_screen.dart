@@ -13,6 +13,7 @@ import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/sync_status.dart';
 import 'package:awatv_mobile/src/shared/updater/update_settings_card.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +43,7 @@ class SettingsScreen extends ConsumerWidget {
     final auth = ref.watch(authControllerProvider).valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Ayarlar')),
+      appBar: AppBar(title: Text('tabs.settings'.tr())),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: DesignTokens.spaceS),
         children: [
@@ -93,15 +94,10 @@ class SettingsScreen extends ConsumerWidget {
           ),
           ListTile(
             leading: const Icon(Icons.language_outlined),
-            title: const Text('Dil'),
-            subtitle: const Text('Turkce'),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Dil secimi Phase 2 te eklenecek.'),
-                ),
-              );
-            },
+            title: Text('settings.language'.tr()),
+            subtitle: Text(_localeLabel(context)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showLanguagePicker(context),
           ),
           // Cloud sync is the one feature gated by BOTH premium AND
           // auth — handled inline because the lock sheet should bounce
@@ -235,6 +231,96 @@ class SettingsScreen extends ConsumerWidget {
         ThemeMode.dark => 'Koyu',
         ThemeMode.light => 'Acik',
       };
+
+  /// Translates the active locale into a human-readable label. Lives
+  /// here (rather than in a shared util) because language-picking is
+  /// only surfaced from this one tile today; if a second consumer
+  /// shows up we'll lift it.
+  static String _localeLabel(BuildContext context) {
+    final code = context.locale.languageCode;
+    return switch (code) {
+      'tr' => 'settings.language_turkish'.tr(),
+      'en' => 'settings.language_english'.tr(),
+      _ => code.toUpperCase(),
+    };
+  }
+
+  /// Bottom sheet picker. Lists every locale exposed by easy_localization
+  /// (`context.supportedLocales`) so that adding a new JSON dictionary
+  /// auto-extends the picker without further wiring.
+  Future<void> _showLanguagePicker(BuildContext context) async {
+    final current = context.locale.languageCode;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetCtx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  DesignTokens.spaceL,
+                  DesignTokens.spaceS,
+                  DesignTokens.spaceL,
+                  DesignTokens.spaceS,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'settings.language_choose_title'.tr(),
+                    style: Theme.of(sheetCtx).textTheme.titleMedium,
+                  ),
+                ),
+              ),
+              ...context.supportedLocales.map((Locale locale) {
+                final code = locale.languageCode;
+                final label = switch (code) {
+                  'tr' => 'settings.language_turkish'.tr(),
+                  'en' => 'settings.language_english'.tr(),
+                  _ => code.toUpperCase(),
+                };
+                final selected = code == current;
+                return ListTile(
+                  leading: Icon(
+                    selected
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: selected
+                        ? Theme.of(sheetCtx).colorScheme.primary
+                        : null,
+                  ),
+                  title: Text(label),
+                  selected: selected,
+                  onTap: () async {
+                    Navigator.of(sheetCtx).pop();
+                    await context.setLocale(locale);
+                  },
+                );
+              }),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  DesignTokens.spaceL,
+                  DesignTokens.spaceS,
+                  DesignTokens.spaceL,
+                  DesignTokens.spaceL,
+                ),
+                child: Text(
+                  'settings.language_apply_hint'.tr(),
+                  style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(sheetCtx)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.6),
+                      ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// List row that swaps its trailing affordance based on whether the

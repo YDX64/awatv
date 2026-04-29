@@ -172,6 +172,14 @@ void main() {
         ],
         contains(t!.status),
       );
+      // Tear-down race guard: cancel the in-flight runner so its async
+      // HTTP attempt doesn't try to write back to Hive after the test's
+      // `tearDown` closes the storage. Without this, the runner's
+      // `_storage.putDownload(failed)` step throws StorageException
+      // and surfaces as a test failure even though the assertion above
+      // succeeded.
+      await svc.cancel(id);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
     });
 
     test('cancel removes partial file when present', () async {

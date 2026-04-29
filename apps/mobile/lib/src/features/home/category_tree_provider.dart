@@ -65,7 +65,7 @@ class CategoryNode {
 
 /// Aggregated category tree built from the playlist data.
 ///
-/// Returns one [_TreeBucket] per [CategoryKind]; each bucket carries the
+/// Returns one `_TreeBucket` per [CategoryKind]; each bucket carries the
 /// list of group/genre nodes sorted alphabetically. Empty buckets stay in
 /// the result so the UI can still show the heading with a "0" badge.
 class CategoryTree {
@@ -257,7 +257,7 @@ class CategorySelectionController extends Notifier<CategoryNode?> {
     // Auto-select once data lands — but don't block the build either.
     final treeAsync = ref.watch(categoryTreeProvider);
     return treeAsync.when(
-      data: (CategoryTree tree) => _firstNonEmptyRoot(tree),
+      data: _firstNonEmptyRoot,
       loading: () => null,
       error: (Object _, StackTrace __) => null,
     );

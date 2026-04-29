@@ -1,3 +1,4 @@
+import 'package:awatv_mobile/src/features/player/player_screen.dart' show PlayerScreen;
 import 'package:awatv_mobile/src/shared/parental/parental_controller.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_gate.dart';
 import 'package:awatv_ui/awatv_ui.dart';
@@ -230,7 +231,7 @@ class _ParentalLockOverlayState extends ConsumerState<ParentalLockOverlay> {
     switch (outcome) {
       case ParentalGateOutcome.blockedByRating:
         return 'Bu içerik bu profil için izin verilen yaş seviyesinin '
-            'üstünde. Devam etmek için ebeveyn PIN\'i gir.';
+            "üstünde. Devam etmek için ebeveyn PIN'i gir.";
       case ParentalGateOutcome.blockedByCategory:
         return 'Bu kategori bu profil için engellenmiş. '
             'PIN ile geçici olarak açabilirsin.';

@@ -1,6 +1,7 @@
 import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
 import 'package:awatv_mobile/src/desktop/desktop_chrome.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
+import 'package:awatv_mobile/src/features/themes/app_custom_theme.dart' show AppCustomTheme;
 import 'package:awatv_mobile/src/features/themes/custom_theme_builder.dart';
 import 'package:awatv_mobile/src/features/themes/custom_theme_controller.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';

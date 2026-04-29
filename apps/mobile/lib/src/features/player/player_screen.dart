@@ -4,18 +4,18 @@ import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/desktop/always_on_top.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/keyboard_shortcuts.dart';
-import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/desktop/pip_window.dart';
 import 'package:awatv_mobile/src/desktop/widgets/now_playing_state.dart';
+import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
+import 'package:awatv_mobile/src/features/parental/widgets/parental_lock_overlay.dart';
 import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
+import 'package:awatv_mobile/src/features/player/widgets/are_you_still_watching.dart';
 import 'package:awatv_mobile/src/features/player/widgets/cast_device_picker.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_controls_layer.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_gestures.dart';
-import 'package:awatv_mobile/src/features/parental/widgets/parental_lock_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_track_picker_sheet.dart';
-import 'package:awatv_mobile/src/features/player/widgets/are_you_still_watching.dart';
 import 'package:awatv_mobile/src/features/player/widgets/sleep_timer_sheet.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
@@ -23,8 +23,6 @@ import 'package:awatv_mobile/src/shared/background_playback/background_playback_
 import 'package:awatv_mobile/src/shared/cast/cast_provider.dart';
 import 'package:awatv_mobile/src/shared/channel_history/channel_history_provider.dart';
 import 'package:awatv_mobile/src/shared/channel_history/channel_switcher.dart';
-import 'package:awatv_mobile/src/shared/stream_url.dart';
-import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_controller.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_gate.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_settings.dart';
@@ -37,6 +35,8 @@ import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_mobile/src/shared/remote/player_bridge.dart';
 import 'package:awatv_mobile/src/shared/remote/receiver_provider.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
+import 'package:awatv_mobile/src/shared/stream_url.dart';
+import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/foundation.dart';
@@ -475,7 +475,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Pushes a fresh [NowPlaying] payload into the persistent-bar provider.
   /// Called once at boot (so the bar flips from hidden to visible) and
-  /// then continuously through [_onPlayerState] / [_onPositionTick] for
+  /// then continuously through `_onPlayerState` / `_onPositionTick` for
   /// position + isPlaying updates.
   void _publishNowPlaying(AwaPlayerController c) {
     final args = widget.args;
@@ -484,7 +484,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             title: args.title ?? 'AWAtv',
             kind: args.kind ?? HistoryKind.vod,
             subtitle: args.subtitle,
-            thumbnailUrl: null, // Player launch args don't carry artwork.
             itemId: args.itemId,
             isLive: args.isLive,
             isPlaying: true,
@@ -663,7 +662,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final allowed =
         ref.read(canUseFeatureProvider(PremiumFeature.pictureInPicture));
     if (!allowed) {
-      PremiumLockSheet.show(context, PremiumFeature.pictureInPicture);
+      unawaited(PremiumLockSheet.show(context, PremiumFeature.pictureInPicture));
       return;
     }
     // On desktop we toggle the compact always-on-top window. On mobile
@@ -731,7 +730,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final allowed =
         ref.read(canUseFeatureProvider(PremiumFeature.alwaysOnTop));
     if (!allowed) {
-      PremiumLockSheet.show(context, PremiumFeature.alwaysOnTop);
+      unawaited(PremiumLockSheet.show(context, PremiumFeature.alwaysOnTop));
       return;
     }
     if (!isDesktopRuntime()) {
@@ -800,10 +799,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       onDisconnect: () async {
         await cast.unmirror(
           localController: c,
-          // Live streams don't have a meaningful resume point — still
-          // re-`play()` the local engine so the user sees the current
-          // live frame instead of a paused one.
-          resumeLocal: true,
         );
       },
     );
@@ -864,7 +859,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final allowed =
         ref.read(canUseFeatureProvider(PremiumFeature.vlcBackend));
     if (!allowed) {
-      PremiumLockSheet.show(context, PremiumFeature.vlcBackend);
+      unawaited(PremiumLockSheet.show(context, PremiumFeature.vlcBackend));
       return;
     }
     // The backend picker lives inside the unified settings sheet so the
@@ -1128,7 +1123,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Widget build(BuildContext context) {
     final controller = _controller;
     final isDesktop = ref.watch(isDesktopFormProvider);
-    final inPip = isDesktop ? ref.watch(pipModeProvider) : false;
+    final inPip = isDesktop && ref.watch(pipModeProvider);
     // "Hala izliyor musun?" — after 4h of contiguous playback the
     // tracker flips this true. We watch it here so the build reacts
     // immediately (the tracker also pauses the engine for us).
@@ -1159,7 +1154,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // other runtime. We still watch the provider unconditionally so the
     // top bar pin icon flips immediately when the tray menu / settings
     // sheet / shortcut updates the state from elsewhere.
-    final alwaysOnTopActive = isDesktop ? ref.watch(alwaysOnTopProvider) : false;
+    final alwaysOnTopActive = isDesktop && ref.watch(alwaysOnTopProvider);
     final alwaysOnTopVisible = isDesktop;
 
     if (inPip) {
@@ -1592,7 +1587,7 @@ class _PipOverlayControls extends StatelessWidget {
               _PipBtn(
                 icon: Icons.close_rounded,
                 tooltip: 'Kapat',
-                onTap: () => onClose(),
+                onTap: onClose,
               ),
             ],
           ),
@@ -1843,4 +1838,3 @@ class _ChannelToast extends StatelessWidget {
     );
   }
 }
-

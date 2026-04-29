@@ -36,7 +36,7 @@ class ThemeSettingsScreen extends ConsumerStatefulWidget {
 
 class _ThemeSettingsScreenState extends ConsumerState<ThemeSettingsScreen> {
   /// Working copy. Edits here flow into `ref.read(...).preview()` so the
-  /// MaterialApp rebuilds with the candidate; only [save] persists.
+  /// MaterialApp rebuilds with the candidate; only `save` persists.
   late AppCustomTheme _draft;
 
   /// Outstanding "Test et" timer — cancelled if the user changes their
@@ -167,21 +167,21 @@ class _ThemeSettingsScreenState extends ConsumerState<ThemeSettingsScreen> {
             child: _ThemePreviewCard(draft: _draft),
           ),
           const SizedBox(height: DesignTokens.spaceL),
-          _SectionHeader(title: 'Vurgu rengi'),
+          const _SectionHeader(title: 'Vurgu rengi'),
           _AccentPicker(
             selected: _draft.seedColor,
             onPick: (Color c) =>
                 _setDraft(_draft.copyWith(seedColor: c)),
           ),
           const SizedBox(height: DesignTokens.spaceL),
-          _SectionHeader(title: 'Stil'),
+          const _SectionHeader(title: 'Stil'),
           _VariantPicker(
             selected: _draft.variant,
             onPick: (ThemeVariant v) =>
                 _setDraft(_draft.copyWith(variant: v)),
           ),
           const SizedBox(height: DesignTokens.spaceL),
-          _SectionHeader(title: 'Kose yuvarlakligi'),
+          const _SectionHeader(title: 'Kose yuvarlakligi'),
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: DesignTokens.spaceM,
@@ -191,7 +191,7 @@ class _ThemeSettingsScreenState extends ConsumerState<ThemeSettingsScreen> {
               children: <Widget>[
                 Slider(
                   min: 0.5,
-                  max: 2.0,
+                  max: 2,
                   divisions: 15,
                   value: _draft.cornerRadiusScale,
                   label: '${_draft.cornerRadiusScale.toStringAsFixed(2)}x',

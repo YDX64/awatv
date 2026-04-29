@@ -140,7 +140,7 @@ class _PairFormState extends State<_PairForm> {
               border: OutlineInputBorder(),
             ),
             inputFormatters: <TextInputFormatter>[
-              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+              FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
               LengthLimitingTextInputFormatter(kPairCodeLength),
             ],
             onChanged: (String v) {
@@ -323,12 +323,12 @@ class _NowPlayingCard extends StatelessWidget {
                       placeholder: (BuildContext _, String __) =>
                           ColoredBox(color: scheme.surface),
                       errorWidget: (BuildContext _, String __, Object ___) =>
-                          Container(
+                          ColoredBox(
                         color: scheme.surface,
                         child: const Icon(Icons.tv_rounded),
                       ),
                     )
-                  : Container(
+                  : ColoredBox(
                       color: scheme.surface,
                       child: const Icon(Icons.tv_rounded),
                     ),

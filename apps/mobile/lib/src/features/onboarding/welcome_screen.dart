@@ -1,6 +1,7 @@
 import 'package:awatv_mobile/src/features/onboarding/wizard_screen.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -56,7 +57,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               const CircularProgressIndicator(),
               const SizedBox(height: DesignTokens.spaceL),
               Text(
-                'AWAtv hazirlaniyor...',
+                'common.loading'.tr(),
                 style: theme.textTheme.bodyLarge,
               ),
             ],

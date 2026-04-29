@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=AWAtv
+Comment=Premium IPTV player
+Exec=awatv_mobile
+Icon=awatv
+Categories=AudioVideo;Player;Network;
+StartupWMClass=awatv_mobile

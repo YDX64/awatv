@@ -34,7 +34,7 @@ class AuthController extends _$AuthController {
       return Stream<AuthState>.value(const AuthGuest());
     }
 
-    final controller = StreamController<AuthState>(sync: false);
+    final controller = StreamController<AuthState>();
 
     // Cleanup on provider disposal. AsyncValue listeners survive route
     // changes thanks to keepAlive, but if the provider is ever

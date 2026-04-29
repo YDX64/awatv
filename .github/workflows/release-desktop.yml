@@ -3,6 +3,7 @@ name: release-desktop
 # Builds and packages distributable native desktop binaries for AWAtv:
 #   - macOS: signed-less .app (zipped) + .dmg installer disk image
 #   - Windows: .exe + DLLs zipped + optional Inno Setup .exe installer
+#   - Linux: portable .AppImage (universal x86_64 binary)
 #
 # Triggers
 # --------
@@ -27,10 +28,12 @@ on:
       - 'apps/mobile/lib/**'
       - 'apps/mobile/macos/**'
       - 'apps/mobile/windows/**'
+      - 'apps/mobile/linux/**'
       - 'apps/mobile/pubspec.yaml'
       - 'packages/**'
       - 'scripts/package-macos.sh'
       - 'scripts/package-windows.ps1'
+      - 'scripts/package-linux.sh'
       - '.github/workflows/release-desktop.yml'
   workflow_dispatch:
   release:
@@ -198,14 +201,114 @@ jobs:
           gh release upload $env:RELEASE_TAG $files --clobber
 
   # ---------------------------------------------------------------------------
-  # publish-manifest: builds latest.json after both platform jobs finish.
+  # Linux: produces awatv-linux-x86_64.AppImage — a portable, distro-agnostic
+  # binary that runs on any glibc-2.31+ x86_64 Linux without a system install.
+  # ---------------------------------------------------------------------------
+  build-linux:
+    name: Linux (.AppImage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        # clang/cmake/ninja: Flutter desktop toolchain.
+        # libgtk-3-dev / libblkid / liblzma: stock GTK shell + udisks deps.
+        # mpv + libmpv-dev: media_kit's native backend on Linux uses libmpv.
+        # libfuse2 + appstream-util: required by appimagetool at runtime.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev libblkid-dev liblzma-dev \
+            mpv libmpv-dev \
+            libfuse2 appstream
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+
+      - name: Bake .env from secrets
+        # Mirror of the macOS step — printf-based to avoid shell-injection
+        # via secret values that may contain `$` or backticks.
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          WEB_PROXY_URL: ${{ secrets.WEB_PROXY_URL }}
+        run: |
+          {
+            printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
+            printf 'SUPABASE_URL=%s\n' "$SUPABASE_URL"
+            printf 'SUPABASE_ANON_KEY=%s\n' "$SUPABASE_ANON_KEY"
+            printf 'WEB_PROXY_URL=%s\n' "$WEB_PROXY_URL"
+          } > apps/mobile/.env
+
+      - name: Bootstrap Linux platform if missing
+        # The repo intentionally does not check in `apps/mobile/linux/` (Flutter
+        # regenerates it). On a fresh runner we let `flutter create` produce
+        # the CMake scaffolding, then preserve our hand-authored .desktop.
+        run: |
+          cd apps/mobile
+          if [ ! -f linux/CMakeLists.txt ]; then
+            mkdir -p /tmp/awatv-linux-overrides
+            if [ -f linux/awatv.desktop ]; then
+              cp linux/awatv.desktop /tmp/awatv-linux-overrides/
+            fi
+            flutter create --platforms=linux .
+            if [ -f /tmp/awatv-linux-overrides/awatv.desktop ]; then
+              cp /tmp/awatv-linux-overrides/awatv.desktop linux/
+            fi
+          fi
+
+      - name: Build Linux (release)
+        run: cd apps/mobile && flutter build linux --release
+
+      - name: Package as AppImage
+        # Builds an AppDir from the Flutter bundle, drops in the .desktop
+        # entry + 256x256 icon, then runs appimagetool to produce a single
+        # portable binary. AppImage is chosen over .deb/.rpm so we ship one
+        # file that works on Ubuntu, Fedora, Arch, etc. without extra deps.
+        run: |
+          chmod +x scripts/package-linux.sh
+          ./scripts/package-linux.sh
+
+      - name: Upload Linux AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: awatv-linux-appimage
+          path: dist/awatv-linux-x86_64.AppImage
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            dist/awatv-linux-x86_64.AppImage \
+            --clobber
+
+  # ---------------------------------------------------------------------------
+  # publish-manifest: builds latest.json after every platform job finishes.
   # Runs on macOS so the build-update-manifest.sh script can use bash + shasum.
   # Skipped unless this run is triggered by a `release: published` event —
   # the manifest is meaningless without a release tag to point asset URLs at.
   # ---------------------------------------------------------------------------
   publish-manifest:
     name: Publish update manifest (latest.json)
-    needs: [build-macos, build-windows]
+    needs: [build-macos, build-windows, build-linux]
     if: github.event_name == 'release'
     runs-on: macos-14
     steps:
@@ -224,7 +327,8 @@ jobs:
             awatv-macos.dmg \
             awatv-macos.zip \
             awatv-setup.exe \
-            awatv-windows.zip
+            awatv-windows.zip \
+            awatv-linux-x86_64.AppImage
           do
             if gh release download "$RELEASE_TAG" \
                 --pattern "$asset" \

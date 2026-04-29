@@ -5,7 +5,6 @@ import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_tier.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 

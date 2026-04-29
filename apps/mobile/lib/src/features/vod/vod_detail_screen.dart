@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/downloads/downloads_providers.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
@@ -8,9 +10,9 @@ import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
-import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
+import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -223,11 +225,13 @@ class _ActionRow extends ConsumerWidget {
         return;
       }
       if (!context.mounted) return;
-      context.push(
-        Uri(
-          path: '/trailer/$youtubeId',
-          queryParameters: <String, String>{'title': vod.title},
-        ).toString(),
+      unawaited(
+        context.push(
+          Uri(
+            path: '/trailer/$youtubeId',
+            queryParameters: <String, String>{'title': vod.title},
+          ).toString(),
+        ),
       );
     } on Object catch (e) {
       if (!context.mounted) return;

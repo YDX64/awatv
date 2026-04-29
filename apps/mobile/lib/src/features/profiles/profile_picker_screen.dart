@@ -318,7 +318,6 @@ class _AddProfileTile extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: scheme.outline.withValues(alpha: 0.4),
-                  style: BorderStyle.solid,
                 ),
               ),
               child: Icon(

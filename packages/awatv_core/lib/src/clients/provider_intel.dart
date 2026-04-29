@@ -240,7 +240,7 @@ final class ProviderFingerprint {
   ///   1. swap extension to each `preferredExtensions` entry
   ///   2. add `/live/` prefix when missing (and remove when present)
   ///
-  /// If [parsed] cannot be parsed (file URI, malformed URL) we return a
+  /// If `parsed` cannot be parsed (file URI, malformed URL) we return a
   /// single candidate with the original URL and the fingerprint's headers
   /// — still useful because the headers may unblock the request.
   List<StreamCandidate> applyTo(String originalUrl) {
@@ -424,7 +424,6 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
       '{server}/live/{user}/{pass}/{id}.{ext}',
       '{server}/{user}/{pass}/{id}.{ext}',
     ],
-    preferredExtensions: <String>['m3u8', 'ts'],
     needsRefererHeader: true,
     ipLockedToResidential: true,
     notes: <String>[
@@ -481,7 +480,6 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
       '{server}/play/series/{user}/{pass}/{id}.{ext}',
       '{server}/series/{user}/{pass}/{id}.{ext}',
     ],
-    preferredExtensions: <String>['m3u8', 'ts'],
     notes: <String>[
       'Routes use a /play/ prefix on top of the standard Xtream layout.',
       '.m3u8 is the only supported container for live; .ts returns 404.',
@@ -497,7 +495,6 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
     label: 'Sansat / hot-link-protected panel',
     hostPatterns: <String>['sansat.tv', 'sansat.io', 'kralhd.tv'],
     needsRefererHeader: true,
-    preferredExtensions: <String>['m3u8', 'ts'],
     notes: <String>[
       'Returns 403 unless Referer header matches the panel host.',
       'Defaults to {scheme}://{host}/ when no explicit defaultReferer.',
@@ -516,13 +513,10 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
       '{server}/movie/{user}/{pass}/{id}.{ext}',
       '{server}/vod/{user}/{pass}/{id}.{ext}',
     ],
-    seriesUrlTemplates: <String>[
-      '{server}/series/{user}/{pass}/{id}.{ext}',
-    ],
     preferredExtensions: <String>['mp4', 'mkv'],
     notes: <String>[
       'VOD streams are direct mp4/mkv — no HLS layer.',
-      'preferredExtensions reflects this so live fallback chain doesn\'t',
+      "preferredExtensions reflects this so live fallback chain doesn't",
       'try .m3u8 swaps for VOD URLs (which would 404).',
     ],
   ),
@@ -548,7 +542,6 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
       '{server}/tv/{user}/{pass}/{id}.{ext}',
       '{server}/series/{user}/{pass}/{id}.{ext}',
     ],
-    preferredExtensions: <String>['m3u8', 'ts'],
     notes: <String>[
       'Series episodes resolve under /tv/, not /series/.',
       'Live and VOD follow the original Xtream Codes layout.',
@@ -572,7 +565,6 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
       'IPTVSmartersPro/3.1',
       'VLC/3.0.20 LibVLC/3.0.20',
     ],
-    preferredExtensions: <String>['m3u8', 'ts'],
     notes: <String>[
       'Generic Smarters Pro brand. The "IPTVSmarters" UA unlocks panels',
       'that whitelist the Smarters mobile app explicitly.',
@@ -588,10 +580,6 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
     label: 'CDN VIP (.ts-only)',
     hostPatterns: <String>['cdnvip.tv', 'cdnvip.live', 'vip-cdn.tv'],
     preferredExtensions: <String>['ts'],
-    liveUrlTemplates: <String>[
-      '{server}/{user}/{pass}/{id}.{ext}',
-      '{server}/live/{user}/{pass}/{id}.{ext}',
-    ],
     notes: <String>[
       'No HLS muxer — only .ts works. Skipping .m3u8 saves a 404.',
       "On web this means the proxy is mandatory (browsers can't play",
@@ -607,7 +595,6 @@ const List<ProviderFingerprint> _builtInFingerprints = <ProviderFingerprint>[
     id: 'generic-hls',
     label: 'Generic HLS-first panel',
     hostPatterns: <String>['hlspanel.io', 'hls-iptv.tv'],
-    preferredExtensions: <String>['m3u8', 'ts'],
     notes: <String>[
       "Defensive entry for HLS-first panels we haven't fingerprinted",
       'individually yet. .m3u8 leads, .ts as fallback.',

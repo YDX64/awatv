@@ -105,11 +105,6 @@ class VoiceSearchController extends _$VoiceSearchController {
         pauseFor: _kPauseDuration,
         localeId: localeId,
         listenOptions: stt.SpeechListenOptions(
-          // Turkish doesn't currently offer a high-quality on-device
-          // dictation backend on most phones; the cloud path delivers
-          // dramatically better accuracy for our IPTV vocabulary
-          // (channel names, foreign film titles).
-          partialResults: true,
           listenMode: stt.ListenMode.search,
           cancelOnError: true,
         ),

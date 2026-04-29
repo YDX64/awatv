@@ -36,7 +36,7 @@ void main() {
     test('FavoriteUpserted round-trips through toJson/fromJson', () {
       final original = FavoriteUpserted(
         userId: 'user-1',
-        updatedAt: DateTime.utc(2026, 4, 27, 10, 0, 0),
+        updatedAt: DateTime.utc(2026, 4, 27, 10),
         itemId: 'src-1::ch-42',
         itemKind: FavoriteItemKind.live,
       );
@@ -105,7 +105,7 @@ void main() {
     test('enqueue persists envelope to Hive', () async {
       final event = FavoriteUpserted(
         userId: 'user-1',
-        updatedAt: DateTime.utc(2026, 4, 27, 12, 0, 0),
+        updatedAt: DateTime.utc(2026, 4, 27, 12),
         itemId: 'src::ch-1',
         itemKind: FavoriteItemKind.live,
       );
@@ -176,7 +176,7 @@ void main() {
     });
 
     test('FIFO order — first enqueued is first drained', () async {
-      final user = 'user-1';
+      const user = 'user-1';
       final base = DateTime.utc(2026, 4, 27);
       final events = <FavoriteUpserted>[
         FavoriteUpserted(
@@ -224,7 +224,7 @@ void main() {
         // `favorites` upsert.
         const itemId = 'src-uuid-1::channel-7';
         const userId = 'user-uuid-1';
-        final now = DateTime.utc(2026, 4, 27, 14, 30, 0);
+        final now = DateTime.utc(2026, 4, 27, 14, 30);
 
         await queue.enqueue(FavoriteUpserted(
           userId: userId,

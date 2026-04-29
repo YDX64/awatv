@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/catchup/catchup_providers.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
@@ -340,7 +342,6 @@ class _ProgrammeRow extends ConsumerWidget {
           ),
           padding: const EdgeInsets.all(DesignTokens.spaceM),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               Container(
                 width: 6,
@@ -476,7 +477,7 @@ class _ProgrammeRow extends ConsumerWidget {
       // returns it as TS-over-HTTP without seek, so treat as live.
       isLive: kIsWeb,
     );
-    context.push('/play', extra: args);
+    unawaited(context.push('/play', extra: args));
   }
 }
 

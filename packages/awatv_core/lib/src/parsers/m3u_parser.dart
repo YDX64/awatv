@@ -312,4 +312,3 @@ class _PendingChannel {
     return ChannelKind.live;
   }
 }
-

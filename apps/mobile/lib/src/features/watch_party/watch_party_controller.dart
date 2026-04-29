@@ -6,6 +6,7 @@ import 'package:awatv_mobile/src/features/watch_party/party_channel.dart';
 import 'package:awatv_mobile/src/features/watch_party/watch_party_state.dart';
 import 'package:awatv_mobile/src/shared/remote/remote_channel.dart'
     show RemoteConnectionState;
+import 'package:awatv_mobile/src/shared/remote/sender_provider.dart' show SenderSessionController;
 import 'package:awatv_mobile/src/shared/remote/watch_party_protocol.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:flutter/foundation.dart';

@@ -46,6 +46,34 @@ class DownloadTask {
     this.referer,
   });
 
+  factory DownloadTask.fromJson(Map<String, dynamic> json) {
+    return DownloadTask(
+      id: json['id'] as String,
+      itemId: (json['itemId'] as String?) ?? json['id'] as String,
+      title: json['title'] as String,
+      posterUrl: json['posterUrl'] as String?,
+      sourceUrl: json['sourceUrl'] as String,
+      containerExt: (json['containerExt'] as String?) ?? 'mp4',
+      status: DownloadStatus.values.firstWhere(
+        (DownloadStatus s) => s.name == json['status'],
+        orElse: () => DownloadStatus.pending,
+      ),
+      totalBytes: (json['totalBytes'] as num?)?.toInt() ?? 0,
+      bytesReceived: (json['bytesReceived'] as num?)?.toInt() ?? 0,
+      localPath: json['localPath'] as String?,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      startedAt: json['startedAt'] == null
+          ? null
+          : DateTime.parse(json['startedAt'] as String),
+      finishedAt: json['finishedAt'] == null
+          ? null
+          : DateTime.parse(json['finishedAt'] as String),
+      error: json['error'] as String?,
+      userAgent: json['userAgent'] as String?,
+      referer: json['referer'] as String?,
+    );
+  }
+
   /// Stable id (typically the VOD id) used as the Hive key.
   final String id;
 
@@ -153,32 +181,4 @@ class DownloadTask {
         'userAgent': userAgent,
         'referer': referer,
       };
-
-  factory DownloadTask.fromJson(Map<String, dynamic> json) {
-    return DownloadTask(
-      id: json['id'] as String,
-      itemId: (json['itemId'] as String?) ?? json['id'] as String,
-      title: json['title'] as String,
-      posterUrl: json['posterUrl'] as String?,
-      sourceUrl: json['sourceUrl'] as String,
-      containerExt: (json['containerExt'] as String?) ?? 'mp4',
-      status: DownloadStatus.values.firstWhere(
-        (DownloadStatus s) => s.name == json['status'],
-        orElse: () => DownloadStatus.pending,
-      ),
-      totalBytes: (json['totalBytes'] as num?)?.toInt() ?? 0,
-      bytesReceived: (json['bytesReceived'] as num?)?.toInt() ?? 0,
-      localPath: json['localPath'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      startedAt: json['startedAt'] == null
-          ? null
-          : DateTime.parse(json['startedAt'] as String),
-      finishedAt: json['finishedAt'] == null
-          ? null
-          : DateTime.parse(json['finishedAt'] as String),
-      error: json['error'] as String?,
-      userAgent: json['userAgent'] as String?,
-      referer: json['referer'] as String?,
-    );
-  }
 }

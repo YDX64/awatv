@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:awatv_mobile/src/features/player/player_screen.dart' show PlayerScreen;
 import 'package:awatv_mobile/src/shared/remote/receiver_provider.dart';
 import 'package:awatv_mobile/src/shared/remote/remote_protocol.dart';
 import 'package:awatv_player/awatv_player.dart';

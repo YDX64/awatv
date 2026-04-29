@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// The persistent player bar reads this provider to wire its play/pause,
 /// volume, and channel-prev/next buttons directly to the engine without
 /// taking a build-time dependency on the player screen. The companion
-/// [nowPlayingProvider] mirrors *display* state (title, position, isLive,
+/// `nowPlayingProvider` mirrors *display* state (title, position, isLive,
 /// thumbnail); this provider is for *control*.
 ///
 /// Lifecycle:

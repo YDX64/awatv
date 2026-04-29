@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — async exists/length on dynamic file paths is correct here; no sync alternative buys anything for I/O dominant operations.
 import 'dart:async';
 import 'dart:io';
 
@@ -487,7 +488,7 @@ class RecordingService {
   }
 
   String _safeFilename(String name) {
-    final s = name.replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+    final s = name.replaceAll(RegExp('[^a-zA-Z0-9_-]+'), '_');
     if (s.isEmpty) return 'recording';
     return s.length > 60 ? s.substring(0, 60) : s;
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart' show ProfileController;
 import 'package:hive/hive.dart';
 
 /// Per-profile favourites + history persistence.
@@ -17,7 +18,7 @@ import 'package:hive/hive.dart';
 ///
 /// The default profile keeps using the legacy `favorites` / `history`
 /// boxes opened by `AwatvStorage.init` so existing data is not orphaned
-/// when the profiles feature ships — see [migrateLegacyDataIntoProfile].
+/// when the profiles feature ships — see `migrateLegacyDataIntoProfile`.
 class ProfileScopedStorage {
   const ProfileScopedStorage._();
 

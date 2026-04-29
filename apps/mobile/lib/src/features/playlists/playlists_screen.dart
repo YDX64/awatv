@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/playlists/playlist_providers.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
@@ -7,10 +9,10 @@ import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_quotas.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 /// Lists every `PlaylistSource` the user has registered. Each row supports
 /// pull-to-refresh, tap-to-resync, and swipe-to-delete via the trailing
@@ -35,28 +37,30 @@ class PlaylistsScreen extends ConsumerWidget {
       final live = ref.read(playlistsProvider).value?.length ?? 0;
       final liveQuota = ref.read(playlistQuotaProvider);
       if (live >= liveQuota) {
-        PremiumLockSheet.show(
-          context,
-          PremiumFeature.unlimitedPlaylists,
+        unawaited(
+          PremiumLockSheet.show(
+            context,
+            PremiumFeature.unlimitedPlaylists,
+          ),
         );
         return;
       }
-      context.push('/playlists/add');
+      unawaited(context.push('/playlists/add'));
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Listelerim'),
+        title: Text('playlists.list_title'.tr()),
         actions: [
           IconButton(
-            tooltip: 'Yeni liste ekle',
+            tooltip: 'playlists.list_add_tooltip'.tr(),
             icon: const Icon(Icons.add),
             onPressed: onAddTap,
           ),
         ],
       ),
       body: playlists.when(
-        loading: () => const LoadingView(label: 'Listeler yukleniyor'),
+        loading: () => LoadingView(label: 'playlists.list_loading'.tr()),
         error: (Object err, StackTrace st) => ErrorView(
           message: err.toString(),
           onRetry: () => ref.invalidate(playlistsProvider),
@@ -65,9 +69,9 @@ class PlaylistsScreen extends ConsumerWidget {
           if (sources.isEmpty) {
             return EmptyState(
               icon: Icons.queue_music_outlined,
-              title: 'Henuz liste yok',
-              message: 'Bir M3U veya Xtream Codes hesabi ekleyerek basla.',
-              actionLabel: 'Ekle',
+              title: 'playlists.empty_title'.tr(),
+              message: 'playlists.list_empty_msg'.tr(),
+              actionLabel: 'common.add'.tr(),
               onAction: onAddTap,
             );
           }
@@ -100,7 +104,7 @@ class PlaylistsScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: onAddTap,
         icon: Icon(atQuota ? Icons.lock_rounded : Icons.add),
-        label: const Text('Liste ekle'),
+        label: Text('playlists.add'.tr()),
       ),
     );
   }
@@ -118,9 +122,11 @@ class _QuotaNotice extends StatelessWidget {
     final theme = Theme.of(context);
     return InkWell(
       borderRadius: BorderRadius.circular(DesignTokens.radiusL),
-      onTap: () => PremiumLockSheet.show(
-        context,
-        PremiumFeature.unlimitedPlaylists,
+      onTap: () => unawaited(
+        PremiumLockSheet.show(
+          context,
+          PremiumFeature.unlimitedPlaylists,
+        ),
       ),
       child: Ink(
         padding: const EdgeInsets.all(DesignTokens.spaceM),
@@ -143,14 +149,19 @@ class _QuotaNotice extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Ucretsiz tier limiti: $used / $quota',
+                    'playlists.list_quota_label'.tr(
+                      namedArgs: <String, String>{
+                        'used': used.toString(),
+                        'quota': quota.toString(),
+                      },
+                    ),
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Premium ile sinirsiz liste ekleyebilirsin.',
+                    'playlists.list_quota_msg'.tr(),
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -186,12 +197,23 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
       ref.invalidate(allChannelsProvider);
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('"${widget.source.name}" guncellendi')),
+        SnackBar(
+          content: Text(
+            'playlists.snack_refreshed'.tr(
+              namedArgs: <String, String>{'name': widget.source.name},
+            ),
+          ),
+        ),
       );
     } on Object catch (err) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Yenilenemedi: $err')),
+        SnackBar(
+          content: Text(
+            'playlists.snack_refresh_failed'
+                .tr(namedArgs: <String, String>{'message': err.toString()}),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _refreshing = false);
@@ -203,18 +225,21 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
       context: context,
       builder: (BuildContext ctx) {
         return AlertDialog(
-          title: Text('"${widget.source.name}" silinsin mi?'),
-          content: const Text(
-            'Bu liste ve onun kanallari/film/dizi katalogu silinecek.',
+          title: Text(
+            'playlists.list_delete_confirm_title'
+                .tr(namedArgs: <String, String>{'name': widget.source.name}),
+          ),
+          content: Text(
+            'playlists.list_delete_confirm_message'.tr(),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Vazgec'),
+              child: Text('playlists.list_delete_cancel'.tr()),
             ),
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Sil'),
+              child: Text('common.delete'.tr()),
             ),
           ],
         );
@@ -229,11 +254,24 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
       ref.invalidate(allChannelsProvider);
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('"${widget.source.name}" silindi')),
+        SnackBar(
+          content: Text(
+            'playlists.snack_deleted'.tr(
+              namedArgs: <String, String>{'name': widget.source.name},
+            ),
+          ),
+        ),
       );
     } on Object catch (err) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('Silinemedi: $err')));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'playlists.snack_delete_failed'
+                .tr(namedArgs: <String, String>{'message': err.toString()}),
+          ),
+        ),
+      );
     }
   }
 
@@ -243,12 +281,19 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
     final fmt = DateFormat.yMMMd();
     final lastSync = s.lastSyncAt;
     final subtitle = StringBuffer()
-      ..write(s.kind == PlaylistKind.xtream ? 'Xtream Codes' : 'M3U')
+      ..write(
+        s.kind == PlaylistKind.xtream
+            ? 'playlists.list_kind_xtream'.tr()
+            : 'playlists.list_kind_m3u'.tr(),
+      )
       ..write('  -  ');
     if (lastSync != null) {
-      subtitle.write('Son senkron: ${fmt.format(lastSync)}');
+      subtitle.write(
+        'playlists.list_synced'
+            .tr(namedArgs: <String, String>{'date': fmt.format(lastSync)}),
+      );
     } else {
-      subtitle.write('Henuz senkronlanmadi');
+      subtitle.write('playlists.list_never_synced'.tr());
     }
 
     return Material(
@@ -272,14 +317,14 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
             color: BrandColors.primary.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(DesignTokens.radiusL),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: <Widget>[
-              Icon(Icons.share_rounded, color: BrandColors.primary),
-              SizedBox(width: DesignTokens.spaceS),
+              const Icon(Icons.share_rounded, color: BrandColors.primary),
+              const SizedBox(width: DesignTokens.spaceS),
               Text(
-                'Paylas',
-                style: TextStyle(
+                'playlists.list_swipe_share'.tr(),
+                style: const TextStyle(
                   color: BrandColors.primary,
                   fontWeight: FontWeight.w700,
                 ),
@@ -311,33 +356,33 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
             onSelected: (String value) {
               switch (value) {
                 case 'refresh':
-                  _refresh();
+                  unawaited(_refresh());
                 case 'share':
-                  ShareHelper.sharePlaylist(context, s);
+                  unawaited(ShareHelper.sharePlaylist(context, s));
                 case 'delete':
-                  _confirmDelete();
+                  unawaited(_confirmDelete());
               }
             },
-            itemBuilder: (BuildContext ctx) => const <PopupMenuEntry<String>>[
+            itemBuilder: (BuildContext ctx) => <PopupMenuEntry<String>>[
               PopupMenuItem(
                 value: 'refresh',
                 child: ListTile(
-                  leading: Icon(Icons.refresh),
-                  title: Text('Yenile'),
+                  leading: const Icon(Icons.refresh),
+                  title: Text('playlists.list_action_refresh'.tr()),
                 ),
               ),
               PopupMenuItem(
                 value: 'share',
                 child: ListTile(
-                  leading: Icon(Icons.share_outlined),
-                  title: Text('Paylas'),
+                  leading: const Icon(Icons.share_outlined),
+                  title: Text('playlists.list_action_share'.tr()),
                 ),
               ),
               PopupMenuItem(
                 value: 'delete',
                 child: ListTile(
-                  leading: Icon(Icons.delete_outline),
-                  title: Text('Sil'),
+                  leading: const Icon(Icons.delete_outline),
+                  title: Text('playlists.list_action_delete'.tr()),
                 ),
               ),
             ],

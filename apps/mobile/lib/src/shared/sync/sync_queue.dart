@@ -22,9 +22,10 @@ import 'package:hive/hive.dart';
 ///     }
 class SyncQueue {
   /// The [storage] argument used to be required so a future migration could
-  /// route the queue through [AwatvStorage]; today we open a dedicated Hive
-  /// box directly. Kept positional-optional to preserve callers without
+  /// route the queue through `AwatvStorage`; today we open a dedicated Hive
+  /// box directly. Kept named-optional to preserve callers without
   /// triggering an "unused field" analyser warning on the held reference.
+  // ignore: avoid_unused_constructor_parameters
   SyncQueue({Object? storage});
 
   Box<String>? _box;

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/favorites/favorites_providers.dart';
 import 'package:awatv_mobile/src/features/favorites/folder_picker_sheet.dart';
+import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
@@ -10,7 +11,6 @@ import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
-import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -122,7 +122,7 @@ class _FolderChipRow extends ConsumerWidget {
   Future<void> _onCreateFolder(BuildContext context, WidgetRef ref) async {
     final allowed = ref.read(canUseFeatureProvider(PremiumFeature.cloudSync));
     if (!allowed) {
-      PremiumLockSheet.show(context, PremiumFeature.cloudSync);
+      unawaited(PremiumLockSheet.show(context, PremiumFeature.cloudSync));
       return;
     }
     final name = await _promptFolderName(context, initial: '');
@@ -499,4 +499,3 @@ class _FolderChannelsBody extends ConsumerWidget {
     );
   }
 }
-

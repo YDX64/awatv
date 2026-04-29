@@ -5,6 +5,7 @@ import 'package:awatv_mobile/src/shared/discovery/local_iptv_discovery.dart';
 import 'package:awatv_mobile/src/shared/notifications/notifications_provider.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -135,7 +136,7 @@ class _OnboardingWizardScreenState
                     TextButton.icon(
                       onPressed: _previous,
                       icon: const Icon(Icons.arrow_back_rounded),
-                      label: const Text('Geri'),
+                      label: Text('onboarding.back'.tr()),
                     ),
                     const Spacer(),
                     Text(
@@ -182,7 +183,12 @@ class _OnboardingWizardScreenState
       if (!mounted) return;
       setState(() => _notificationsGranted = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Bildirim izni alinamadi: $e')),
+        SnackBar(
+          content: Text(
+            'onboarding.permission_denied'
+                .tr(namedArgs: <String, String>{'message': e.toString()}),
+          ),
+        ),
       );
     }
   }
@@ -379,7 +385,7 @@ class _StepWelcome extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             icon: const Icon(Icons.arrow_forward_rounded),
-            label: const Text('Devam'),
+            label: Text('onboarding.continue_button'.tr()),
           ),
           const SizedBox(height: DesignTokens.spaceM),
         ],
@@ -440,7 +446,7 @@ class _StepPrivacy extends StatelessWidget {
           SwitchListTile.adaptive(
             value: crashlytics,
             onChanged: onCrashlytics,
-            title: const Text('Crash raporlari'),
+            title: Text('onboarding.wizard_crash_reports_title'.tr()),
             subtitle: const Text(
               'Beklenmedik kapanmalari Sentry uzerinden bildirelim.',
             ),
@@ -448,7 +454,7 @@ class _StepPrivacy extends StatelessWidget {
           SwitchListTile.adaptive(
             value: analytics,
             onChanged: onAnalytics,
-            title: const Text('Anonim kullanim istatistikleri'),
+            title: Text('onboarding.wizard_anon_usage_title'.tr()),
             subtitle: const Text(
               'Hangi ekranlarin populer oldugunu kisisel veri olmadan paylas.',
             ),
@@ -460,11 +466,11 @@ class _StepPrivacy extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             icon: const Icon(Icons.arrow_forward_rounded),
-            label: const Text('Devam'),
+            label: Text('onboarding.continue_button'.tr()),
           ),
           TextButton(
             onPressed: onSkip,
-            child: const Text('Simdilik atla'),
+            child: Text('onboarding.skip_now'.tr()),
           ),
         ],
       ),
@@ -555,7 +561,7 @@ class _StepNotifications extends StatelessWidget {
           ),
           const Spacer(),
           FilledButton.icon(
-            onPressed: granted == true
+            onPressed: granted ?? false
                 ? onNext
                 : () async {
                     await onAsk();
@@ -564,17 +570,17 @@ class _StepNotifications extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             icon: Icon(
-              granted == true
+              granted ?? false
                   ? Icons.arrow_forward_rounded
                   : Icons.notifications_rounded,
             ),
             label: Text(
-              granted == true ? 'Devam' : 'Bildirim izni iste',
+              granted ?? false ? 'onboarding.continue_button'.tr() : 'Bildirim izni iste',
             ),
           ),
           TextButton(
             onPressed: onSkip,
-            child: const Text('Simdilik atla'),
+            child: Text('onboarding.skip_now'.tr()),
           ),
         ],
       ),
@@ -766,7 +772,7 @@ class _StepFirstPlaylist extends ConsumerWidget {
             ],
             const SizedBox(height: DesignTokens.spaceXl),
             FilledButton.icon(
-              onPressed: busy ? null : () => onSubmit(),
+              onPressed: busy ? null : onSubmit,
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
@@ -854,7 +860,7 @@ class _StepAllSet extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             icon: const Icon(Icons.rocket_launch_rounded),
-            label: const Text('Hadi baslayalim'),
+            label: Text('onboarding.wizard_lets_start'.tr()),
           ),
           const SizedBox(height: DesignTokens.spaceM),
         ],

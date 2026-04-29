@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/channels/epg_providers.dart';
@@ -208,7 +210,7 @@ class _EpgGridScreenState extends ConsumerState<EpgGridScreen> {
       kind: HistoryKind.live,
       isLive: true,
     );
-    context.push('/play', extra: args);
+    unawaited(context.push('/play', extra: args));
   }
 
   Future<void> _showProgrammeDetails(

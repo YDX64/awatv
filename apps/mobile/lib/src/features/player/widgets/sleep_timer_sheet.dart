@@ -137,7 +137,7 @@ class SleepTimerSheet extends ConsumerWidget {
                       selected: state.duration == d &&
                           state.trigger == SleepTriggerKind.duration,
                       onTap: () {
-                        notifier.set(d, trigger: SleepTriggerKind.duration);
+                        notifier.set(d);
                         Navigator.of(context).pop();
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -161,7 +161,6 @@ class SleepTimerSheet extends ConsumerWidget {
                       if (picked == null) return;
                       notifier.set(
                         Duration(minutes: picked),
-                        trigger: SleepTriggerKind.duration,
                       );
                       if (!context.mounted) return;
                       Navigator.of(context).pop();
@@ -208,7 +207,6 @@ class SleepTimerSheet extends ConsumerWidget {
                       onTap: () {
                         notifier.setUntil(
                           endOfProgrammeAt!,
-                          trigger: SleepTriggerKind.endOfProgramme,
                         );
                         Navigator.of(context).pop();
                         ScaffoldMessenger.of(context).showSnackBar(

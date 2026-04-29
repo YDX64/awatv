@@ -31,7 +31,12 @@ class RatingPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Explicit double types so the int literals widen at the call
+    // sites below (Text fontSize / Icon size both accept double?).
+    // ignore: omit_local_variable_types
     final double fontSize = compact ? 11 : 13;
+    // Same reasoning as fontSize above — keep the explicit type.
+    // ignore: omit_local_variable_types
     final double iconSize = compact ? 12 : 14;
     final padding = EdgeInsets.symmetric(
       horizontal: compact ? DesignTokens.spaceS : DesignTokens.spaceS + 2,

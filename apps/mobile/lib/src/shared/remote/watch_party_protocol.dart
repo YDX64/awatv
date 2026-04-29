@@ -1,7 +1,7 @@
 /// Wire protocol for the AWAtv Watch Party feature.
 ///
 /// Reuses the same Supabase Realtime broadcast infrastructure as
-/// [remote_protocol.dart] but ships its own command sub-hierarchy so
+/// `remote_protocol.dart` but ships its own command sub-hierarchy so
 /// the receiver-side player bridge can route remote-control commands
 /// without confusing them with party commands.
 ///
@@ -10,6 +10,8 @@
 library;
 
 import 'dart:math';
+
+import 'package:awatv_mobile/src/shared/remote/remote_channel.dart' show RemoteChannel;
 
 // =============================================================================
 // Commands (any party member -> any other party member)
@@ -286,7 +288,7 @@ class PartyChat {
 
 /// Alphabet used for generated party ids.
 ///
-/// Same set as [pair_code.dart] — dodges letter/digit confusables when
+/// Same set as `pair_code.dart` — dodges letter/digit confusables when
 /// users type the id from a phone screen. 8 characters from a 30-symbol
 /// set ~= 6.5e11 distinct ids — comfortably collision-free for a
 /// short-lived watch party.
@@ -306,7 +308,7 @@ String generatePartyId({Random? random}) {
   return buf.toString();
 }
 
-/// Normalises user-typed input. Same semantics as [normalisePairCode] —
+/// Normalises user-typed input. Same semantics as `normalisePairCode` —
 /// upper-case, drop whitespace and unsupported characters so users can
 /// paste `AB-CD-12-34` and still join.
 String normalisePartyId(String raw) {

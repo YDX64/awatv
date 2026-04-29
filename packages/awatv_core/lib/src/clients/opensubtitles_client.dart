@@ -29,6 +29,19 @@ class SubtitleResult {
     this.releaseGroup,
   });
 
+  factory SubtitleResult.fromJson(Map<String, dynamic> json) {
+    return SubtitleResult(
+      fileId: (json['fileId'] as num).toInt(),
+      language: json['language'] as String? ?? '',
+      release: json['release'] as String? ?? '',
+      releaseGroup: json['releaseGroup'] as String?,
+      downloadCount: (json['downloadCount'] as num?)?.toInt() ?? 0,
+      rating: (json['rating'] as num?)?.toDouble() ?? 0,
+      hi: json['hi'] as bool? ?? false,
+      fromTrusted: json['fromTrusted'] as bool? ?? false,
+    );
+  }
+
   final int fileId;
   final String language;
   final String release;
@@ -48,19 +61,6 @@ class SubtitleResult {
         'hi': hi,
         'fromTrusted': fromTrusted,
       };
-
-  factory SubtitleResult.fromJson(Map<String, dynamic> json) {
-    return SubtitleResult(
-      fileId: (json['fileId'] as num).toInt(),
-      language: json['language'] as String? ?? '',
-      release: json['release'] as String? ?? '',
-      releaseGroup: json['releaseGroup'] as String?,
-      downloadCount: (json['downloadCount'] as num?)?.toInt() ?? 0,
-      rating: (json['rating'] as num?)?.toDouble() ?? 0,
-      hi: json['hi'] as bool? ?? false,
-      fromTrusted: json['fromTrusted'] as bool? ?? false,
-    );
-  }
 }
 
 /// Thin client over the OpenSubtitles REST API v1.

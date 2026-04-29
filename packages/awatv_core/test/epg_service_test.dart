@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — fs probes in test setUp/tearDown are deliberate.
 import 'dart:io';
 
 import 'package:awatv_core/awatv_core.dart';
@@ -50,7 +51,7 @@ void main() {
       expect(out, isEmpty);
     });
 
-    test('sorts each channel\'s programmes by start ascending', () async {
+    test("sorts each channel's programmes by start ascending", () async {
       final now = DateTime.utc(2026, 4, 28, 18);
       // Insert intentionally out-of-order.
       await storage.putEpg('bbcone.uk', <EpgProgramme>[

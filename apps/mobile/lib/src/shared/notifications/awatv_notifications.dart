@@ -62,10 +62,10 @@ class AwatvNotifications implements ReminderNotifier {
       debugPrint('AwatvNotifications: tz init failed: $e');
     }
 
-    const AndroidInitializationSettings androidInit =
+    const androidInit =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const DarwinInitializationSettings darwinInit =
+    const darwinInit =
         DarwinInitializationSettings(
       // Defer permission to the first schedule so the dialog appears in
       // the right moment for the user.
@@ -74,7 +74,7 @@ class AwatvNotifications implements ReminderNotifier {
       requestSoundPermission: false,
     );
 
-    final InitializationSettings initSettings = const InitializationSettings(
+    const initSettings = InitializationSettings(
       android: androidInit,
       iOS: darwinInit,
       macOS: darwinInit,
@@ -94,7 +94,7 @@ class AwatvNotifications implements ReminderNotifier {
     // Surface the notification that may have launched the app from a
     // cold start (user tapped while the app was not running).
     try {
-      final NotificationAppLaunchDetails? launch =
+      final launch =
           await _plugin.getNotificationAppLaunchDetails();
       if (launch?.didNotificationLaunchApp ?? false) {
         final resp = launch!.notificationResponse;
@@ -108,7 +108,7 @@ class AwatvNotifications implements ReminderNotifier {
 
     // Android: create the dedicated channel so we get sound + badge.
     try {
-      final AndroidFlutterLocalNotificationsPlugin? android =
+      final android =
           _plugin.resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
       await android?.createNotificationChannel(
@@ -186,10 +186,10 @@ class AwatvNotifications implements ReminderNotifier {
       );
     }
 
-    final tz.Location loc = _resolveLocalLocation();
-    final tz.TZDateTime when = tz.TZDateTime.from(fireAt.toLocal(), loc);
+    final loc = _resolveLocalLocation();
+    final when = tz.TZDateTime.from(fireAt.toLocal(), loc);
 
-    const AndroidNotificationDetails android = AndroidNotificationDetails(
+    const android = AndroidNotificationDetails(
       _channelId,
       _channelName,
       channelDescription: _channelDesc,
@@ -198,12 +198,12 @@ class AwatvNotifications implements ReminderNotifier {
       category: AndroidNotificationCategory.reminder,
       ticker: 'AWAtv',
     );
-    const DarwinNotificationDetails darwin = DarwinNotificationDetails(
+    const darwin = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
     );
-    const NotificationDetails details = NotificationDetails(
+    const details = NotificationDetails(
       android: android,
       iOS: darwin,
       macOS: darwin,
@@ -271,7 +271,7 @@ class AwatvNotifications implements ReminderNotifier {
       // Pick a sensible default close to the OS offset.
       final candidates = <String>{
         if (offset == const Duration(hours: 3)) 'Europe/Istanbul',
-        if (offset == const Duration(hours: 0)) 'Etc/UTC',
+        if (offset == const Duration()) 'Etc/UTC',
         if (offset == const Duration(hours: 1)) 'Europe/London',
         if (offset == const Duration(hours: 2)) 'Europe/Bucharest',
         'Etc/UTC',

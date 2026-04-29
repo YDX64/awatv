@@ -1,4 +1,5 @@
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/features/parental/widgets/parental_lock_overlay.dart' show ParentalLockOverlay;
 import 'package:awatv_mobile/src/shared/parental/parental_controller.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_settings.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile.dart';

@@ -12,8 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// One tile in the 4-channel multi-stream grid.
 ///
-/// Owns a single [AwaPlayerController]: created in [initState], opened
-/// against the slot's source list, disposed in [dispose]. Audio is
+/// Owns a single [AwaPlayerController]: created in `initState`, opened
+/// against the slot's source list, disposed in `dispose`. Audio is
 /// driven by the session's [MultiStreamState.activeSlotIndex] —
 /// every other tile pulls volume to 0 so the user only hears the
 /// active stream.

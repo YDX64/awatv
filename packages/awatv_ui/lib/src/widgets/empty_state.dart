@@ -56,7 +56,7 @@ class EmptyState extends StatelessWidget {
 
     // Pre-built CTA wins over the shorthand. When neither is set we
     // render no CTA at all.
-    final Widget? cta = action ??
+    final cta = action ??
         (actionLabel != null && onAction != null
             ? FilledButton(
                 onPressed: onAction,

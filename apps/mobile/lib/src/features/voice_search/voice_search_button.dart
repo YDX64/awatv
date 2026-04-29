@@ -48,8 +48,7 @@ class _VoiceSearchButtonState extends ConsumerState<VoiceSearchButton> {
     // ScaffoldMessenger lookup needs a stable BuildContext.
     _stateSub = ref.listenManual<VoiceSearchState>(
       voiceSearchControllerProvider,
-      (VoiceSearchState? prev, VoiceSearchState next) =>
-          _handleStateChange(prev, next),
+      _handleStateChange,
     );
   }
 
@@ -163,8 +162,6 @@ class _MicAffordanceState extends State<_MicAffordance>
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1100),
-    lowerBound: 0,
-    upperBound: 1,
   );
 
   @override

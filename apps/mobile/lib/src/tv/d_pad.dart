@@ -91,7 +91,7 @@ class _FocusableTileState extends State<FocusableTile> {
                 border: Border.all(
                   color: _focused
                       ? scheme.primary
-                      : scheme.outline.withValues(alpha: 0.0),
+                      : scheme.outline.withValues(alpha: 0),
                   width: _focused ? 3 : 0,
                 ),
                 boxShadow: _focused

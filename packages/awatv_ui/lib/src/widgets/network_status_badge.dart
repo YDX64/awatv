@@ -120,7 +120,7 @@ class _NetworkStatusBadgeState extends State<NetworkStatusBadge>
     final hasConnectionChip =
         !widget.compact && widget.connectionLabel != null &&
             widget.connectionLabel!.isNotEmpty;
-    Widget content = Row(
+    final Widget content = Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         if (_isPulsing)

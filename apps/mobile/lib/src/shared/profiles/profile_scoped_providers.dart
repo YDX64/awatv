@@ -65,4 +65,3 @@ final profileSyncListenerProvider = Provider<void>((Ref ref) {
       ..invalidate(historyServiceProvider);
   });
 });
-

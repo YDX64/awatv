@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 ///   * "Evet, izliyorum" — resumes playback and resets the 4h counter.
 ///   * "Hayir, kapat" — keeps the player paused and pops the route.
 ///
-/// The tracker (see [stillWatchingProvider] in `sleep_timer.dart`)
+/// The tracker (see `stillWatchingProvider` in `sleep_timer.dart`)
 /// owns the state machine; this widget is the visual half. The player
 /// screen wires both: when the tracker flips `shouldPrompt` true the
 /// player pauses and renders this overlay over the controls.

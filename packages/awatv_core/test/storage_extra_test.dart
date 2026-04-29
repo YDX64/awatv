@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — fs probes in test setUp/tearDown are deliberate.
 import 'dart:io';
 
 import 'package:awatv_core/awatv_core.dart';
@@ -64,7 +65,6 @@ void main() {
         itemId: 'd1',
         title: 'Foo',
         sourceUrl: 'http://x/y',
-        containerExt: 'mp4',
         status: DownloadStatus.pending,
         createdAt: DateTime.utc(2026, 4, 27),
       );
@@ -81,16 +81,14 @@ void main() {
         itemId: 'old',
         title: 'Old',
         sourceUrl: 'http://x/o',
-        containerExt: 'mp4',
         status: DownloadStatus.completed,
-        createdAt: DateTime.utc(2026, 4, 1),
+        createdAt: DateTime.utc(2026, 4),
       ));
       await storage.putDownload(DownloadTask(
         id: 'new',
         itemId: 'new',
         title: 'New',
         sourceUrl: 'http://x/n',
-        containerExt: 'mp4',
         status: DownloadStatus.completed,
         createdAt: DateTime.utc(2026, 4, 27),
       ));
@@ -105,7 +103,6 @@ void main() {
         itemId: 'gone',
         title: 'Gone',
         sourceUrl: 'http://x/y',
-        containerExt: 'mp4',
         status: DownloadStatus.completed,
         createdAt: DateTime.now().toUtc(),
       ));
@@ -154,7 +151,7 @@ void main() {
         name: '1',
         kind: PlaylistKind.m3u,
         url: 'http://1',
-        addedAt: DateTime.utc(2026, 4, 1),
+        addedAt: DateTime.utc(2026, 4),
       );
       final s2 = PlaylistSource(
         id: '2',

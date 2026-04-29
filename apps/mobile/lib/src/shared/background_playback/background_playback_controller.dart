@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:awatv_mobile/src/shared/background_playback/awa_audio_handler.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -82,7 +82,6 @@ Future<AwaAudioHandler?> ensureAudioServiceInitialized() async {
         androidNotificationChannelDescription:
             'Arkaplanda yayın oynatılırken görünür.',
         androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
       ),
     );
   } on Object catch (e) {

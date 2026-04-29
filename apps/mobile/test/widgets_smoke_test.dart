@@ -242,12 +242,12 @@ void main() {
 
     testWidgets('onPressed null disables tap',
         (WidgetTester tester) async {
-      var pressed = 0;
+      const pressed = 0;
       await pumpAwaTvApp(
         tester,
-        GlassButton(
+        const GlassButton(
           onPressed: null,
-          child: const Text('Disabled'),
+          child: Text('Disabled'),
         ),
       );
       await tester.pump();

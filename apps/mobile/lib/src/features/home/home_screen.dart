@@ -98,9 +98,9 @@ class _HomeBody extends ConsumerWidget {
                     ),
                   ),
                   if (showEpgStrip)
-                    SizedBox(
+                    const SizedBox(
                       width: DesignTokens.epgStripPaneWidth,
-                      child: const _EpgStripPane(),
+                      child: _EpgStripPane(),
                     ),
                 ],
               ),
@@ -1287,4 +1287,3 @@ class _HomeEmpty extends StatelessWidget {
     );
   }
 }
-

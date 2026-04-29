@@ -108,7 +108,6 @@ class _PlayerTrackPickerSheetState
                 ),
                 TabBar(
                   controller: _tab,
-                  isScrollable: false,
                   labelColor: scheme.primary,
                   unselectedLabelColor:
                       scheme.onSurface.withValues(alpha: 0.7),
@@ -901,4 +900,3 @@ class _EmptyHint extends StatelessWidget {
     );
   }
 }
-

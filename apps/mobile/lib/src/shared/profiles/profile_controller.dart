@@ -254,8 +254,8 @@ class ProfileController {
       throw StateError('Profile $id not found');
     }
     final existing = list[idx];
-    String? newHash = existing.pinHash;
-    String? newSalt = existing.pinSalt;
+    var newHash = existing.pinHash;
+    var newSalt = existing.pinSalt;
     var resolvedRequiresPin = requiresPin ?? existing.requiresPin;
     if (clearPin) {
       newHash = null;
@@ -308,7 +308,7 @@ class ProfileController {
     await ProfileScopedStorage.deleteBoxesFor(id);
   }
 
-  /// Switch the active profile. If the target profile [requiresPin],
+  /// Switch the active profile. If the target profile `requiresPin`,
   /// the caller must pass [pin] — wrong / missing PIN throws
   /// [ProfilePinMismatchException].
   ///

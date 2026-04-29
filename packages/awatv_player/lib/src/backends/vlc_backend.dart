@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:awatv_player/src/awa_player_controller.dart';
+import 'package:awatv_player/src/backends/media_kit_backend.dart' show MediaKitPlayerBackend;
 import 'package:awatv_player/src/media_source.dart';
 import 'package:awatv_player/src/player_state.dart';
 import 'package:flutter/foundation.dart';
@@ -531,9 +532,7 @@ class VlcPlayerBackend implements AwaPlayerController {
 
     return vlc.VlcPlayerController.network(
       source.url,
-      hwAcc: vlc.HwAcc.auto,
       autoPlay: autoPlay,
-      autoInitialize: true,
       options: vlc.VlcPlayerOptions(
         advanced: vlc.VlcAdvancedOptions(advancedOptions),
         http: vlc.VlcHttpOptions(httpOptions),

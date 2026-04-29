@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/downloads/downloads_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
@@ -347,7 +349,7 @@ class _DownloadTileState extends ConsumerState<_DownloadTile> {
       itemId: t.itemId,
       kind: HistoryKind.vod,
     );
-    context.push('/play', extra: args);
+    unawaited(context.push('/play', extra: args));
   }
 }
 

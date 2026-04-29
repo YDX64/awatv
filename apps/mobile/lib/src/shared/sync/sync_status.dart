@@ -3,7 +3,7 @@
 /// Sealed so the settings row and any future UI surface can pattern
 /// match without writing a fall-through default that masks a new
 /// variant. The settings copy is computed centrally on the engine side
-/// — UI just renders the [statusLabel] / [detailLabel] returned by
+/// — UI just renders the `statusLabel` / `detailLabel` returned by
 /// [SyncStatus.localized] (Turkish-first, because user-facing chat is
 /// Turkish per CLAUDE.md house rules).
 sealed class SyncStatus {

@@ -165,7 +165,6 @@ class RemoteChannel {
     final channelName = 'awatv:remote:$code';
     final realtimeChannel = client.channel(
       channelName,
-      opts: const RealtimeChannelConfig(self: false),
     );
 
     final wrapper = RemoteChannel._(

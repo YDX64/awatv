@@ -4,6 +4,7 @@ import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -62,7 +63,7 @@ class _MagicLinkCallbackScreenState
     } on AuthBackendNotConfiguredException catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.message ?? 'Cloud sync is not configured.';
+        _error = e.message ?? 'auth.error_backend_default'.tr();
       });
     } on supa.AuthException catch (e) {
       if (!mounted) return;
@@ -72,7 +73,8 @@ class _MagicLinkCallbackScreenState
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Couldn\'t finish signing in.\n$e';
+        _error = 'auth.error_signin_failed'
+            .tr(namedArgs: <String, String>{'message': e.toString()});
       });
     }
   }
@@ -86,7 +88,7 @@ class _MagicLinkCallbackScreenState
         : next;
     // If the user juggles 2+ profiles on this device, route them
     // through the picker before any per-profile screen renders.
-    String dest = fallback;
+    var dest = fallback;
     try {
       final list = ref.read(profileControllerProvider).currentList();
       if (list.length >= 2) dest = '/profiles';
@@ -138,7 +140,7 @@ class _MagicLinkCallbackScreenState
                       ),
                       const SizedBox(height: DesignTokens.spaceL),
                       Text(
-                        'Signing you in…',
+                        'auth.magic_link_loading'.tr(),
                         style: theme.textTheme.titleMedium,
                       ),
                     ],
@@ -180,13 +182,14 @@ class _WelcomePanel extends StatelessWidget {
         ),
         const SizedBox(height: DesignTokens.spaceL),
         Text(
-          'Welcome back, $name',
+          'auth.magic_link_success_title'.tr(),
           style: theme.textTheme.headlineSmall,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: DesignTokens.spaceS),
         Text(
-          signedIn.email,
+          'auth.magic_link_success_body'
+              .tr(namedArgs: <String, String>{'email': name}),
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
           ),
@@ -215,7 +218,7 @@ class _ErrorPanel extends StatelessWidget {
         ),
         const SizedBox(height: DesignTokens.spaceM),
         Text(
-          'Sign-in didn\'t complete',
+          'auth.magic_link_failed_title'.tr(),
           textAlign: TextAlign.center,
           style: theme.textTheme.titleMedium,
         ),
@@ -230,11 +233,11 @@ class _ErrorPanel extends StatelessWidget {
         const SizedBox(height: DesignTokens.spaceL),
         FilledButton(
           onPressed: () => context.go('/login'),
-          child: const Text('Try again'),
+          child: Text('auth.magic_link_retry'.tr()),
         ),
         TextButton(
           onPressed: () => context.go('/'),
-          child: const Text('Continue without signing in'),
+          child: Text('auth.continue_without_signin'.tr()),
         ),
       ],
     );

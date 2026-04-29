@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:floating/floating.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:floating/floating.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'mobile_pip.g.dart';

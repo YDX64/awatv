@@ -83,7 +83,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       // If the user just enabled PIN we collect it now; for an existing
       // profile with PIN the user can also pick "PIN'i değiştir" via
       // the explicit row we render below.
-      String? pinToSet = _newPin;
+      var pinToSet = _newPin;
       if (_requiresPin && !_hadPin && pinToSet == null) {
         pinToSet = await PinEntrySheet.show(
           context,
@@ -101,8 +101,8 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         if (!mounted) return;
         final confirm = await PinEntrySheet.show(
           context,
-          title: 'PIN\'i doğrula',
-          subtitle: 'Az önce girdiğin PIN\'i tekrar gir',
+          title: "PIN'i doğrula",
+          subtitle: "Az önce girdiğin PIN'i tekrar gir",
           validator: (String s) => s == pinToSet ? null : 'PIN eşleşmiyor',
         );
         if (confirm == null) {
@@ -163,7 +163,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       final old = await PinEntrySheet.show(
         context,
         title: 'Mevcut PIN',
-        subtitle: 'Önce eski PIN\'i gir',
+        subtitle: "Önce eski PIN'i gir",
         validator: (String s) =>
             controller.verifyPin(profile!, s) ? null : 'Yanlış PIN',
       );
@@ -179,7 +179,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     if (!mounted) return;
     final confirmed = await PinEntrySheet.show(
       context,
-      title: 'PIN\'i doğrula',
+      title: "PIN'i doğrula",
       subtitle: 'Tekrar gir',
       validator: (String s) => s == fresh ? null : 'PIN eşleşmiyor',
     );
@@ -316,7 +316,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                 if (_hadPin && widget.profileId != null)
                   ListTile(
                     leading: const Icon(Icons.password_rounded),
-                    title: const Text('PIN\'i değiştir'),
+                    title: const Text("PIN'i değiştir"),
                     onTap: _changePin,
                   ),
                 const SizedBox(height: DesignTokens.spaceL),

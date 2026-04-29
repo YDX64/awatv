@@ -105,13 +105,13 @@ void main() {
     });
 
     test('different variant produces different theme', () {
-      const a = AppCustomTheme(variant: ThemeVariant.standard);
+      const a = AppCustomTheme();
       const b = AppCustomTheme(variant: ThemeVariant.vibrant);
       expect(a, isNot(equals(b)));
     });
 
     test('different scale produces different theme', () {
-      const a = AppCustomTheme(cornerRadiusScale: 1);
+      const a = AppCustomTheme();
       const b = AppCustomTheme(cornerRadiusScale: 1.5);
       expect(a, isNot(equals(b)));
     });

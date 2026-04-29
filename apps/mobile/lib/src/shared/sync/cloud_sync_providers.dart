@@ -84,7 +84,7 @@ CloudSyncEngine cloudSyncEnginePulse(Ref ref) {
     // Fire-and-forget activate. Idempotent inside the engine.
     Future.microtask(() => engine.activate(userId: auth.userId));
   } else {
-    Future.microtask(() => engine.deactivate());
+    Future.microtask(engine.deactivate);
   }
   return engine;
 }

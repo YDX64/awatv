@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
@@ -325,7 +327,7 @@ class _RecordingTile extends ConsumerWidget {
       itemId: 'recording::${task.id}',
       kind: HistoryKind.vod,
     );
-    context.push('/play', extra: args);
+    unawaited(context.push('/play', extra: args));
   }
 }
 

@@ -1,5 +1,5 @@
 import 'package:audio_session/audio_session.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 
 /// Claims the OS audio session for AWAtv.
 ///
@@ -38,7 +38,6 @@ Future<void> configureAudioSession() async {
           flags: AndroidAudioFlags.audibilityEnforced,
           usage: AndroidAudioUsage.media,
         ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
         // While another app holds focus and ducks us, pause hard rather
         // than fade-down — IPTV streams don't have a server-side mixer
         // and a half-volume rendition sounds broken to most users.

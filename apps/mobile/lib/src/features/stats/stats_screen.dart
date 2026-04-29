@@ -125,7 +125,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ),
         ),
         const SizedBox(height: DesignTokens.spaceL),
-        _SectionHeader(label: 'Tur dagilimi'),
+        const _SectionHeader(label: 'Tur dagilimi'),
         Padding(
           padding:
               const EdgeInsets.symmetric(horizontal: DesignTokens.spaceM),
@@ -134,7 +134,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ),
         ),
         const SizedBox(height: DesignTokens.spaceL),
-        _SectionHeader(label: 'Son 7 gun aktivitesi'),
+        const _SectionHeader(label: 'Son 7 gun aktivitesi'),
         Padding(
           padding:
               const EdgeInsets.symmetric(horizontal: DesignTokens.spaceM),
@@ -143,14 +143,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ),
         ),
         const SizedBox(height: DesignTokens.spaceL),
-        _SectionHeader(label: 'Bu hafta ne izledim'),
+        const _SectionHeader(label: 'Bu hafta ne izledim'),
         Padding(
           padding:
               const EdgeInsets.symmetric(horizontal: DesignTokens.spaceM),
           child: _WeeklyDigestCard(summary: s),
         ),
         const SizedBox(height: DesignTokens.spaceL),
-        _SectionHeader(label: 'En cok izlenen kanallar'),
+        const _SectionHeader(label: 'En cok izlenen kanallar'),
         _TopList(
           entries: s.topChannels,
           icon: Icons.live_tv_rounded,
@@ -158,7 +158,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           isPremium: isPremium,
         ),
         const SizedBox(height: DesignTokens.spaceL),
-        _SectionHeader(label: 'En cok izlenen filmler'),
+        const _SectionHeader(label: 'En cok izlenen filmler'),
         _TopList(
           entries: s.topVod,
           icon: Icons.movie_rounded,
@@ -166,7 +166,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           isPremium: isPremium,
         ),
         const SizedBox(height: DesignTokens.spaceL),
-        _SectionHeader(label: 'En cok izlenen diziler'),
+        const _SectionHeader(label: 'En cok izlenen diziler'),
         _TopList(
           entries: s.topSeries,
           icon: Icons.video_library_rounded,
@@ -572,7 +572,7 @@ class _TopRow extends StatelessWidget {
           width: 44,
           height: 44,
           child: url == null || url.isEmpty
-              ? Container(
+              ? ColoredBox(
                   color: scheme.surfaceContainerHighest,
                   child: Icon(
                     fallbackIcon,
@@ -582,7 +582,7 @@ class _TopRow extends StatelessWidget {
               : CachedNetworkImage(
                   imageUrl: url,
                   fit: BoxFit.cover,
-                  errorWidget: (BuildContext _, __, ___) => Container(
+                  errorWidget: (BuildContext _, __, ___) => ColoredBox(
                     color: scheme.surfaceContainerHighest,
                     child: Icon(
                       fallbackIcon,

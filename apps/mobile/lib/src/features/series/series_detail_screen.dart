@@ -1,12 +1,14 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/series/series_providers.dart';
 import 'package:awatv_mobile/src/features/watchlist/watchlist_toggle.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
-import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
+import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -48,11 +50,13 @@ class _SeriesDetailScreenState extends ConsumerState<SeriesDetailScreen> {
         return;
       }
       if (!context.mounted) return;
-      context.push(
-        Uri(
-          path: '/trailer/$youtubeId',
-          queryParameters: <String, String>{'title': s.title},
-        ).toString(),
+      unawaited(
+        context.push(
+          Uri(
+            path: '/trailer/$youtubeId',
+            queryParameters: <String, String>{'title': s.title},
+          ).toString(),
+        ),
       );
     } on Object catch (e) {
       if (!context.mounted) return;

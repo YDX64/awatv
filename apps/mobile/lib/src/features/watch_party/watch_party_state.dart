@@ -1,3 +1,4 @@
+import 'package:awatv_mobile/src/features/watch_party/watch_party_controller.dart' show WatchPartyController;
 import 'package:awatv_mobile/src/shared/remote/remote_channel.dart'
     show RemoteConnectionState;
 import 'package:awatv_mobile/src/shared/remote/watch_party_protocol.dart';

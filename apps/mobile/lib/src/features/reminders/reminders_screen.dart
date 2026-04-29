@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
@@ -83,7 +85,6 @@ class _ReminderTile extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.all(DesignTokens.spaceM),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               _ChannelArtwork(
                 logoUrl: reminder.channelLogoUrl,
@@ -234,7 +235,7 @@ class _ReminderTile extends ConsumerWidget {
       kind: HistoryKind.live,
       isLive: true,
     );
-    context.push('/play', extra: args);
+    unawaited(context.push('/play', extra: args));
   }
 
   static String _humanWhen(DateTime localStart) {

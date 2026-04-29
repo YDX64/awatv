@@ -94,7 +94,7 @@ class PipWindowController {
       // first attached display the OS reports for the window. If we
       // can't read screen bounds for any reason, the window simply
       // appears centered — still usable.
-      Offset target = Offset.zero;
+      var target = Offset.zero;
       try {
         final screen = PlatformDispatcher.instance.views.first;
         final size = screen.physicalSize / screen.devicePixelRatio;
@@ -182,7 +182,7 @@ class PipWindowController {
 
       if (saved.bounds != null) {
         await _safe(
-          () => windowManager.setBounds(saved.bounds!, animate: true),
+          () => windowManager.setBounds(saved.bounds, animate: true),
         );
       }
       if (saved.maximized) {

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/shared/parental/parental_settings.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile.dart';
+import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart' show ProfilePinMismatchException;
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

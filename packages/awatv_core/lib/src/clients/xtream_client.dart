@@ -210,7 +210,7 @@ class XtreamClient {
         ...categoryChain,
         if (genreField is String)
           ...genreField
-              .split(RegExp(r'[,|/]'))
+              .split(RegExp('[,|/]'))
               .map((s) => s.trim())
               .where((s) => s.isNotEmpty)
         else if (genreField is List)
@@ -269,7 +269,7 @@ class XtreamClient {
         ...categoryChain,
         if (genreField is String)
           ...genreField
-              .split(RegExp(r'[,|/]'))
+              .split(RegExp('[,|/]'))
               .map((s) => s.trim())
               .where((s) => s.isNotEmpty)
         else if (genreField is List)

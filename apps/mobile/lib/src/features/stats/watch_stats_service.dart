@@ -166,7 +166,7 @@ class WatchStatsService {
           kind: HistoryKind.live,
           watched: raw.watched,
           posterUrl: c?.logoUrl,
-          subtitle: c?.groups.isNotEmpty == true ? c!.groups.first : null,
+          subtitle: c?.groups.isNotEmpty ?? false ? c!.groups.first : null,
         ),
       );
     }

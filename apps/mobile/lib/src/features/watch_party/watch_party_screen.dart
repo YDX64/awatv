@@ -493,7 +493,7 @@ class _PlayerFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
+    return ColoredBox(
       color: Colors.black,
       child: Stack(
         fit: StackFit.expand,

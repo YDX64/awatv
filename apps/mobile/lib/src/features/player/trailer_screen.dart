@@ -41,15 +41,6 @@ class _TrailerScreenState extends State<TrailerScreen> {
     ]);
     _controller = YoutubePlayerController(
       initialVideoId: widget.youtubeId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
-        mute: false,
-        // Strict embed prevents related-video chrome from leaking onto
-        // the screen at the end of the trailer.
-        useHybridComposition: true,
-        forceHD: false,
-        enableCaption: true,
-      ),
     );
   }
 

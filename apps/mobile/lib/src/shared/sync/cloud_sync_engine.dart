@@ -738,7 +738,7 @@ class CloudSyncEngine {
 
     // Playlist sources box. The sources box stores Box<String>; we
     // decode and enqueue an upsert on changes.
-    final sourcesBoxName = AwatvStorage.boxSources;
+    const sourcesBoxName = AwatvStorage.boxSources;
     if (Hive.isBoxOpen(sourcesBoxName)) {
       _sourceBoxSub =
           Hive.box<String>(sourcesBoxName).watch().listen((BoxEvent ev) {
@@ -914,7 +914,6 @@ class CloudSyncEngine {
       }
       throw SyncError(
         e.message,
-        retryable: true,
         cause: e,
         statusCode: code,
       );
@@ -1093,13 +1092,6 @@ class DeviceSessionRow {
     this.userAgent,
   });
 
-  final String id;
-  final String deviceId;
-  final DeviceKind kind;
-  final String platform;
-  final DateTime lastSeenAt;
-  final String? userAgent;
-
   factory DeviceSessionRow._fromMap(Map<String, dynamic> row) {
     return DeviceSessionRow(
       id: row['id'] as String,
@@ -1115,4 +1107,11 @@ class DeviceSessionRow {
       userAgent: row['user_agent'] as String?,
     );
   }
+
+  final String id;
+  final String deviceId;
+  final DeviceKind kind;
+  final String platform;
+  final DateTime lastSeenAt;
+  final String? userAgent;
 }

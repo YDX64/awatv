@@ -19,6 +19,27 @@ class ParentalSettings {
     this.bedtimeMinute,
   });
 
+  factory ParentalSettings.fromJson(Map<String, dynamic> json) {
+    final cats = json['blockedCategories'];
+    final list = cats is List
+        ? cats.whereType<String>().toList(growable: false)
+        : const <String>[];
+    final secs = json['dailyWatchLimitSeconds'];
+    final dailyLimit = secs is num
+        ? Duration(seconds: secs.toInt())
+        : Duration.zero;
+    return ParentalSettings(
+      enabled: json['enabled'] as bool? ?? false,
+      pinHash: json['pinHash'] as String?,
+      pinSalt: json['pinSalt'] as String?,
+      maxRating: (json['maxRating'] as num?)?.toInt() ?? ParentalRating.allAges,
+      blockedCategories: list,
+      dailyWatchLimit: dailyLimit,
+      bedtimeHour: (json['bedtimeHour'] as num?)?.toInt(),
+      bedtimeMinute: (json['bedtimeMinute'] as num?)?.toInt(),
+    );
+  }
+
   /// Master switch. When `false` no gates apply, regardless of the
   /// other fields.
   final bool enabled;
@@ -37,7 +58,7 @@ class ParentalSettings {
 
   /// Cumulative watch time allowed per UTC day for kids profiles.
   /// `Duration.zero` means "no limit". Tracked elsewhere via the
-  /// [parentalUsageTrackerProvider].
+  /// `parentalUsageTrackerProvider`.
   final Duration dailyWatchLimit;
 
   /// Bedtime hour (0-23). When set, the player blocks new playback for
@@ -88,27 +109,6 @@ class ParentalSettings {
         'bedtimeHour': bedtimeHour,
         'bedtimeMinute': bedtimeMinute,
       };
-
-  factory ParentalSettings.fromJson(Map<String, dynamic> json) {
-    final cats = json['blockedCategories'];
-    final list = cats is List
-        ? cats.whereType<String>().toList(growable: false)
-        : const <String>[];
-    final secs = json['dailyWatchLimitSeconds'];
-    final dailyLimit = secs is num
-        ? Duration(seconds: secs.toInt())
-        : Duration.zero;
-    return ParentalSettings(
-      enabled: json['enabled'] as bool? ?? false,
-      pinHash: json['pinHash'] as String?,
-      pinSalt: json['pinSalt'] as String?,
-      maxRating: (json['maxRating'] as num?)?.toInt() ?? ParentalRating.allAges,
-      blockedCategories: list,
-      dailyWatchLimit: dailyLimit,
-      bedtimeHour: (json['bedtimeHour'] as num?)?.toInt(),
-      bedtimeMinute: (json['bedtimeMinute'] as num?)?.toInt(),
-    );
-  }
 }
 
 /// Numeric rating bands aligned with the TMDB "certification" buckets

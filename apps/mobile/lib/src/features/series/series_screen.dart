@@ -276,14 +276,14 @@ class _SeriesListTile extends StatelessWidget {
           width: 48,
           height: 64,
           child: series.posterUrl == null
-              ? Container(
+              ? ColoredBox(
                   color: scheme.surfaceContainerHighest,
                   child: const Icon(Icons.video_library_outlined),
                 )
               : CachedNetworkImage(
                   imageUrl: series.posterUrl!,
                   fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => Container(
+                  errorWidget: (_, __, ___) => ColoredBox(
                     color: scheme.surfaceContainerHighest,
                     child: const Icon(Icons.broken_image_outlined),
                   ),

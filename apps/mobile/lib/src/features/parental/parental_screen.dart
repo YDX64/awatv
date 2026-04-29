@@ -70,8 +70,8 @@ class _Body extends ConsumerWidget {
                   const SizedBox(width: DesignTokens.spaceM),
                   const Expanded(
                     child: Text(
-                      'Aile koruma Premium\'a özel. '
-                      'Premium\'a geçerek tüm aile araçlarını '
+                      "Aile koruma Premium'a özel. "
+                      "Premium'a geçerek tüm aile araçlarını "
                       'kullanabilirsin.',
                     ),
                   ),
@@ -103,7 +103,7 @@ class _Body extends ConsumerWidget {
           enabled: !disabled,
           leading: const Icon(Icons.password_rounded),
           title: Text(settings.hasPin
-              ? 'PIN\'i değiştir'
+              ? "PIN'i değiştir"
               : 'PIN ayarla'),
           subtitle: const Text('4-6 haneli sayısal PIN'),
           onTap: disabled
@@ -232,7 +232,7 @@ class _Body extends ConsumerWidget {
     if (!context.mounted) return;
     final confirm = await PinEntrySheet.show(
       context,
-      title: 'PIN\'i doğrula',
+      title: "PIN'i doğrula",
       subtitle: 'Tekrar gir',
       validator: (String s) => s == pin ? null : 'PIN eşleşmiyor',
     );
@@ -262,7 +262,7 @@ class _Body extends ConsumerWidget {
       oldPin = await PinEntrySheet.show(
         context,
         title: 'Mevcut PIN',
-        subtitle: 'Önce eski PIN\'i gir',
+        subtitle: "Önce eski PIN'i gir",
         validator: (String s) =>
             controller.verifyPin(s, settings) ? null : 'Yanlış PIN',
       );
@@ -278,7 +278,7 @@ class _Body extends ConsumerWidget {
     if (!context.mounted) return;
     final confirm = await PinEntrySheet.show(
       context,
-      title: 'PIN\'i doğrula',
+      title: "PIN'i doğrula",
       subtitle: 'Tekrar gir',
       validator: (String s) => s == fresh ? null : 'PIN eşleşmiyor',
     );
@@ -388,7 +388,6 @@ class _Body extends ConsumerWidget {
                 valueListenable: hours,
                 builder: (_, int h, __) => Slider(
                   value: h.toDouble(),
-                  min: 0,
                   max: 8,
                   divisions: 8,
                   label: '$h sa',
@@ -399,7 +398,6 @@ class _Body extends ConsumerWidget {
                 valueListenable: minutes,
                 builder: (_, int m, __) => Slider(
                   value: m.toDouble(),
-                  min: 0,
                   max: 55,
                   divisions: 11,
                   label: '$m dk',

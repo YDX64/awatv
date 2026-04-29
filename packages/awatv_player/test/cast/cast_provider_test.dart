@@ -226,7 +226,7 @@ void main() {
 
   group('CastUnsupportedException', () {
     test('toString contains the reason', () {
-      final ex = CastUnsupportedException('boom');
+      const ex = CastUnsupportedException('boom');
       expect(ex.toString(), contains('boom'));
     });
   });

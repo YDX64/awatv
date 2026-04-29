@@ -78,10 +78,7 @@ class AwaAudioHandler extends BaseAudioHandler {
       // Surface a stopped state so the OS removes its notification chip.
       playbackState.add(
         PlaybackState(
-          controls: const <MediaControl>[],
-          systemActions: const <MediaAction>{},
-          processingState: AudioProcessingState.idle,
-          updatePosition: Duration.zero,
+          
         ),
       );
       _currentItem = null;

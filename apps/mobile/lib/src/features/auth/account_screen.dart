@@ -2,6 +2,7 @@ import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/auth/cloud_sync_gate.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,18 +40,16 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: const Text(
-          'You\'ll go back to local-only mode. Your on-device data stays.',
-        ),
+        title: Text('auth.account_signout_dialog_title'.tr()),
+        content: Text('auth.account_signout_dialog_body'.tr()),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text('common.cancel'.tr()),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Sign out'),
+            child: Text('auth.account_signout_action'.tr()),
           ),
         ],
       ),
@@ -62,7 +61,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign-out failed: $e')),
+        SnackBar(
+          content: Text(
+            'auth.account_signout_failed'
+                .tr(namedArgs: <String, String>{'message': e.toString()}),
+          ),
+        ),
       );
       return;
     }
@@ -84,7 +88,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn\'t save: $e')),
+        SnackBar(
+          content: Text(
+            'auth.account_save_failed'
+                .tr(namedArgs: <String, String>{'message': e.toString()}),
+          ),
+        ),
       );
     }
   }
@@ -93,17 +102,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     await showDialog<void>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('Delete account'),
-        content: const Text(
-          'Account deletion permanently removes your cloud-synced data. '
-          'On-device playlists stay on this device.\n\n'
-          'To request deletion, email support@awatv.app from your account '
-          'address. We respond within 7 days.',
-        ),
+        title: Text('auth.account_delete_dialog_title'.tr()),
+        content: Text('auth.account_delete_dialog_body'.tr()),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
+            child: Text('common.close'.tr()),
           ),
         ],
       ),
@@ -119,8 +123,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       // The router guard should prevent this, but render a graceful
       // fallback in case the user signs out mid-screen.
       return Scaffold(
-        appBar: AppBar(title: const Text('Account')),
-        body: const Center(child: Text('Not signed in.')),
+        appBar: AppBar(title: Text('auth.account_title'.tr())),
+        body: Center(child: Text('auth.account_not_signed_in'.tr())),
       );
     }
 
@@ -129,7 +133,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         auth.displayName ?? auth.email.split('@').first;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Account')),
+      appBar: AppBar(title: Text('auth.account_title'.tr())),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: DesignTokens.spaceL),
         children: <Widget>[
@@ -137,7 +141,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             child: _AvatarTile(name: displayName, email: auth.email),
           ),
           const SizedBox(height: DesignTokens.spaceL),
-          _SectionHeader('Profile'),
+          _SectionHeader('auth.account_section_profile'.tr()),
           if (_editing)
             Padding(
               padding: const EdgeInsets.symmetric(
@@ -151,9 +155,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                       controller: _nameController,
                       autofocus: true,
                       enabled: !_saving,
-                      decoration: const InputDecoration(
-                        labelText: 'Display name',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: 'auth.account_field_display_name'.tr(),
+                        border: const OutlineInputBorder(),
                       ),
                       onSubmitted: (_) => _saveName(),
                     ),
@@ -181,7 +185,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           else
             ListTile(
               leading: const Icon(Icons.badge_outlined),
-              title: const Text('Display name'),
+              title: Text('auth.account_field_display_name'.tr()),
               subtitle: Text(displayName),
               trailing: const Icon(Icons.edit_outlined),
               onTap: () {
@@ -191,11 +195,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             ),
           ListTile(
             leading: const Icon(Icons.alternate_email_rounded),
-            title: const Text('Email'),
+            title: Text('auth.account_field_email'.tr()),
             subtitle: Text(auth.email),
           ),
           const Divider(),
-          _SectionHeader('Sync'),
+          _SectionHeader('auth.account_section_sync'.tr()),
           ListTile(
             leading: Icon(
               canCloud
@@ -204,29 +208,31 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               color: canCloud ? BrandColors.success : null,
             ),
             title: Text(
-              canCloud ? 'Cloud sync is on' : 'Cloud sync (premium)',
+              canCloud
+                  ? 'auth.account_cloud_on'.tr()
+                  : 'auth.account_cloud_off'.tr(),
             ),
             subtitle: Text(
               canCloud
-                  ? 'Last sync: just now'
-                  : 'Upgrade to premium to enable cross-device sync.',
+                  ? 'auth.account_cloud_just_now'.tr()
+                  : 'auth.account_cloud_upgrade'.tr(),
             ),
             trailing: canCloud
                 ? null
                 : TextButton(
                     onPressed: () => context.push('/premium'),
-                    child: const Text('Upgrade'),
+                    child: Text('auth.account_cloud_upgrade_action'.tr()),
                   ),
           ),
           const Divider(),
-          _SectionHeader('Account'),
+          _SectionHeader('auth.account_section_account'.tr()),
           ListTile(
             leading: Icon(
               Icons.logout_rounded,
               color: theme.colorScheme.error,
             ),
             title: Text(
-              'Sign out',
+              'auth.account_signout_action'.tr(),
               style: TextStyle(color: theme.colorScheme.error),
             ),
             onTap: _signOut,
@@ -237,12 +243,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               color: theme.colorScheme.error,
             ),
             title: Text(
-              'Delete account',
+              'auth.account_delete'.tr(),
               style: TextStyle(color: theme.colorScheme.error),
             ),
-            subtitle: const Text(
-              'Email support to permanently remove your cloud data.',
-            ),
+            subtitle: Text('auth.account_delete_subtitle'.tr()),
             onTap: _showDeleteDialog,
           ),
         ],
@@ -330,4 +334,3 @@ class _SectionHeader extends StatelessWidget {
     );
   }
 }
-

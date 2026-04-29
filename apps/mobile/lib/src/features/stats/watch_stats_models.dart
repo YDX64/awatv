@@ -73,15 +73,15 @@ class WatchStatsSummary {
   /// Empty summary — returned when `HistoryService.recent()` is empty.
   /// Keeping a singleton-style empty value means UI consumers don't
   /// need to special-case `null`.
-  static WatchStatsSummary get empty => WatchStatsSummary(
+  static WatchStatsSummary get empty => const WatchStatsSummary(
         totalAllTime: Duration.zero,
         totalLast7Days: Duration.zero,
         totalLast30Days: Duration.zero,
-        byKind: const <HistoryKind, Duration>{},
-        last7DaysBuckets: const <int>[0, 0, 0, 0, 0, 0, 0],
-        topChannels: const <TopWatchEntry>[],
-        topVod: const <TopWatchEntry>[],
-        topSeries: const <TopWatchEntry>[],
+        byKind: <HistoryKind, Duration>{},
+        last7DaysBuckets: <int>[0, 0, 0, 0, 0, 0, 0],
+        topChannels: <TopWatchEntry>[],
+        topVod: <TopWatchEntry>[],
+        topSeries: <TopWatchEntry>[],
         streakDays: 0,
         totalSessions: 0,
       );

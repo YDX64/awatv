@@ -76,7 +76,6 @@ class GenreChipRow extends StatelessWidget {
       return Padding(
         padding: resolvedPadding,
         child: Wrap(
-          spacing: 0,
           runSpacing: DesignTokens.spaceS,
           children: chips,
         ),

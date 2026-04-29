@@ -57,9 +57,6 @@ final class FavoriteUpserted extends SyncEvent {
     required this.itemKind,
   });
 
-  final String itemId;
-  final FavoriteItemKind itemKind;
-
   factory FavoriteUpserted._fromJson(Map<String, dynamic> json) {
     return FavoriteUpserted(
       userId: json['user_id'] as String,
@@ -68,6 +65,9 @@ final class FavoriteUpserted extends SyncEvent {
       itemKind: _parseFavKind(json['item_kind'] as String?),
     );
   }
+
+  final String itemId;
+  final FavoriteItemKind itemKind;
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -87,8 +87,6 @@ final class FavoriteRemoved extends SyncEvent {
     required this.itemId,
   });
 
-  final String itemId;
-
   factory FavoriteRemoved._fromJson(Map<String, dynamic> json) {
     return FavoriteRemoved(
       userId: json['user_id'] as String,
@@ -96,6 +94,8 @@ final class FavoriteRemoved extends SyncEvent {
       itemId: json['item_id'] as String,
     );
   }
+
+  final String itemId;
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -114,8 +114,6 @@ final class HistoryUpserted extends SyncEvent {
     required this.entry,
   });
 
-  final HistoryEntry entry;
-
   factory HistoryUpserted._fromJson(Map<String, dynamic> json) {
     return HistoryUpserted(
       userId: json['user_id'] as String,
@@ -125,6 +123,8 @@ final class HistoryUpserted extends SyncEvent {
       ),
     );
   }
+
+  final HistoryEntry entry;
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -143,8 +143,6 @@ final class HistoryRemoved extends SyncEvent {
     required this.itemId,
   });
 
-  final String itemId;
-
   factory HistoryRemoved._fromJson(Map<String, dynamic> json) {
     return HistoryRemoved(
       userId: json['user_id'] as String,
@@ -152,6 +150,8 @@ final class HistoryRemoved extends SyncEvent {
       itemId: json['item_id'] as String,
     );
   }
+
+  final String itemId;
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -177,12 +177,6 @@ final class PlaylistSourceUpserted extends SyncEvent {
     this.lastSyncAt,
   });
 
-  final String clientId;
-  final String name;
-  final PlaylistKind kind;
-  final DateTime addedAt;
-  final DateTime? lastSyncAt;
-
   factory PlaylistSourceUpserted._fromJson(Map<String, dynamic> json) {
     return PlaylistSourceUpserted(
       userId: json['user_id'] as String,
@@ -196,6 +190,12 @@ final class PlaylistSourceUpserted extends SyncEvent {
           : null,
     );
   }
+
+  final String clientId;
+  final String name;
+  final PlaylistKind kind;
+  final DateTime addedAt;
+  final DateTime? lastSyncAt;
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -218,8 +218,6 @@ final class PlaylistSourceRemoved extends SyncEvent {
     required this.clientId,
   });
 
-  final String clientId;
-
   factory PlaylistSourceRemoved._fromJson(Map<String, dynamic> json) {
     return PlaylistSourceRemoved(
       userId: json['user_id'] as String,
@@ -227,6 +225,8 @@ final class PlaylistSourceRemoved extends SyncEvent {
       clientId: json['client_id'] as String,
     );
   }
+
+  final String clientId;
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -249,11 +249,6 @@ final class DeviceSessionUpserted extends SyncEvent {
     this.userAgent,
   });
 
-  final String deviceId;
-  final DeviceKind deviceKind;
-  final String platform;
-  final String? userAgent;
-
   factory DeviceSessionUpserted._fromJson(Map<String, dynamic> json) {
     return DeviceSessionUpserted(
       userId: json['user_id'] as String,
@@ -264,6 +259,11 @@ final class DeviceSessionUpserted extends SyncEvent {
       userAgent: json['user_agent'] as String?,
     );
   }
+
+  final String deviceId;
+  final DeviceKind deviceKind;
+  final String platform;
+  final String? userAgent;
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -285,11 +285,6 @@ final class DeviceSessionRemoved extends SyncEvent {
     required this.rowId,
   });
 
-  /// Server-side `device_sessions.id` (uuid). We use the row id rather
-  /// than the client `device_id` so a sender can revoke a particular
-  /// row even when there are stale duplicates.
-  final String rowId;
-
   factory DeviceSessionRemoved._fromJson(Map<String, dynamic> json) {
     return DeviceSessionRemoved(
       userId: json['user_id'] as String,
@@ -297,6 +292,11 @@ final class DeviceSessionRemoved extends SyncEvent {
       rowId: json['row_id'] as String,
     );
   }
+
+  /// Server-side `device_sessions.id` (uuid). We use the row id rather
+  /// than the client `device_id` so a sender can revoke a particular
+  /// row even when there are stale duplicates.
+  final String rowId;
 
   @override
   Map<String, dynamic> toJson() => <String, dynamic>{

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
@@ -91,7 +93,7 @@ class SmartAlertsScreen extends ConsumerWidget {
     final activeCount = list.where((KeywordAlert a) => a.active).length;
     if (!premium && activeCount >= SmartAlertsService.freeMax) {
       if (!context.mounted) return;
-      PremiumLockSheet.show(context, PremiumFeature.cloudSync);
+      unawaited(PremiumLockSheet.show(context, PremiumFeature.cloudSync));
       return;
     }
     if (!context.mounted) return;

@@ -3,6 +3,7 @@ import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,7 +26,7 @@ class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({this.next, super.key});
 
   /// Where to navigate after a successful sign-in. Encoded as `?next=`
-  /// in the query string by [authGuard].
+  /// in the query string by `authGuard`.
   final String? next;
 
   @override
@@ -70,7 +71,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       setState(() {
         _phase = _LoginPhase.entering;
-        _error = e.message ?? 'Cloud sync is not configured for this build.';
+        _error = e.message ?? 'auth.error_backend_default'.tr();
       });
     } on supa.AuthException catch (e) {
       if (!mounted) return;
@@ -82,7 +83,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       setState(() {
         _phase = _LoginPhase.entering;
-        _error = 'Couldn\'t send the link. Please try again.\n$e';
+        _error = 'auth.error_send_failed'
+            .tr(namedArgs: <String, String>{'message': e.toString()});
       });
     }
   }
@@ -110,7 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       setState(() {
         _phase = _LoginPhase.entering;
-        _error = e.message ?? 'Cloud sync is not configured for this build.';
+        _error = e.message ?? 'auth.error_backend_default'.tr();
       });
     } on supa.AuthException catch (e) {
       if (!mounted) return;
@@ -122,7 +124,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       setState(() {
         _phase = _LoginPhase.entering;
-        _error = 'Sign-in failed. Please check your credentials.\n$e';
+        _error = 'auth.error_signin_failed'
+            .tr(namedArgs: <String, String>{'message': e.toString()});
       });
     }
   }
@@ -170,7 +173,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
           onPressed: _continueAsGuest,
-          tooltip: 'Skip',
+          tooltip: 'auth.skip_tooltip'.tr(),
         ),
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -193,8 +196,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: DesignTokens.spaceL),
                   Text(
                     _phase == _LoginPhase.sent
-                        ? 'Check your email'
-                        : 'Sign in to AWAtv',
+                        ? 'auth.title_check_email'.tr()
+                        : 'auth.title_sign_in'.tr(),
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w600,
@@ -203,9 +206,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: DesignTokens.spaceS),
                   Text(
                     _phase == _LoginPhase.sent
-                        ? 'We sent a one-time link to $_sentTo. Tap it on this '
-                            'device to finish signing in.'
-                        : 'Sync your playlists across phone, TV, and desktop.',
+                        ? 'auth.subtitle_check_email'.tr(
+                            namedArgs: <String, String>{'email': _sentTo},
+                          )
+                        : 'auth.subtitle_sign_in'.tr(),
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color:
@@ -243,7 +247,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   TextButton.icon(
                     onPressed: _continueAsGuest,
                     icon: const Icon(Icons.no_accounts_outlined),
-                    label: const Text('Continue without signing in'),
+                    label: Text('auth.continue_without_signin'.tr()),
                   ),
                   const SizedBox(height: DesignTokens.spaceL),
                   Row(
@@ -252,7 +256,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(width: DesignTokens.spaceS),
                       Expanded(
                         child: Text(
-                          'Your playlist credentials never leave your device.',
+                          'auth.credentials_local_hint'.tr(),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurface
                                 .withValues(alpha: 0.6),
@@ -336,17 +340,17 @@ class _LoginForm extends StatelessWidget {
             keyboardType: TextInputType.emailAddress,
             autofillHints: const <String>[AutofillHints.email],
             textInputAction: TextInputAction.send,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              hintText: 'you@example.com',
-              prefixIcon: Icon(Icons.alternate_email_rounded),
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: 'auth.field_email_label'.tr(),
+              hintText: 'auth.field_email_hint'.tr(),
+              prefixIcon: const Icon(Icons.alternate_email_rounded),
+              border: const OutlineInputBorder(),
             ),
             validator: (String? value) {
               final v = (value ?? '').trim();
-              if (v.isEmpty) return 'Enter your email address.';
+              if (v.isEmpty) return 'auth.field_email_required'.tr();
               if (!v.contains('@') || !v.contains('.')) {
-                return 'That doesn\'t look like an email.';
+                return 'auth.field_email_invalid'.tr();
               }
               return null;
             },
@@ -393,7 +397,7 @@ class _LoginForm extends StatelessWidget {
               autofillHints: const <String>[AutofillHints.password],
               textInputAction: TextInputAction.done,
               decoration: InputDecoration(
-                labelText: 'Password',
+                labelText: 'auth.field_password_label'.tr(),
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
                 suffixIcon: IconButton(
                   icon: Icon(
@@ -407,7 +411,9 @@ class _LoginForm extends StatelessWidget {
               ),
               validator: (String? value) {
                 if (!passwordMode) return null;
-                if ((value ?? '').isEmpty) return 'Enter your password.';
+                if ((value ?? '').isEmpty) {
+                  return 'auth.field_password_required'.tr();
+                }
                 return null;
               },
               onFieldSubmitted: (_) => enabled ? onSubmit() : null,
@@ -426,16 +432,20 @@ class _LoginForm extends StatelessWidget {
                     ? Icons.login_rounded
                     : Icons.send_rounded),
             label: Text(sending
-                ? (passwordMode ? 'Signing in…' : 'Sending…')
-                : (passwordMode ? 'Sign in' : 'Send magic link')),
+                ? (passwordMode
+                    ? 'auth.submit_signing_in'.tr()
+                    : 'auth.submit_sending'.tr())
+                : (passwordMode
+                    ? 'auth.submit_sign_in'.tr()
+                    : 'auth.submit_send_magic_link'.tr())),
           ),
           const SizedBox(height: DesignTokens.spaceS),
           TextButton(
             onPressed: enabled ? onTogglePasswordMode : null,
             child: Text(
               passwordMode
-                  ? 'Use magic link instead'
-                  : 'Use password instead',
+                  ? 'auth.use_magic_link'.tr()
+                  : 'auth.use_password'.tr(),
             ),
           ),
         ],
@@ -483,7 +493,7 @@ class _SentPanel extends StatelessWidget {
               ),
               const SizedBox(height: DesignTokens.spaceS),
               Text(
-                'Waiting for you to tap the link…',
+                'auth.waiting_link'.tr(),
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
@@ -495,7 +505,7 @@ class _SentPanel extends StatelessWidget {
         const SizedBox(height: DesignTokens.spaceM),
         TextButton(
           onPressed: onWrongEmail,
-          child: const Text('Wrong email? Start over'),
+          child: Text('auth.wrong_email'.tr()),
         ),
       ],
     );
@@ -530,7 +540,7 @@ class _BackendNotConfiguredBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  'Cloud sync isn\'t configured for this build.',
+                  'auth.backend_not_configured_title'.tr(),
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: BrandColors.warning,
                     fontWeight: FontWeight.w600,
@@ -538,7 +548,7 @@ class _BackendNotConfiguredBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: DesignTokens.spaceXs),
                 Text(
-                  'You can still use AWAtv on this device — your data stays here.',
+                  'auth.backend_not_configured_body'.tr(),
                   style: theme.textTheme.bodySmall,
                 ),
               ],

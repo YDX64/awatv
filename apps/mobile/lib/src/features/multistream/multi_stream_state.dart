@@ -24,7 +24,7 @@ class MultiStreamSlot {
   /// at attach time; if it fails, the controller walks [fallbacks].
   final MediaSource source;
 
-  /// URL-shape variants for [openWithFallbacks]. Same headers / UA /
+  /// URL-shape variants for `openWithFallbacks`. Same headers / UA /
   /// referer as [source] — only the URL differs.
   final List<MediaSource> fallbacks;
 

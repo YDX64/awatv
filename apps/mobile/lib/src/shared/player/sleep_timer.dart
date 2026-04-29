@@ -274,7 +274,6 @@ class StillWatchingNotifier extends StateNotifier<StillWatchingState> {
       state = StillWatchingState(
         startedAt: now,
         lastTickAt: now,
-        shouldPrompt: false,
       );
       return;
     }
@@ -287,8 +286,8 @@ class StillWatchingNotifier extends StateNotifier<StillWatchingState> {
     );
   }
 
-  /// Player paused — pause the count too. We keep [startedAt] so a
-  /// short pause (under [idleResetWindow]) still counts toward the
+  /// Player paused — pause the count too. We keep `startedAt` so a
+  /// short pause (under `idleResetWindow`) still counts toward the
   /// threshold.
   void paused() {
     state = StillWatchingState(

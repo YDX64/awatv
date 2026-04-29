@@ -1,3 +1,4 @@
+import 'package:awatv_mobile/src/shared/home_shell.dart' show HomeShell;
 import 'package:awatv_mobile/src/tv/d_pad.dart';
 import 'package:awatv_mobile/src/tv/screens/tv_home_screen.dart';
 import 'package:awatv_mobile/src/tv/screens/tv_live_screen.dart';
@@ -7,7 +8,6 @@ import 'package:awatv_mobile/src/tv/screens/tv_settings_screen.dart';
 import 'package:awatv_mobile/src/tv/screens/tv_vod_screen.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 /// 10-foot home shell — left rail + content pane.
 ///

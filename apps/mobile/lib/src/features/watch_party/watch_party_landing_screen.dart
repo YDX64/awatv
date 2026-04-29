@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
@@ -85,12 +87,12 @@ class WatchPartyLandingScreen extends ConsumerWidget {
   ) async {
     final allowed = ref.read(canUseFeatureProvider(PremiumFeature.cloudSync));
     if (!allowed) {
-      PremiumLockSheet.show(context, PremiumFeature.cloudSync);
+      unawaited(PremiumLockSheet.show(context, PremiumFeature.cloudSync));
       return;
     }
     final id = generatePartyId();
     if (!context.mounted) return;
-    context.push('/party/$id?host=1&name=${Uri.encodeComponent(name)}');
+    unawaited(context.push('/party/$id?host=1&name=${Uri.encodeComponent(name)}'));
   }
 
   Future<void> _onJoin(
@@ -101,7 +103,7 @@ class WatchPartyLandingScreen extends ConsumerWidget {
   ) async {
     final allowed = ref.read(canUseFeatureProvider(PremiumFeature.cloudSync));
     if (!allowed) {
-      PremiumLockSheet.show(context, PremiumFeature.cloudSync);
+      unawaited(PremiumLockSheet.show(context, PremiumFeature.cloudSync));
       return;
     }
     final code = normalisePartyId(rawCode);
@@ -112,7 +114,7 @@ class WatchPartyLandingScreen extends ConsumerWidget {
       return;
     }
     if (!context.mounted) return;
-    context.push('/party/$code?name=${Uri.encodeComponent(name)}');
+    unawaited(context.push('/party/$code?name=${Uri.encodeComponent(name)}'));
   }
 }
 
@@ -262,7 +264,7 @@ class _JoinCardState extends State<_JoinCard> {
                         style: theme.textTheme.titleLarge,
                       ),
                       Text(
-                        'Host\'un paylastigi 8 haneli kodu gir.',
+                        "Host'un paylastigi 8 haneli kodu gir.",
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: scheme.onSurface.withValues(alpha: 0.72),
                         ),
@@ -283,7 +285,6 @@ class _JoinCardState extends State<_JoinCard> {
             const SizedBox(height: DesignTokens.spaceM),
             TextField(
               controller: _codeCtrl,
-              autofocus: false,
               textAlign: TextAlign.center,
               textCapitalization: TextCapitalization.characters,
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -297,7 +298,7 @@ class _JoinCardState extends State<_JoinCard> {
                 border: OutlineInputBorder(),
               ),
               inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
                 LengthLimitingTextInputFormatter(kPartyIdLength),
               ],
               onChanged: (String v) =>

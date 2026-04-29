@@ -62,6 +62,42 @@ class RecordingTask {
     this.referer,
   });
 
+  factory RecordingTask.fromJson(Map<String, dynamic> json) {
+    return RecordingTask(
+      id: json['id'] as String,
+      channelId: json['channelId'] as String,
+      channelName: json['channelName'] as String,
+      streamUrl: json['streamUrl'] as String,
+      posterUrl: json['posterUrl'] as String?,
+      status: RecordingStatus.values.firstWhere(
+        (RecordingStatus s) => s.name == json['status'],
+        orElse: () => RecordingStatus.scheduled,
+      ),
+      backend: RecordingBackend.values.firstWhere(
+        (RecordingBackend b) => b.name == json['backend'],
+        orElse: () => RecordingBackend.dioCopy,
+      ),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      scheduledAt: json['scheduledAt'] == null
+          ? null
+          : DateTime.parse(json['scheduledAt'] as String),
+      startedAt: json['startedAt'] == null
+          ? null
+          : DateTime.parse(json['startedAt'] as String),
+      finishedAt: json['finishedAt'] == null
+          ? null
+          : DateTime.parse(json['finishedAt'] as String),
+      duration: json['durationMs'] == null
+          ? null
+          : Duration(milliseconds: (json['durationMs'] as num).toInt()),
+      bytesWritten: (json['bytesWritten'] as num?)?.toInt() ?? 0,
+      outputPath: json['outputPath'] as String?,
+      error: json['error'] as String?,
+      userAgent: json['userAgent'] as String?,
+      referer: json['referer'] as String?,
+    );
+  }
+
   /// Stable id (UUID) — Hive key.
   final String id;
 
@@ -165,40 +201,4 @@ class RecordingTask {
         'userAgent': userAgent,
         'referer': referer,
       };
-
-  factory RecordingTask.fromJson(Map<String, dynamic> json) {
-    return RecordingTask(
-      id: json['id'] as String,
-      channelId: json['channelId'] as String,
-      channelName: json['channelName'] as String,
-      streamUrl: json['streamUrl'] as String,
-      posterUrl: json['posterUrl'] as String?,
-      status: RecordingStatus.values.firstWhere(
-        (RecordingStatus s) => s.name == json['status'],
-        orElse: () => RecordingStatus.scheduled,
-      ),
-      backend: RecordingBackend.values.firstWhere(
-        (RecordingBackend b) => b.name == json['backend'],
-        orElse: () => RecordingBackend.dioCopy,
-      ),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      scheduledAt: json['scheduledAt'] == null
-          ? null
-          : DateTime.parse(json['scheduledAt'] as String),
-      startedAt: json['startedAt'] == null
-          ? null
-          : DateTime.parse(json['startedAt'] as String),
-      finishedAt: json['finishedAt'] == null
-          ? null
-          : DateTime.parse(json['finishedAt'] as String),
-      duration: json['durationMs'] == null
-          ? null
-          : Duration(milliseconds: (json['durationMs'] as num).toInt()),
-      bytesWritten: (json['bytesWritten'] as num?)?.toInt() ?? 0,
-      outputPath: json['outputPath'] as String?,
-      error: json['error'] as String?,
-      userAgent: json['userAgent'] as String?,
-      referer: json['referer'] as String?,
-    );
-  }
 }

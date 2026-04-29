@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/shared/remote/remote_channel.dart'
-    show RemoteConnectionState;
+    show RemoteChannel, RemoteConnectionState;
 import 'package:awatv_mobile/src/shared/remote/watch_party_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

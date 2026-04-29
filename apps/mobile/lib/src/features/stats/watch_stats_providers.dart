@@ -28,7 +28,7 @@ WatchStatsService watchStatsService(Ref ref) {
 /// when invalidated — the screen invalidates manually on pull-to-
 /// refresh, and the bottom sheet invalidates after a "share" so the
 /// next tap reflects any new history rows that landed mid-share.
-@Riverpod(keepAlive: false)
+@Riverpod()
 Future<WatchStatsSummary> watchStatsSummary(Ref ref) async {
   final svc = ref.watch(watchStatsServiceProvider);
   return svc.compute();

@@ -1,3 +1,4 @@
+import 'package:awatv_mobile/src/shared/profiles/profile_scoped_storage.dart' show ProfileScopedStorage;
 import 'package:flutter/material.dart';
 
 /// A single user-profile on this device.
@@ -21,6 +22,25 @@ class UserProfile {
     this.pinHash,
     this.pinSalt,
   });
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    final colorRaw = json['avatarColor'];
+    final colorInt = colorRaw is int
+        ? colorRaw
+        : (colorRaw is num ? colorRaw.toInt() : 0xFF6750A4);
+    return UserProfile(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      avatarEmoji: json['avatarEmoji'] as String?,
+      avatarColor: Color(colorInt),
+      isKids: json['isKids'] as bool? ?? false,
+      requiresPin: json['requiresPin'] as bool? ?? false,
+      pinHash: json['pinHash'] as String?,
+      pinSalt: json['pinSalt'] as String?,
+      createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+      updatedAt: DateTime.parse(json['updatedAt'] as String).toUtc(),
+    );
+  }
 
   /// UUID — stable for the lifetime of the profile, never reused.
   final String id;
@@ -94,25 +114,6 @@ class UserProfile {
         'createdAt': createdAt.toUtc().toIso8601String(),
         'updatedAt': updatedAt.toUtc().toIso8601String(),
       };
-
-  factory UserProfile.fromJson(Map<String, dynamic> json) {
-    final colorRaw = json['avatarColor'];
-    final colorInt = colorRaw is int
-        ? colorRaw
-        : (colorRaw is num ? colorRaw.toInt() : 0xFF6750A4);
-    return UserProfile(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      avatarEmoji: json['avatarEmoji'] as String?,
-      avatarColor: Color(colorInt),
-      isKids: json['isKids'] as bool? ?? false,
-      requiresPin: json['requiresPin'] as bool? ?? false,
-      pinHash: json['pinHash'] as String?,
-      pinSalt: json['pinSalt'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
-      updatedAt: DateTime.parse(json['updatedAt'] as String).toUtc(),
-    );
-  }
 
   @override
   bool operator ==(Object other) =>

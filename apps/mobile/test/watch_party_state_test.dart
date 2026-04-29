@@ -43,33 +43,33 @@ void main() {
 
   group('host getter', () {
     test('returns null when no host present', () {
-      final s = WatchPartyState(
+      const s = WatchPartyState(
         partyId: 'p',
         localUserId: 'u',
         localUserName: 'A',
         isHost: false,
         connection: RemoteConnectionState.connected,
-        members: const <PartyMember>[
+        members: <PartyMember>[
           PartyMember(userId: '1', userName: 'a', isHost: false),
           PartyMember(userId: '2', userName: 'b', isHost: false),
         ],
-        chat: const <PartyChat>[],
+        chat: <PartyChat>[],
       );
       expect(s.host, isNull);
     });
 
     test('returns the host member', () {
-      final s = WatchPartyState(
+      const s = WatchPartyState(
         partyId: 'p',
         localUserId: 'u',
         localUserName: 'A',
         isHost: false,
         connection: RemoteConnectionState.connected,
-        members: const <PartyMember>[
+        members: <PartyMember>[
           PartyMember(userId: '1', userName: 'guest', isHost: false),
           PartyMember(userId: 'host', userName: 'H', isHost: true),
         ],
-        chat: const <PartyChat>[],
+        chat: <PartyChat>[],
       );
       expect(s.host, isNotNull);
       expect(s.host!.userId, 'host');
@@ -78,17 +78,17 @@ void main() {
 
   group('others getter', () {
     test('excludes the local user', () {
-      final s = WatchPartyState(
+      const s = WatchPartyState(
         partyId: 'p',
         localUserId: 'me',
         localUserName: 'Me',
         isHost: false,
         connection: RemoteConnectionState.connected,
-        members: const <PartyMember>[
+        members: <PartyMember>[
           PartyMember(userId: 'me', userName: 'Me', isHost: false),
           PartyMember(userId: 'other', userName: 'Other', isHost: false),
         ],
-        chat: const <PartyChat>[],
+        chat: <PartyChat>[],
       );
       expect(s.others.map((PartyMember m) => m.userId), <String>['other']);
     });
@@ -133,7 +133,6 @@ void main() {
           userId: '1',
           userName: 'A',
           isHost: true,
-          isPlaying: false,
         ),
       ];
       const update = PartyMember(
@@ -166,13 +165,11 @@ void main() {
           userId: 'me',
           userName: 'Me',
           isHost: true,
-          online: true,
         ),
         PartyMember(
           userId: 'other',
           userName: 'O',
           isHost: false,
-          online: true,
         ),
       ];
       final next = dropMember(existing, 'me', localUserId: 'me');

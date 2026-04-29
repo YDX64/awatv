@@ -547,7 +547,7 @@ class _Footer extends ConsumerWidget {
     final avatar = Container(
       width: 32,
       height: 32,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: BrandColors.brandGradient,
         shape: BoxShape.circle,
       ),

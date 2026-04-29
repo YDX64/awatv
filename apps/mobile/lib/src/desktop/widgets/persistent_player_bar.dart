@@ -26,7 +26,7 @@ import 'package:go_router/go_router.dart';
 ///
 /// Layout:
 /// ┌────────────────────────────────────────────────────────────────────┐
-/// │ [40x40 thumb] Title              [▶] [⏭] [🔊]──[bar]── [📡][📌][⛶]│
+/// | thumb 40x40   Title              play next volume bar tray pin fs |
 /// │                Subtitle                                            │
 /// │ ─── progress (1px) ───                                            │
 /// └────────────────────────────────────────────────────────────────────┘

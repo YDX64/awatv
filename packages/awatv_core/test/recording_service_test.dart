@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — fs probes in test setUp/tearDown are deliberate.
 import 'dart:io';
 
 import 'package:awatv_core/awatv_core.dart';
@@ -80,13 +81,13 @@ void main() {
 
     test('schedules carry user-agent / referer when set on channel', () async {
       final task = await svc.schedule(
-        channel: Channel(
+        channel: const Channel(
           id: 'src::ua',
           sourceId: 'src',
           name: 'UA Channel',
           streamUrl: 'http://example.test/ua',
           kind: ChannelKind.live,
-          extras: const <String, String>{
+          extras: <String, String>{
             'http-user-agent': 'AWAtv/Test',
             'http-referrer': 'http://example.test/',
           },

@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — fs probes in test setUp/tearDown are deliberate.
 import 'dart:io';
 
 import 'package:awatv_core/awatv_core.dart';
@@ -167,7 +168,7 @@ void main() {
         // safety property — we never want to serve stale cached data
         // when the user has degraded to no-API mode).
         final svc = SubtitlesService(storage: storage);
-        final results = await svc.searchFor(v, lang: lang);
+        final results = await svc.searchFor(v);
         expect(results, isEmpty);
       },
     );

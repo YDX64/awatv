@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — fs probes in test setUp/tearDown are deliberate.
 import 'dart:io';
 
 import 'package:awatv_core/awatv_core.dart';

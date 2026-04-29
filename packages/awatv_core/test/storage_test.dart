@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — fs probes in test setUp/tearDown are deliberate.
 import 'dart:io';
 
 import 'package:awatv_core/awatv_core.dart';
@@ -52,7 +53,7 @@ void main() {
         name: 'A',
         kind: PlaylistKind.m3u,
         url: 'http://a/',
-        addedAt: DateTime.utc(2026, 4, 1),
+        addedAt: DateTime.utc(2026, 4),
       );
       final b = PlaylistSource(
         id: 'b',
@@ -89,7 +90,7 @@ void main() {
       );
       await storage.putSource(src);
       await storage.putChannels(sourceId, [
-        Channel(
+        const Channel(
           id: '$sourceId::c1',
           sourceId: sourceId,
           name: 'C1',
@@ -98,7 +99,7 @@ void main() {
         ),
       ]);
       await storage.putVod(sourceId, [
-        VodItem(
+        const VodItem(
           id: '$sourceId::vod::1',
           sourceId: sourceId,
           title: 'Movie',
@@ -106,7 +107,7 @@ void main() {
         ),
       ]);
       await storage.putSeries(sourceId, [
-        SeriesItem(
+        const SeriesItem(
           id: '$sourceId::series::1',
           sourceId: sourceId,
           title: 'Show',
@@ -132,7 +133,7 @@ void main() {
     test('putChannels then listChannels round-trips', () async {
       const sourceId = 'src-ch';
       final channels = [
-        Channel(
+        const Channel(
           id: '$sourceId::a',
           sourceId: sourceId,
           name: 'Alpha',
@@ -140,9 +141,9 @@ void main() {
           kind: ChannelKind.live,
           tvgId: 'a.tv',
           logoUrl: 'http://l/a.png',
-          groups: const ['News'],
+          groups: ['News'],
         ),
-        Channel(
+        const Channel(
           id: '$sourceId::b',
           sourceId: sourceId,
           name: 'Beta',
@@ -165,7 +166,7 @@ void main() {
     test('putChannels replaces previous content (clear semantics)', () async {
       const sourceId = 'src-replace';
       await storage.putChannels(sourceId, [
-        Channel(
+        const Channel(
           id: '$sourceId::old',
           sourceId: sourceId,
           name: 'Old',
@@ -174,7 +175,7 @@ void main() {
         ),
       ]);
       await storage.putChannels(sourceId, [
-        Channel(
+        const Channel(
           id: '$sourceId::new',
           sourceId: sourceId,
           name: 'New',
@@ -190,7 +191,7 @@ void main() {
     test('watchChannels emits initial value then updates', () async {
       const sourceId = 'src-watch';
       await storage.putChannels(sourceId, [
-        Channel(
+        const Channel(
           id: '$sourceId::1',
           sourceId: sourceId,
           name: 'one',
@@ -209,14 +210,14 @@ void main() {
 
       // Mutate; expect a new emission.
       await storage.putChannels(sourceId, [
-        Channel(
+        const Channel(
           id: '$sourceId::1',
           sourceId: sourceId,
           name: 'one',
           streamUrl: 'http://x/1.ts',
           kind: ChannelKind.live,
         ),
-        Channel(
+        const Channel(
           id: '$sourceId::2',
           sourceId: sourceId,
           name: 'two',
@@ -287,7 +288,7 @@ void main() {
         kind: HistoryKind.vod,
         position: const Duration(minutes: 10),
         total: const Duration(minutes: 100),
-        watchedAt: DateTime.utc(2026, 4, 1),
+        watchedAt: DateTime.utc(2026, 4),
       );
       final newer = HistoryEntry(
         itemId: 'b',

@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — fs probes in test setUp/tearDown are deliberate.
 import 'dart:io';
 
 import 'package:awatv_core/awatv_core.dart';
@@ -290,7 +291,7 @@ http://example.com/only.ts
           name: 'A',
           kind: PlaylistKind.m3u,
           url: 'http://example.com/a.m3u',
-          addedAt: DateTime.utc(2026, 4, 1),
+          addedAt: DateTime.utc(2026, 4),
         ),
       );
       await service.add(

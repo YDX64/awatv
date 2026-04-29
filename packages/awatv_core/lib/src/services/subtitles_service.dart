@@ -141,7 +141,7 @@ class SubtitlesService {
   }
 
   /// Write an in-memory SRT body to a temporary file and return a
-  /// `file://` URI suitable for [SubtitleTrack.uri].
+  /// `file://` URI suitable for `SubtitleTrack.uri`.
   ///
   /// Mobile + desktop only — on web the platform has no notion of a
   /// writable temp directory. The caller should branch on `kIsWeb`

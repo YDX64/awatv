@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — fs probes in test setUp/tearDown are deliberate.
 import 'dart:io';
 
 import 'package:awatv_core/awatv_core.dart';
@@ -97,7 +98,7 @@ void main() {
         title: 'Türkçe başlık',
         posterUrl: 'http://poster.test/p.jpg',
         year: 2024,
-        addedAt: DateTime.utc(2026, 1, 15, 10, 30, 0),
+        addedAt: DateTime.utc(2026, 1, 15, 10, 30),
       );
       await svc.add(original);
       final all = await svc.all();

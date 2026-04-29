@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:awatv_mobile/src/features/smart_alerts/smart_alerts_service.dart' show SmartAlertsService;
 import 'package:crypto/crypto.dart';
 
 /// One user-defined keyword-driven EPG alert.

@@ -4,6 +4,7 @@ import 'package:awatv_mobile/src/shared/discovery/discovered_iptv_server.dart';
 import 'package:awatv_mobile/src/shared/discovery/local_iptv_discovery.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -70,15 +71,17 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
   }
 
   String? _validateName(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Bir isim ver';
+    if (v == null || v.trim().isEmpty) return 'playlists.form_validation_name'.tr();
     return null;
   }
 
   String? _validateUrl(String? v) {
-    if (v == null || v.trim().isEmpty) return 'URL gerekli';
+    if (v == null || v.trim().isEmpty) {
+      return 'playlists.validation_url_required'.tr();
+    }
     final uri = Uri.tryParse(v.trim());
     if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
-      return 'http(s) ile basla';
+      return 'playlists.form_validation_url_scheme'.tr();
     }
     return null;
   }
@@ -87,7 +90,7 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
     final base = _validateUrl(v);
     if (base != null) return base;
     if (v!.contains('player_api.php')) {
-      return 'Sadece sunucu adresini gir, /player_api.php olmadan';
+      return 'playlists.form_validation_xtream_no_player_api'.tr();
     }
     return null;
   }
@@ -99,14 +102,18 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
   }
 
   String? _validateXtreamCreds(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Bu alan zorunlu';
+    if (v == null || v.trim().isEmpty) {
+      return 'playlists.form_validation_field_required'.tr();
+    }
     return null;
   }
 
   String? _validateMac(String? v) {
-    if (v == null || v.trim().isEmpty) return 'MAC adresi gerekli';
+    if (v == null || v.trim().isEmpty) {
+      return 'playlists.form_validation_mac_required'.tr();
+    }
     if (!StalkerClient.isValidMac(v.trim())) {
-      return 'Format: 00:1A:79:XX:XX:XX';
+      return 'playlists.form_validation_mac_format'.tr();
     }
     return null;
   }
@@ -153,33 +160,63 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
 
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('"${source.name}" eklendi')),
+        SnackBar(
+          content: Text(
+            'playlists.snack_added'
+                .tr(namedArgs: <String, String>{'name': source.name}),
+          ),
+        ),
       );
       navigator.go('/live');
     } on XtreamAuthException catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Kimlik dogrulanamadi: ${e.message}')),
+        SnackBar(
+          content: Text(
+            'playlists.snack_auth_failed'
+                .tr(namedArgs: <String, String>{'message': e.message}),
+          ),
+        ),
       );
     } on StalkerAuthException catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Stalker portal hatasi: ${e.message}')),
+        SnackBar(
+          content: Text(
+            'playlists.snack_stalker_failed'
+                .tr(namedArgs: <String, String>{'message': e.message}),
+          ),
+        ),
       );
     } on PlaylistParseException catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Liste cozumlenemedi: ${e.message}')),
+        SnackBar(
+          content: Text(
+            'playlists.snack_parse_failed'
+                .tr(namedArgs: <String, String>{'message': e.message}),
+          ),
+        ),
       );
     } on NetworkException catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Ag hatasi: ${e.message}')),
+        SnackBar(
+          content: Text(
+            'playlists.snack_network_failed'
+                .tr(namedArgs: <String, String>{'message': e.message}),
+          ),
+        ),
       );
     } on Object catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Eklenemedi: $e')),
+        SnackBar(
+          content: Text(
+            'playlists.snack_add_failed'
+                .tr(namedArgs: <String, String>{'message': e.toString()}),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -193,13 +230,13 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
     final mac = _macCtrl.text.trim();
     if (_validateStalkerServer(url) != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Once gecerli bir portal URL gir')),
+        SnackBar(content: Text('playlists.form_stalker_probe_url_first'.tr())),
       );
       return;
     }
     if (_validateMac(mac) != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Once gecerli bir MAC adresi gir')),
+        SnackBar(content: Text('playlists.form_stalker_probe_mac_first'.tr())),
       );
       return;
     }
@@ -216,22 +253,37 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
       await client.handshake();
       if (!mounted) return;
       messenger.showSnackBar(
-        const SnackBar(content: Text('Portal bulundu, MAC yetkili.')),
+        SnackBar(content: Text('playlists.form_stalker_probe_ok'.tr())),
       );
     } on StalkerAuthException catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Portal reddetti: ${e.message}')),
+        SnackBar(
+          content: Text(
+            'playlists.form_stalker_probe_rejected'
+                .tr(namedArgs: <String, String>{'message': e.message}),
+          ),
+        ),
       );
     } on NetworkException catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Portala ulasilamadi: ${e.message}')),
+        SnackBar(
+          content: Text(
+            'playlists.form_stalker_probe_unreachable'
+                .tr(namedArgs: <String, String>{'message': e.message}),
+          ),
+        ),
       );
     } on Object catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Probe basarisiz: $e')),
+        SnackBar(
+          content: Text(
+            'playlists.form_stalker_probe_failed'
+                .tr(namedArgs: <String, String>{'message': e.toString()}),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -243,7 +295,7 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Liste ekle')),
+      appBar: AppBar(title: Text('playlists.form_title'.tr())),
       body: SafeArea(
         child: AbsorbPointer(
           absorbing: _busy,
@@ -282,9 +334,9 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                     controller: _nameCtrl,
                     autofocus: true,
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Isim',
-                      hintText: 'Ornek: Evdeki IPTV',
+                    decoration: InputDecoration(
+                      labelText: 'playlists.form_field_name_label'.tr(),
+                      hintText: 'playlists.form_name_hint'.tr(),
                     ),
                     validator: _validateName,
                   ),
@@ -295,9 +347,9 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                       keyboardType: TextInputType.url,
                       autocorrect: false,
                       textInputAction: TextInputAction.done,
-                      decoration: const InputDecoration(
-                        labelText: 'M3U URL',
-                        hintText: 'https://example.com/playlist.m3u',
+                      decoration: InputDecoration(
+                        labelText: 'playlists.form_field_m3u_url_label'.tr(),
+                        hintText: 'playlists.form_field_m3u_url_hint'.tr(),
                       ),
                       validator: _validateUrl,
                     ),
@@ -307,9 +359,11 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                       keyboardType: TextInputType.url,
                       autocorrect: false,
                       textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Sunucu URL',
-                        hintText: 'http://my.iptv.host:8080',
+                      decoration: InputDecoration(
+                        labelText:
+                            'playlists.form_field_xtream_server_label'.tr(),
+                        hintText:
+                            'playlists.form_field_xtream_server_hint'.tr(),
                       ),
                       validator: _validateXtreamServer,
                     ),
@@ -328,8 +382,9 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                       controller: _userCtrl,
                       autocorrect: false,
                       textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Kullanici adi',
+                      decoration: InputDecoration(
+                        labelText:
+                            'playlists.form_field_xtream_username_label'.tr(),
                       ),
                       validator: _validateXtreamCreds,
                     ),
@@ -340,7 +395,8 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                       obscureText: !_showPassword,
                       textInputAction: TextInputAction.done,
                       decoration: InputDecoration(
-                        labelText: 'Sifre',
+                        labelText:
+                            'playlists.form_field_xtream_password_label'.tr(),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _showPassword
@@ -360,11 +416,13 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                       keyboardType: TextInputType.url,
                       autocorrect: false,
                       textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Portal URL',
-                        hintText: 'http://portal.example.tv:8080',
+                      decoration: InputDecoration(
+                        labelText:
+                            'playlists.form_field_stalker_portal_label'.tr(),
+                        hintText:
+                            'playlists.form_field_stalker_portal_hint'.tr(),
                         helperText:
-                            '/portal.php yolunu eklemen gerekmez, otomatik tespit edilir',
+                            'playlists.form_field_stalker_portal_help'.tr(),
                       ),
                       validator: _validateStalkerServer,
                     ),
@@ -377,17 +435,17 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                       inputFormatters: <TextInputFormatter>[
                         _MacAddressFormatter(),
                       ],
-                      decoration: const InputDecoration(
-                        labelText: 'MAC adresi',
-                        hintText: '00:1A:79:XX:XX:XX',
+                      decoration: InputDecoration(
+                        labelText: 'playlists.form_field_mac_label'.tr(),
+                        hintText: 'playlists.form_field_mac_hint'.tr(),
                       ),
                       validator: _validateMac,
                     ),
                     const SizedBox(height: DesignTokens.spaceM),
                     DropdownButtonFormField<String>(
                       initialValue: _stalkerTimezone,
-                      decoration: const InputDecoration(
-                        labelText: 'Saat dilimi (opsiyonel)',
+                      decoration: InputDecoration(
+                        labelText: 'playlists.form_field_timezone_label'.tr(),
                       ),
                       items: <DropdownMenuItem<String>>[
                         for (final tz in _timezones)
@@ -405,12 +463,11 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                     OutlinedButton.icon(
                       onPressed: _busy ? null : _probeStalker,
                       icon: const Icon(Icons.search_rounded),
-                      label: const Text('Bul'),
+                      label: Text('playlists.form_stalker_probe'.tr()),
                     ),
                     const SizedBox(height: DesignTokens.spaceS),
                     Text(
-                      'Portal MAC adresimizi tanimak zorunda. Saglayicidan '
-                      'cihazi yetkilendirmesini iste.',
+                      'playlists.form_stalker_probe_help'.tr(),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface
                             .withValues(alpha: 0.6),
@@ -419,7 +476,7 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                   ],
                   const SizedBox(height: DesignTokens.spaceL),
                   ExpansionTile(
-                    title: const Text('Gelismis'),
+                    title: Text('playlists.form_advanced'.tr()),
                     childrenPadding: const EdgeInsets.symmetric(
                       vertical: DesignTokens.spaceS,
                     ),
@@ -428,9 +485,9 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                         controller: _epgCtrl,
                         keyboardType: TextInputType.url,
                         autocorrect: false,
-                        decoration: const InputDecoration(
-                          labelText: 'EPG URL (opsiyonel)',
-                          hintText: 'https://example.com/epg.xml.gz',
+                        decoration: InputDecoration(
+                          labelText: 'playlists.form_field_epg_label'.tr(),
+                          hintText: 'playlists.form_field_epg_hint'.tr(),
                         ),
                       ),
                     ],
@@ -444,12 +501,11 @@ class _AddPlaylistScreenState extends ConsumerState<AddPlaylistScreen> {
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Ekle ve senkron et'),
+                        : Text('playlists.form_submit'.tr()),
                   ),
                   const SizedBox(height: DesignTokens.spaceM),
                   Text(
-                    'Liste ilk eklenisinde indirilir ve cihazda saklanir. '
-                    'Daha sonra cevrimdisi gezilebilir.',
+                    'playlists.form_caption'.tr(),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
@@ -515,19 +571,21 @@ class _LocalDiscoveryPanel extends ConsumerWidget {
       ),
       child: ExpansionTile(
         leading: const Icon(Icons.wifi_find_outlined),
-        title: const Text('Yerel agda bulunan sunucular'),
+        title: Text('playlists.discovery_title'.tr()),
         subtitle: discovery.when(
           data: (List<DiscoveredIptvServer> values) {
             if (values.isEmpty) {
-              return const Text('Henuz sunucu bulunamadi - tarama suruyor.');
+              return Text('playlists.discovery_subtitle_empty'.tr());
             }
             return Text(
-              '${values.length} sunucu bulundu - tap ile sec',
+              'playlists.discovery_subtitle_count'.tr(
+                namedArgs: <String, String>{'n': values.length.toString()},
+              ),
             );
           },
-          loading: () => const Text('Aglarda taranıyor...'),
+          loading: () => Text('playlists.discovery_loading'.tr()),
           error: (Object _, StackTrace __) =>
-              const Text('Tarama yapilamadi'),
+              Text('playlists.discovery_failed'.tr()),
         ),
         shape: const Border(),
         collapsedShape: const Border(),
@@ -547,8 +605,7 @@ class _LocalDiscoveryPanel extends ConsumerWidget {
                       const SizedBox(width: DesignTokens.spaceS),
                       Expanded(
                         child: Text(
-                          'Sunucularin Bonjour servisi yayinlamasi gerekir. '
-                          'Manuel olarak da girebilirsin.',
+                          'playlists.discovery_help'.tr(),
                           style: theme.textTheme.bodySmall,
                         ),
                       ),

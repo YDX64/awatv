@@ -1,7 +1,7 @@
+import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/sync/cloud_sync_engine.dart';
 import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/sync_envelope.dart';
-import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

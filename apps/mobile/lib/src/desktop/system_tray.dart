@@ -144,7 +144,7 @@ class AwaTvTray with TrayListener {
         MenuItem(
           key: _kPip,
           label: inPip
-              ? 'Picture in picture\'dan çık'
+              ? "Picture in picture'dan çık"
               : 'Picture in picture',
         ),
         MenuItem.checkbox(
@@ -159,7 +159,7 @@ class AwaTvTray with TrayListener {
           disabled: true,
         ),
         MenuItem.separator(),
-        MenuItem(key: _kQuit, label: 'AWAtv\'den çık'),
+        MenuItem(key: _kQuit, label: "AWAtv'den çık"),
       ],
     );
     try {

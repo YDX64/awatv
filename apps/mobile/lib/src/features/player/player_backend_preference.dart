@@ -61,5 +61,5 @@ class PlayerBackendPreferenceNotifier extends StateNotifier<PlayerBackend> {
 final StateNotifierProvider<PlayerBackendPreferenceNotifier, PlayerBackend>
     playerBackendPreferenceProvider =
     StateNotifierProvider<PlayerBackendPreferenceNotifier, PlayerBackend>(
-  (Ref ref) => PlayerBackendPreferenceNotifier(ref),
+  PlayerBackendPreferenceNotifier.new,
 );

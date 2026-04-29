@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_slow_async_io — fs probes in test setUp/tearDown are deliberate.
 import 'dart:io';
 
 import 'package:awatv_core/awatv_core.dart';
@@ -91,7 +92,7 @@ void main() {
       // service catches that and returns []. We assert the public
       // contract: empty list, no exceptions.
       final res = await svc.programmesFor(
-        Channel(
+        const Channel(
           id: 'xtream-src::not-a-number',
           sourceId: 'xtream-src',
           name: 'Word',
@@ -134,7 +135,7 @@ void main() {
     test('returns null when channel id has no numeric tail', () async {
       await storage.putSource(xtreamSource(user: 'u', pass: 'p'));
       final url = await svc.urlForEpg(
-        Channel(
+        const Channel(
           id: 'xtream-src::not-numeric',
           sourceId: 'xtream-src',
           name: 'X',

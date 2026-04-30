@@ -48,7 +48,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build-macos:
     name: macOS (.app + .dmg)
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -333,7 +333,7 @@ jobs:
     name: Publish update manifest (latest.json)
     needs: [build-macos, build-windows, build-linux]
     if: github.event_name == 'release'
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 

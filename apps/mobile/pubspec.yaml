@@ -189,7 +189,15 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    # `.env` is read at runtime by flutter_dotenv on web — must be a top-
+    # level asset because dotenv loads it via rootBundle.
     - .env
+    # Each subdirectory is listed explicitly because the Flutter asset
+    # bundler does NOT recurse — `assets/` alone bundles immediate files
+    # only. Without these explicit lines, EasyLocalization's
+    # `assets/i18n/<locale>.json` fetch returned the SPA fallback HTML
+    # and JSON.parse threw `Unexpected token '<', "<!DOCTYPE..."`.
     - assets/
+    - assets/i18n/
     - assets/tray/
   # Custom fonts can be added here later (Inter / Manrope recommended for sleek UI)

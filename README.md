@@ -10,12 +10,19 @@ Cross-platform freemium IPTV / streaming application.
 
 Captured against the live deployment at <https://awatv.pages.dev>.
 
-| Onboarding | Add Playlist (Xtream) | Sign-in |
+| Onboarding (mobile) | Add Playlist (mobile) | Onboarding (desktop) |
 |---|---|---|
-| ![Onboarding](store/screenshots/01-onboarding-mobile.png) | ![Add Playlist](store/screenshots/03-add-playlist-xtream-mobile.png) | ![Sign-in](store/screenshots/04-login-mobile.png) |
+| ![Onboarding mobile](store/screenshots/01-onboarding-mobile.png) | ![Add Playlist mobile](store/screenshots/02-add-playlist-mobile.png) | ![Onboarding desktop](store/screenshots/01-onboarding-desktop.png) |
+
+> **Wave 13 smoke (2026-04-29):** the live `https://awatv.pages.dev`
+> deployment currently fails to render the Flutter scene — see
+> [`docs/SMOKE-TEST-RESULT.md`](docs/SMOKE-TEST-RESULT.md). The Wave-13
+> screenshots above are intentionally blank to document this regression.
+> Earlier (Wave 12) screenshots remain in
+> [`store/screenshots/INDEX.md`](store/screenshots/INDEX.md) for marketing reference.
 
 See [`store/screenshots/INDEX.md`](store/screenshots/INDEX.md) for the
-full set (16 PNGs across 8 screens × mobile + desktop) and the
+full set (Wave 13 fresh PNGs + Wave 12 archive) and the
 regeneration script at [`scripts/capture-screenshots.sh`](scripts/capture-screenshots.sh).
 
 ## Quick start

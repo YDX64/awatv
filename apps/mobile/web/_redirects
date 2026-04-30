@@ -1,0 +1,23 @@
+# Cloudflare Pages SPA fallback.
+#
+# We only want the SPA fallback for ROUTES the Flutter router handles —
+# never for `/assets/*` or `/canvaskit/*`. If we let the catch-all `/*`
+# rule capture asset paths, Cloudflare returns index.html (200) for any
+# missing asset, and EasyLocalization JSON.parse trips on `<!DOCTYPE>`.
+#
+# The order matters: more specific rules first, catch-all last.
+
+/assets/*  /assets/:splat  200
+/canvaskit/*  /canvaskit/:splat  200
+/icons/*  /icons/:splat  200
+/manifest.json  /manifest.json  200
+/favicon.png  /favicon.png  200
+/flutter_service_worker.js  /flutter_service_worker.js  200
+/flutter_bootstrap.js  /flutter_bootstrap.js  200
+/main.dart.js  /main.dart.js  200
+/main.dart.mjs  /main.dart.mjs  200
+/main.dart.wasm  /main.dart.wasm  200
+/version.json  /version.json  200
+
+# All other routes fall back to the SPA shell.
+/*  /index.html  200

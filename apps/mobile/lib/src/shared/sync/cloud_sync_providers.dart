@@ -29,13 +29,17 @@ SyncQueue syncQueue(Ref ref) {
 /// thrash subscriptions and lose pending debounce timers.
 @Riverpod(keepAlive: true)
 CloudSyncEngine cloudSyncEngine(Ref ref) {
+  // No backend configured → engine becomes a no-op stub with a null
+  // client. We MUST NOT touch `supa.Supabase.instance` here because
+  // accessing the singleton before `Supabase.initialize` ran throws
+  // a `LateInitializationError` that surfaces as a Riverpod
+  // ProviderException at the root of every screen mount, white-screening
+  // the whole app. The engine's methods all guard on `_client == null`.
   if (!Env.hasSupabase) {
-    // No backend → return a never-active engine. The pulse provider
-    // checks Env.hasSupabase too, so activate() is never called.
     final stub = CloudSyncEngine(
       storage: ref.watch(awatvStorageProvider),
       queue: ref.watch(syncQueueProvider),
-      client: _supabaseOrThrow(),
+      client: null,
     );
     ref.onDispose(stub.dispose);
     return stub;
@@ -47,15 +51,6 @@ CloudSyncEngine cloudSyncEngine(Ref ref) {
   );
   ref.onDispose(engine.dispose);
   return engine;
-}
-
-supa.SupabaseClient _supabaseOrThrow() {
-  // Returning a client we don't have makes activate() throw on first
-  // call. Engine never gets there because the pulse provider blocks it.
-  // We still need a non-null client for the engine constructor — fall
-  // back to whatever the SDK gives us, which throws the helpful
-  // "Supabase.initialize was not called" error if anyone misroutes here.
-  return supa.Supabase.instance.client;
 }
 
 /// Drives engine lifecycle off the cloud-sync gate.

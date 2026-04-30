@@ -43,14 +43,20 @@ class CloudSyncEngine {
   CloudSyncEngine({
     required AwatvStorage storage,
     required SyncQueue queue,
-    required supa.SupabaseClient client,
+    supa.SupabaseClient? client,
   })  : _storage = storage,
         _queue = queue,
         _client = client;
 
   final AwatvStorage _storage;
   final SyncQueue _queue;
-  final supa.SupabaseClient _client;
+
+  /// Optional Supabase client. Null on builds where the developer hasn't
+  /// configured `SUPABASE_URL` / `SUPABASE_ANON_KEY`. Every consumer of
+  /// `_client` early-returns when null so the engine becomes a polite
+  /// no-op rather than throwing a LateInitializationError on access of
+  /// `Supabase.instance` (which is itself a `late final`).
+  final supa.SupabaseClient? _client;
 
   /// Hive prefs key for the last successful pull/push timestamp. Used
   /// for "Senkron — son güncelleme: 2 dakika önce" copy.
@@ -124,6 +130,10 @@ class CloudSyncEngine {
   /// the same user is a no-op; calling for a different user implicitly
   /// deactivates the previous session first.
   Future<void> activate({required String userId}) async {
+    if (_client == null) {
+      _setStatus(const SyncDisabled());
+      return;
+    }
     if (_active && _userId == userId) return;
     if (_activating) return;
     _activating = true;
@@ -192,6 +202,7 @@ class CloudSyncEngine {
   /// Tear down subscriptions and timers. Leaves the queue intact so
   /// pending mutations survive a sign-out → sign-in round-trip.
   Future<void> deactivate({String? reason}) async {
+    if (_client == null) return;
     _active = false;
     _userId = null;
     _deviceRowId = null;
@@ -213,7 +224,7 @@ class CloudSyncEngine {
     _channel = null;
     if (ch != null) {
       try {
-        await _client.removeChannel(ch);
+        await _client?.removeChannel(ch);
       } on Object {
         // Best-effort.
       }
@@ -236,6 +247,7 @@ class CloudSyncEngine {
   /// [SyncStatus] rather than throwing so the UI never has to wrap the
   /// call in a try/catch.
   Future<void> syncNow() async {
+    if (_client == null) return;
     if (!_active || _userId == null) return;
     _setStatus(const SyncPulling());
     try {
@@ -343,6 +355,7 @@ class CloudSyncEngine {
   /// path zero-side-effect even when offline (a thrown error is fine —
   /// the screen surfaces a retry).
   Future<List<DeviceSessionRow>> listDevices() async {
+    if (_client == null) return const <DeviceSessionRow>[];
     final user = _userId;
     if (user == null) {
       throw const SyncError(
@@ -364,6 +377,7 @@ class CloudSyncEngine {
   /// the schema doesn't carry a soft-delete column — the user re-opens
   /// the app on that device, the heartbeat re-creates the row.
   Future<void> revokeDevice(String rowId) async {
+    if (_client == null) return;
     final user = _userId;
     if (user == null) {
       throw const SyncError('Not signed in.', retryable: false);
@@ -384,6 +398,7 @@ class CloudSyncEngine {
   // ---------------------------------------------------------------------------
 
   void _subscribeRealtime() {
+    if (_client == null) return;
     final user = _userId;
     if (user == null) return;
     final filter = supa.PostgresChangeFilter(
@@ -391,7 +406,7 @@ class CloudSyncEngine {
       column: 'user_id',
       value: user,
     );
-    final ch = _client.channel('cloud-sync:$user')
+    final ch = _client!.channel('cloud-sync:$user')
       ..onPostgresChanges(
         event: supa.PostgresChangeEvent.all,
         schema: 'public',
@@ -545,6 +560,7 @@ class CloudSyncEngine {
   // ---------------------------------------------------------------------------
 
   Future<void> _pull() async {
+    if (_client == null) return;
     final user = _userId;
     if (user == null) return;
     _setStatus(const SyncPulling());
@@ -621,6 +637,7 @@ class CloudSyncEngine {
   // ---------------------------------------------------------------------------
 
   Future<void> _initialPush() async {
+    if (_client == null) return;
     final user = _userId;
     if (user == null) return;
     _setStatus(const SyncPushing());
@@ -769,6 +786,7 @@ class CloudSyncEngine {
   // ---------------------------------------------------------------------------
 
   Future<void> _heartbeat() async {
+    if (_client == null) return;
     final user = _userId;
     final fp = _fingerprint;
     if (user == null || fp == null) return;
@@ -817,6 +835,7 @@ class CloudSyncEngine {
   }
 
   Future<void> _pushOne(SyncEvent event) async {
+    if (_client == null) return;
     final user = _userId;
     if (user == null || event.userId != user) {
       // Queue carries an event for a different user — drop.
@@ -830,7 +849,7 @@ class CloudSyncEngine {
       final mutationAt = event.updatedAt.toUtc().toIso8601String();
       switch (event) {
         case FavoriteUpserted():
-          await _client.from('favorites').upsert(<String, dynamic>{
+          await _client!.from('favorites').upsert(<String, dynamic>{
             'user_id': user,
             'item_id': event.itemId,
             'item_kind': event.itemKind.wire,
@@ -846,7 +865,7 @@ class CloudSyncEngine {
               .eq('item_id', event.itemId);
           _forgetRemoteFavorite(event.itemId);
         case HistoryUpserted():
-          await _client.from('watch_history').upsert(<String, dynamic>{
+          await _client!.from('watch_history').upsert(<String, dynamic>{
             'user_id': user,
             'item_id': event.entry.itemId,
             'item_kind': _historyKindWire(event.entry.kind),
@@ -867,7 +886,7 @@ class CloudSyncEngine {
               .eq('item_id', event.itemId);
           _forgetRemoteHistory(event.itemId);
         case PlaylistSourceUpserted():
-          await _client.from('playlist_sources').upsert(<String, dynamic>{
+          await _client!.from('playlist_sources').upsert(<String, dynamic>{
             'user_id': user,
             'name': event.name,
             'kind': event.kind.name,
@@ -889,7 +908,7 @@ class CloudSyncEngine {
               .eq('client_id', event.clientId);
           _forgetRemoteSource(event.clientId);
         case DeviceSessionUpserted():
-          await _client.from('device_sessions').upsert(<String, dynamic>{
+          await _client!.from('device_sessions').upsert(<String, dynamic>{
             'user_id': user,
             'device_id': event.deviceId,
             'device_kind': event.deviceKind.wire,

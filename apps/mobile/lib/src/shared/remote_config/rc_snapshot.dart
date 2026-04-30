@@ -20,6 +20,7 @@ class RcSnapshot {
     required this.castEnabled,
     required this.remoteControlEnabled,
     required this.maintenanceMessage,
+    required this.freeTrialDays,
   });
 
   /// Default snapshot used when Firebase isn't configured or hasn't
@@ -32,7 +33,8 @@ class RcSnapshot {
         priceLifetime = 'EUR 69,99',
         castEnabled = true,
         remoteControlEnabled = true,
-        maintenanceMessage = '';
+        maintenanceMessage = '',
+        freeTrialDays = 3;
 
   /// 'A' or 'B' — drives the paywall layout. 'A' (default) highlights
   /// yearly in the middle; 'B' highlights lifetime and reorders the cards
@@ -56,6 +58,11 @@ class RcSnapshot {
   /// at 02:00 UTC" announcements.
   final String maintenanceMessage;
 
+  /// How many days the paywall advertises as the free-trial window.
+  /// Display-only; the actual eligibility is resolved by the store
+  /// receipt at purchase time. Marketing tunes this from 3 → 7 etc.
+  final int freeTrialDays;
+
   RcSnapshot copyWith({
     String? paywallVariant,
     String? priceMonthly,
@@ -64,6 +71,7 @@ class RcSnapshot {
     bool? castEnabled,
     bool? remoteControlEnabled,
     String? maintenanceMessage,
+    int? freeTrialDays,
   }) {
     return RcSnapshot(
       paywallVariant: paywallVariant ?? this.paywallVariant,
@@ -74,6 +82,7 @@ class RcSnapshot {
       remoteControlEnabled:
           remoteControlEnabled ?? this.remoteControlEnabled,
       maintenanceMessage: maintenanceMessage ?? this.maintenanceMessage,
+      freeTrialDays: freeTrialDays ?? this.freeTrialDays,
     );
   }
 
@@ -86,7 +95,8 @@ class RcSnapshot {
         other.priceLifetime == priceLifetime &&
         other.castEnabled == castEnabled &&
         other.remoteControlEnabled == remoteControlEnabled &&
-        other.maintenanceMessage == maintenanceMessage;
+        other.maintenanceMessage == maintenanceMessage &&
+        other.freeTrialDays == freeTrialDays;
   }
 
   @override
@@ -98,6 +108,7 @@ class RcSnapshot {
         castEnabled,
         remoteControlEnabled,
         maintenanceMessage,
+        freeTrialDays,
       );
 }
 
@@ -113,6 +124,7 @@ class RcKeys {
   static const String featureFlagRemoteControl = 'feature_flag_remote_control';
   static const String featureFlagCast = 'feature_flag_cast';
   static const String maintenanceMessage = 'maintenance_message';
+  static const String freeTrialDays = 'free_trial_days';
 
   /// All defaults in one map — handed straight to `rc.setDefaults`.
   static Map<String, dynamic> get defaults => <String, dynamic>{
@@ -123,5 +135,6 @@ class RcKeys {
         featureFlagRemoteControl: true,
         featureFlagCast: true,
         maintenanceMessage: '',
+        freeTrialDays: 3,
       };
 }

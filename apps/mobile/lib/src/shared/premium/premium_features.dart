@@ -69,6 +69,17 @@ enum PremiumFeature {
   /// most common case. The picker itself (manual search + selection)
   /// is always free; only the "do it for me" automation is gated.
   autoSubtitles,
+
+  /// Apple Family Sharing / Google Family Library compatibility — one
+  /// premium subscription is shared across the user's family group.
+  /// Surfaced on the paywall as a top-line bullet so prospective
+  /// subscribers know the cost is per-family, not per-device.
+  familySharing,
+
+  /// Marketing-only flag used by the paywall to advertise the free
+  /// trial. Not enforced in any gate — the actual eligibility is
+  /// resolved by the store at purchase time.
+  freeTrialEligible,
 }
 
 /// Display copy used by the paywall sheet and lock dialog. Kept as a
@@ -93,6 +104,8 @@ class PremiumFeatureCopy {
         PremiumFeature.recording => 'Canli yayin kaydi',
         PremiumFeature.downloads => 'Cevrimdisi indirme',
         PremiumFeature.autoSubtitles => 'Otomatik altyazi',
+        PremiumFeature.familySharing => 'Aile paylaşımı',
+        PremiumFeature.freeTrialEligible => 'Ücretsiz deneme',
       };
 
   static String subtitle(PremiumFeature f) => switch (f) {
@@ -134,5 +147,12 @@ class PremiumFeatureCopy {
         PremiumFeature.autoSubtitles =>
           'Filmi her actigin anda Turkce altyaziyi senin icin bul ve yukle. '
               'Manuel arama herkese acik kalir; bu otomasyon Premium uyelere ozel.',
+        PremiumFeature.familySharing =>
+          'Tek abonelik tum aile ile paylasilabilir — Apple Family Sharing '
+              've Google Family Library uyumlu, ek profillerle ev halki '
+              'icin ozel ekranlar.',
+        PremiumFeature.freeTrialEligible =>
+          'Premium ozellikleri uc gun boyunca ucretsiz dene; istemezsen '
+              'tek dokunusla iptal et, ucret alinmaz.',
       };
 }

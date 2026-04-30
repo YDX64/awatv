@@ -149,6 +149,15 @@ class AppRemoteConfig extends _$AppRemoteConfig {
       }
     }
 
+    int i(String key, int fallback) {
+      try {
+        final v = rc.getInt(key);
+        return v == 0 ? fallback : v;
+      } on Object {
+        return fallback;
+      }
+    }
+
     return RcSnapshot(
       paywallVariant: s(RcKeys.paywallVariant, 'A'),
       priceMonthly: s(RcKeys.priceMonthly, 'EUR 3,99 / ay'),
@@ -157,6 +166,7 @@ class AppRemoteConfig extends _$AppRemoteConfig {
       castEnabled: b(RcKeys.featureFlagCast, true),
       remoteControlEnabled: b(RcKeys.featureFlagRemoteControl, true),
       maintenanceMessage: s(RcKeys.maintenanceMessage, ''),
+      freeTrialDays: i(RcKeys.freeTrialDays, 3),
     );
   }
 }

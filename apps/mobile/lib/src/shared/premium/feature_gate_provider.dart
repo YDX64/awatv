@@ -60,6 +60,13 @@ bool _freeTierAllowed(PremiumFeature feature) {
     case PremiumFeature.downloads:
     // Auto-subtitle fetching is gated; the picker UI itself is free.
     case PremiumFeature.autoSubtitles:
+    // Family sharing is purely a marketing claim on the paywall today;
+    // the underlying entitlement comes from the store. Treated as
+    // premium-only so feature gates that key off it (eg. profile
+    // sharing UI) don't accidentally open up for free users.
+    case PremiumFeature.familySharing:
+    // Free-trial eligibility is also marketing-only; not a real gate.
+    case PremiumFeature.freeTrialEligible:
       return false;
   }
 }

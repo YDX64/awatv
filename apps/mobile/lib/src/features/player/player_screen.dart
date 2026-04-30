@@ -134,7 +134,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     WidgetsBinding.instance.addObserver(this);
     _enterImmersive();
     _bootController();
-    _scheduleHide();
+    // Don't schedule auto-hide until the first frame is seen. On a slow
+    // backend / cold play, the engine might take 2-4s to surface its
+    // first frame; a 3.5s timer started here would race against it and
+    // leave the user staring at a black surface with no chrome.
+    // _onPlayerState(PlayerPlaying) flips _firstFrameSeen and re-arms
+    // the hide timer with a fresh anchor — the controls are then guaranteed
+    // to be visible for at least 3.5s after playback actually begins.
   }
 
   Future<void> _enterImmersive() async {
@@ -523,13 +529,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!mounted) return;
     switch (state) {
       case PlayerPlaying(:final position, :final total):
+        final wasFirstFrame = !_firstFrameSeen;
         setState(() {
           _isPaused = false;
           _buffering = false;
           _position = position;
           _total = total;
           _errorMessage = null;
+          // Make controls visible the moment playback actually starts so
+          // the user always sees the chrome. _scheduleHide below resets
+          // the auto-hide window with the right anchor.
+          _showControls = true;
+          if (wasFirstFrame) {
+            _firstFrameSeen = true;
+          }
         });
+        // Re-arm the hide timer from the play transition — guarantees
+        // the controls stay visible for the full 3.5s window starting
+        // when playback became real, not when initState fired.
+        _scheduleHide();
         // Force-publish on a transition (bypasses the position throttle)
         // so the bar's icon flips the moment playback resumes.
         _lastNowPlayingPositionAt =
@@ -556,6 +574,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         setState(() {
           _buffering = true;
           _errorMessage = null;
+          // Keep chrome visible while loading so the user can hit Geri
+          // (back) without having to tap a black screen first.
+          _showControls = true;
         });
       case PlayerEnded():
         setState(() {
@@ -620,9 +641,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _scheduleHide() {
     _hideTimer?.cancel();
     if (_isPaused || _scrubbing) return;
+    // Don't auto-hide before we've actually seen a frame — otherwise a
+    // slow open() would silently strip the chrome before the user even
+    // sees the player has started.
+    if (!_firstFrameSeen) return;
     _hideTimer = Timer(const Duration(milliseconds: 3500), () {
       if (!mounted) return;
-      if (!_isPaused && !_scrubbing) {
+      if (!_isPaused && !_scrubbing && _firstFrameSeen) {
         setState(() => _showControls = false);
       }
     });

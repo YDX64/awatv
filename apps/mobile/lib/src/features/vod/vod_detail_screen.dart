@@ -257,6 +257,16 @@ class _ActionRow extends ConsumerWidget {
       context.push('/play', extra: args);
       return;
     }
+    // Defensive: if the playlist row didn't carry a URL (provider data
+    // gap), refuse to push the player route — a black screen with a
+    // generic "Oynatma hatasi" panel is worse UX than a snackbar that
+    // explains the row is broken.
+    if (vod.streamUrl.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bu film için oynatma adresi yok.')),
+      );
+      return;
+    }
     final urls = streamUrlVariants(vod.streamUrl).map(proxify).toList();
     final all = MediaSource.variants(urls, title: vod.title);
     final args = PlayerLaunchArgs(

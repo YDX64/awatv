@@ -139,6 +139,14 @@ class _SeriesDetailScreenState extends ConsumerState<SeriesDetailScreen> {
                         ),
                         const SizedBox(height: DesignTokens.spaceM),
                       ],
+                      // Prominent play CTA — fires the first available
+                      // episode of the currently-selected season. The user
+                      // reported the series surface looked dead because the
+                      // only play affordance lived inside each episode row;
+                      // surfacing a top-level button here gives the screen a
+                      // recognisable Netflix-style entry point.
+                      _PlayFirstEpisodeButton(series: s, season: season),
+                      const SizedBox(height: DesignTokens.spaceM),
                       Row(
                         children: <Widget>[
                           // Watchlist toggle (saat ikonu) — favoriden ayri
@@ -232,6 +240,82 @@ class _SeriesDetailScreenState extends ConsumerState<SeriesDetailScreen> {
   }
 }
 
+/// Builds and pushes a /play route for one episode. Pulled out of the
+/// tile / button widgets so the launch wiring lives in one place — the
+/// "Ilk bolumu oynat" CTA, the per-row play button, and the row-tap all
+/// share the same source-fallback shape.
+void _launchEpisode(
+  BuildContext context, {
+  required String seriesTitle,
+  required Episode episode,
+}) {
+  if (episode.streamUrl.trim().isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Bu bölüm için oynatma adresi yok.')),
+    );
+    return;
+  }
+  final epTitle = '$seriesTitle  S${episode.season}E${episode.number}';
+  final urls = streamUrlVariants(episode.streamUrl).map(proxify).toList();
+  final all = MediaSource.variants(urls, title: epTitle);
+  final args = PlayerLaunchArgs(
+    source: all.isEmpty
+        ? MediaSource(url: proxify(episode.streamUrl), title: epTitle)
+        : all.first,
+    fallbacks:
+        all.length <= 1 ? const <MediaSource>[] : all.sublist(1),
+    title: epTitle,
+    subtitle: episode.title,
+    itemId: episode.id,
+    kind: HistoryKind.series,
+  );
+  context.push('/play', extra: args);
+}
+
+/// Top-level "Ilk bolumu oynat" / "Devam et" CTA. Resolves the first
+/// episode of [season] from [seriesEpisodesProvider], hands it to
+/// [_launchEpisode]. Disabled while the episode list is loading or empty
+/// so the button never lies — it only ever shows up clickable when
+/// there's a real source to push.
+class _PlayFirstEpisodeButton extends ConsumerWidget {
+  const _PlayFirstEpisodeButton({
+    required this.series,
+    required this.season,
+  });
+
+  final SeriesItem series;
+  final int season;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final episodes = ref.watch(seriesEpisodesProvider(series.id, season));
+    final eps = episodes.value ?? const <Episode>[];
+    final loading = episodes.isLoading;
+    final ready = !loading && eps.isNotEmpty;
+    final first = ready ? eps.first : null;
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        icon: const Icon(Icons.play_arrow_rounded),
+        label: Text(
+          loading
+              ? 'Yükleniyor…'
+              : (first == null
+                  ? 'Bölüm yok'
+                  : 'Oynat: S${first.season}E${first.number}'),
+        ),
+        onPressed: first == null
+            ? null
+            : () => _launchEpisode(
+                  context,
+                  seriesTitle: series.title,
+                  episode: first,
+                ),
+      ),
+    );
+  }
+}
+
 class _EpisodeTile extends ConsumerWidget {
   const _EpisodeTile({required this.seriesTitle, required this.episode});
 
@@ -264,33 +348,26 @@ class _EpisodeTile extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     )
                   : null),
-          trailing: Icon(
-            hasResume ? Icons.replay : Icons.play_arrow_rounded,
+          // Explicit play affordance — was previously just a single
+          // unlabelled icon, easy to miss. The IconButton has its own
+          // tap target so the whole row still launches playback for
+          // forgiving touch UX.
+          trailing: IconButton(
+            tooltip: hasResume ? 'Devam et' : 'Oynat',
+            icon: Icon(
+              hasResume ? Icons.replay_rounded : Icons.play_arrow_rounded,
+            ),
+            onPressed: () => _launchEpisode(
+              context,
+              seriesTitle: seriesTitle,
+              episode: episode,
+            ),
           ),
-          onTap: () {
-            final epTitle =
-                '$seriesTitle  S${episode.season}E${episode.number}';
-            final urls = streamUrlVariants(episode.streamUrl)
-                .map(proxify)
-                .toList();
-            final all = MediaSource.variants(urls, title: epTitle);
-            final args = PlayerLaunchArgs(
-              source: all.isEmpty
-                  ? MediaSource(
-                      url: proxify(episode.streamUrl),
-                      title: epTitle,
-                    )
-                  : all.first,
-              fallbacks: all.length <= 1
-                  ? const <MediaSource>[]
-                  : all.sublist(1),
-              title: epTitle,
-              subtitle: episode.title,
-              itemId: episode.id,
-              kind: HistoryKind.series,
-            );
-            context.push('/play', extra: args);
-          },
+          onTap: () => _launchEpisode(
+            context,
+            seriesTitle: seriesTitle,
+            episode: episode,
+          ),
         );
       },
     );

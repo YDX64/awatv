@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://tv.awastats.com
+      url: https://awatv.pages.dev
     steps:
       - uses: actions/checkout@v4
 
@@ -61,32 +61,42 @@ jobs:
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tv-awastats-web
+          name: awatv-web
           path: apps/mobile/build/web
 
-      - name: Setup SSH
+      # ------------------------------------------------------------------
+      # Cloudflare Pages deploy — conditional on CLOUDFLARE_API_TOKEN secret.
+      # Without the token we still upload the build artifact above so it is
+      # downloadable from the Actions UI for manual `wrangler pages deploy`
+      # from a workstation; the workflow does NOT fail in that case.
+      # ------------------------------------------------------------------
+      - name: Probe Cloudflare credentials
+        id: cf
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
+            echo "have_creds=true" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare credentials present; will deploy."
+          else
+            echo "have_creds=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set; skipping Pages deploy. Build artifact uploaded for manual deploy."
+          fi
 
-      - name: Rsync to tv.awastats.com web root
-        env:
-          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
-          SSH_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-        run: |
-          rsync -azh --delete \
-            --exclude='.git' \
-            apps/mobile/build/web/ \
-            "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
+      - name: Deploy to Cloudflare Pages
+        if: steps.cf.outputs.have_creds == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/mobile/build/web --project-name=awatv --branch=main --commit-dirty=true
 
-      - name: Smoke check
+      - name: Smoke check live site
+        if: steps.cf.outputs.have_creds == 'true'
         run: |
-          sleep 5
-          curl -fsSL --max-time 15 https://tv.awastats.com/ | grep -q "AWAtv" || \
-            (echo "Smoke check failed — site does not show AWAtv title" && exit 1)
+          # Cloudflare's edge takes a few seconds to propagate after deploy
+          sleep 10
+          curl -fsSL --max-time 20 https://awatv.pages.dev/ | grep -qi "AWAtv\|awatv" || \
+            (echo "::error::Smoke check failed — https://awatv.pages.dev/ does not show AWAtv title" && exit 1)
+          echo "Smoke check passed."

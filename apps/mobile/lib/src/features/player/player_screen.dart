@@ -626,11 +626,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
-  void _toggleControls() {
-    setState(() => _showControls = !_showControls);
-    if (_showControls) _scheduleHide();
+  /// Single-tap / single-click on the video surface.
+  ///
+  /// YouTube/Netflix-style: tapping while controls are visible plays/pauses
+  /// (the user already has access to the controls so they don't need
+  /// another reveal). Tapping while controls are hidden brings them back
+  /// — never play/pauses on the same gesture, because that hits the
+  /// "I tapped to find the controls and accidentally paused my movie"
+  /// foot-gun.
+  void _onTap() {
+    if (_showControls) {
+      // Controls already on screen → use the tap as a play/pause toggle.
+      // _scheduleHide is reset by _togglePlay() below.
+      unawaited(_togglePlay());
+    } else {
+      // Controls hidden → reveal them, don't change playback state.
+      setState(() => _showControls = true);
+      _scheduleHide();
+    }
   }
 
+  /// Reveal the chrome without touching playback. Used by the
+  /// `MouseRegion.onHover` callback on desktop + web so cursor movement
+  /// alone is enough to bring the controls back — exactly the muscle
+  /// memory desktop users have from YouTube / Netflix.
   void _revealControls() {
     if (!_showControls) {
       setState(() => _showControls = true);
@@ -645,7 +664,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // slow open() would silently strip the chrome before the user even
     // sees the player has started.
     if (!_firstFrameSeen) return;
-    _hideTimer = Timer(const Duration(milliseconds: 3500), () {
+    // 5s is the desktop-friendly window: mouse users need time to read
+    // the title, scan the seek bar, and aim the cursor at a control.
+    // Touch users are typically faster but 5s isn't bothersome on phones
+    // either — Netflix uses 4–6s, YouTube uses 3s.
+    _hideTimer = Timer(const Duration(seconds: 5), () {
       if (!mounted) return;
       if (!_isPaused && !_scrubbing && _firstFrameSeen) {
         setState(() => _showControls = false);
@@ -1211,9 +1234,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final scaffold = Scaffold(
       backgroundColor: Colors.black,
       body: MouseRegion(
-        // On web/desktop, mouse movement reveals controls — matches the
-        // muscle memory users have from YouTube/Netflix on desktop.
-        onHover: kIsWeb ? (_) => _revealControls() : null,
+        // On web AND desktop native, any mouse movement re-arms the
+        // controls visibility. Pointer-driven users were getting `null`
+        // here on macOS / Windows (because the gate was `kIsWeb`-only)
+        // so the chrome could never come back without an explicit click
+        // — that was the "controls never appear" symptom users hit.
+        onHover: (_) => _revealControls(),
+        // Hide the system cursor while the controls are gone so the
+        // playback surface reads as fully immersive — same trick
+        // Netflix / YouTube web players use. The cursor reappears the
+        // moment any pointer movement triggers _revealControls above.
+        cursor: _showControls
+            ? MouseCursor.defer
+            : SystemMouseCursors.none,
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
@@ -1222,9 +1255,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             else
               const ColoredBox(color: Colors.black),
             // Gestures intercept taps before the controls layer; they
-            // toggle visibility and drive scrub/volume HUDs.
+            // toggle visibility and drive scrub/volume HUDs. The single
+            // tap policy lives in `_onTap` (play/pause when chrome is
+            // already visible, reveal when it's hidden).
             PlayerGestures(
-              onTap: _toggleControls,
+              onTap: _onTap,
               onSkipBack: () => _skipBy(const Duration(seconds: -10)),
               onSkipForward: () => _skipBy(const Duration(seconds: 10)),
               onBrightnessDelta: _onBrightnessDelta,

@@ -119,7 +119,7 @@ class _UpdateBootCheckState extends ConsumerState<UpdateBootCheck> {
       'Yeni sürüm bulundu (${available.remoteVersion}) — indiriliyor…',
       durationSeconds: 5,
       actionLabel: 'AYARLAR',
-      onAction: () => _gotoSettings(),
+      onAction: _gotoSettings,
     );
     // Fire-and-forget — UpdaterService handles its own state machine.
     unawaited(ref.read(updaterServiceProvider.notifier).downloadUpdate());
@@ -152,7 +152,7 @@ class _UpdateBootCheckState extends ConsumerState<UpdateBootCheck> {
       'Güncelleme alınamadı: ${error.message}',
       durationSeconds: 10,
       actionLabel: 'DETAY',
-      onAction: () => _gotoSettings(),
+      onAction: _gotoSettings,
     );
   }
 

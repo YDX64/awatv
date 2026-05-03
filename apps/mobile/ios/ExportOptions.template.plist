@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Template consumed by .github/workflows/release-ios.yml.
+  At build time the workflow substitutes TEAM_ID_PLACEHOLDER with the
+  APPLE_TEAM_ID secret and emits ExportOptions.plist next to this file,
+  which `flutter build ipa` then reads via --export-options-plist.
+
+  method=app-store          → produce a TestFlight/App-Store-eligible .ipa
+  uploadBitcode=false       → bitcode is deprecated since Xcode 14
+  uploadSymbols=true        → ship dSYMs to App Store so crashes
+                              symbolicate cleanly in App Store Connect
+  signingStyle=manual       → use the .mobileprovision installed by CI
+                              instead of letting Xcode pick one
+  provisioningProfiles      → bundle id → profile name mapping; the name
+                              must match the one Apple Developer issued.
+                              Update if you renamed the profile.
+  destination=export        → write .ipa to disk; we upload via altool
+                              in a separate step rather than letting
+                              xcodebuild upload directly (more control).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store</string>
+
+    <key>teamID</key>
+    <string>TEAM_ID_PLACEHOLDER</string>
+
+    <key>uploadBitcode</key>
+    <false/>
+
+    <key>uploadSymbols</key>
+    <true/>
+
+    <key>compileBitcode</key>
+    <false/>
+
+    <key>signingStyle</key>
+    <string>manual</string>
+
+    <key>destination</key>
+    <string>export</string>
+
+    <key>stripSwiftSymbols</key>
+    <true/>
+
+    <key>provisioningProfiles</key>
+    <dict>
+        <!--
+          The bundle id MUST match PRODUCT_BUNDLE_IDENTIFIER in
+          Runner.xcodeproj/project.pbxproj. The profile NAME must match
+          the App Store provisioning profile registered with Apple
+          Developer for this bundle id.
+        -->
+        <key>com.awatv.awatvMobile</key>
+        <string>AWAtv App Store</string>
+    </dict>
+</dict>
+</plist>

@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AWAtv — Gizlilik Politikası</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0e0f17;
+    --fg: #e9eaee;
+    --muted: #a3a4ad;
+    --accent: #7c4dff;
+    --card: #161827;
+    --border: #232539;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#fafafa; --fg:#1e1e1e; --muted:#666; --card:#ffffff; --border:#e0e0e0; }
+  }
+  * { box-sizing: border-box }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #7c4dff 0%, #00bcd4 100%);
+    display: grid;
+    place-items: center;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+  }
+  h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .lang-switch {
+    margin-left: auto;
+    display: flex;
+    gap: 4px;
+  }
+  .lang-switch a {
+    padding: 4px 10px;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .lang-switch a.active {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  h2 {
+    font-size: 18px;
+    margin-top: 32px;
+    margin-bottom: 8px;
+  }
+  p, li { color: var(--fg); }
+  .muted { color: var(--muted); font-size: 14px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 16px 0;
+  }
+  ul { padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  code {
+    background: var(--card);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .doc-en, .doc-tr { display: none; }
+  .doc-tr.active, .doc-en.active { display: block; }
+  footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="logo">📺</div>
+    <h1>AWAtv</h1>
+    <nav class="lang-switch">
+      <a href="#tr" data-lang="tr" class="active">TR</a>
+      <a href="#en" data-lang="en">EN</a>
+    </nav>
+  </header>
+
+  <!-- ===========================  TÜRKÇE  =========================== -->
+  <section class="doc-tr active">
+    <h1 style="margin-top:0">Gizlilik Politikası</h1>
+    <p class="muted">Son güncelleme: 3 Mayıs 2026</p>
+
+    <p>
+      AWAtv ("biz", "uygulama") senin gizliliğini önemser. Bu belge, AWAtv masaüstü ve
+      mobil uygulamasını kullandığında hangi verilerin ne için toplandığını,
+      nasıl saklandığını ve hangi haklara sahip olduğunu açıklar. AB Genel
+      Veri Koruma Yönetmeliği (GDPR), Türkiye Kişisel Verilerin Korunması
+      Kanunu (KVKK) ve eşdeğer mevzuat ile uyumludur.
+    </p>
+
+    <h2>1. Veri sorumlusu</h2>
+    <div class="card">
+      AWA Digital Interactive<br />
+      İletişim: <a href="mailto:privacy@awatv.app">privacy@awatv.app</a>
+    </div>
+
+    <h2>2. Topladığımız veriler</h2>
+
+    <h3 style="font-size:15px;margin-top:16px">2.1 Yerel cihaz verileri (her zaman)</h3>
+    <ul>
+      <li><b>IPTV listelerin</b> (M3U / Xtream / Stalker URL'leri, kullanıcı adı, şifre) — sadece senin cihazında, şifrelenmiş Hive deposunda saklanır.</li>
+      <li><b>İzleme geçmişi & favoriler</b> — tamamen yerel.</li>
+      <li><b>Uygulama tercihleri</b> (dil, tema, oynatıcı ayarları) — yerel.</li>
+    </ul>
+
+    <h3 style="font-size:15px;margin-top:16px">2.2 Hesap oluşturursan (opsiyonel)</h3>
+    <ul>
+      <li><b>E-posta adresin</b> — Supabase üzerinde hesap oluşturmak için.</li>
+      <li><b>Şifre</b> — bcrypt ile hash'lenir, asla düz metin olarak saklanmaz.</li>
+      <li><b>Cihaz parmak izi</b> (anonim UUID) — çoklu cihaz senkronizasyonu için.</li>
+      <li><b>Yedeklenen veriler</b>: IPTV listelerinin başlıkları, favoriler, izleme geçmişi. Liste içerikleri (ör. M3U URL'leri) <b>şifrelenmiş</b> şekilde aktarılır.</li>
+    </ul>
+
+    <h3 style="font-size:15px;margin-top:16px">2.3 Telemetri (yalnızca onay verirsen)</h3>
+    <ul>
+      <li>
+        <b>Çökme raporları (Crashlytics)</b> — uygulama beklenmedik şekilde
+        kapanırsa: stack trace, OS sürümü, cihaz modeli, AWAtv sürümü.
+        IP, e-posta veya kullanım davranışı paylaşılmaz.
+      </li>
+      <li>
+        <b>Anonim kullanım istatistikleri (Analytics)</b> — hangi ekranların
+        ziyaret edildiği, hangi özelliklerin kullanıldığı. Cihaz başına anonim
+        Firebase Installation ID ile gönderilir; kişisel veri içermez.
+      </li>
+    </ul>
+    <p>
+      Bu iki kanal varsayılan olarak <b>kapalıdır</b>. Onboarding sırasında
+      ayrı ayrı açabilir veya hepsini reddedebilirsin. İstediğin zaman
+      <code>Ayarlar → Gizlilik</code> üzerinden değiştirebilirsin.
+    </p>
+
+    <h2>3. Veri işleyicilerimiz</h2>
+    <ul>
+      <li><b>Supabase</b> (Frankfurt, EU) — kimlik doğrulama + bulut yedeği. <a href="https://supabase.com/privacy">Politikası</a></li>
+      <li><b>Firebase / Google LLC</b> — Crashlytics + Analytics (yalnızca onay verirsen). <a href="https://policies.google.com/privacy">Politikası</a></li>
+      <li><b>Cloudflare</b> — web build + CDN. <a href="https://www.cloudflare.com/privacypolicy/">Politikası</a></li>
+      <li><b>GitHub</b> — masaüstü güncellemeleri (binary indirmeleri). <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">Politikası</a></li>
+      <li><b>TMDb</b> — film/dizi metadata aramaları (sadece sen TMDb anahtarı eklediğinde). <a href="https://www.themoviedb.org/privacy-policy">Politikası</a></li>
+    </ul>
+
+    <h2>4. Saklama süreleri</h2>
+    <ul>
+      <li>Yerel veriler: uygulamayı kaldırınca silinir.</li>
+      <li>Supabase yedeklerin: hesap kapatma talebine kadar.</li>
+      <li>Crashlytics: 90 gün.</li>
+      <li>Analytics: 14 ay (Google'ın varsayılan ayarı).</li>
+    </ul>
+
+    <h2>5. Haklarınız (GDPR Art. 15–22 / KVKK Md. 11)</h2>
+    <ul>
+      <li><b>Erişim</b>: bizden hangi verilerinin tutulduğunu sorma hakkı.</li>
+      <li><b>Düzeltme</b>: yanlış verileri güncelleme hakkı.</li>
+      <li><b>Silme</b>: hesabını ve tüm yedeklerini kalıcı olarak silme hakkı ("unutulma hakkı").</li>
+      <li><b>Taşınabilirlik</b>: tüm verilerini JSON formatında dışa aktarma hakkı.</li>
+      <li><b>İtiraz / kısıtlama</b>: telemetri toplamayı reddetme hakkı.</li>
+    </ul>
+    <p>
+      Bu haklarını kullanmak için
+      <a href="mailto:privacy@awatv.app">privacy@awatv.app</a> adresine
+      e-posta gönder — 30 gün içinde yanıt veririz.
+    </p>
+
+    <h2>6. Değişiklikler</h2>
+    <p>
+      Bu politikayı güncellersek, uygulama içinde yeni sürümü onaylamadan
+      önce sana bildiririz. Tarihsel sürümlere
+      <a href="https://github.com/YDX64/awatv/commits/main/apps/mobile/web/privacy.html">git logundan</a>
+      ulaşabilirsin.
+    </p>
+
+    <footer>
+      AWAtv v0.5.6 ile yayınlandı. Açık kaynak değildir; ürün dağıtımı
+      GitHub Releases üzerinden yapılır.
+    </footer>
+  </section>
+
+  <!-- ===========================  ENGLISH  =========================== -->
+  <section class="doc-en">
+    <h1 style="margin-top:0">Privacy Policy</h1>
+    <p class="muted">Last updated: 3 May 2026</p>
+
+    <p>
+      AWAtv ("we", "the app") respects your privacy. This document explains
+      what data is collected when you use the AWAtv desktop and mobile app,
+      why, how it is stored, and what rights you have. It complies with the
+      EU General Data Protection Regulation (GDPR), Türkiye's KVKK, and
+      equivalent legislation.
+    </p>
+
+    <h2>1. Data controller</h2>
+    <div class="card">
+      AWA Digital Interactive<br />
+      Contact: <a href="mailto:privacy@awatv.app">privacy@awatv.app</a>
+    </div>
+
+    <h2>2. What we collect</h2>
+
+    <h3 style="font-size:15px;margin-top:16px">2.1 Local device data (always)</h3>
+    <ul>
+      <li><b>Your IPTV playlists</b> (M3U / Xtream / Stalker URLs, username, password) — stored locally only, in encrypted Hive boxes.</li>
+      <li><b>Watch history & favourites</b> — fully local.</li>
+      <li><b>App preferences</b> (locale, theme, player settings) — local.</li>
+    </ul>
+
+    <h3 style="font-size:15px;margin-top:16px">2.2 If you create an account (optional)</h3>
+    <ul>
+      <li><b>Your email</b> — to create the Supabase account.</li>
+      <li><b>Your password</b> — bcrypt-hashed, never stored as plain text.</li>
+      <li><b>Device fingerprint</b> (anonymous UUID) — for multi-device sync.</li>
+      <li><b>Backed-up data</b>: titles of your IPTV playlists, favourites, watch history. List contents (e.g. M3U URLs) are transferred <b>encrypted</b>.</li>
+    </ul>
+
+    <h3 style="font-size:15px;margin-top:16px">2.3 Telemetry (only with explicit consent)</h3>
+    <ul>
+      <li>
+        <b>Crash reports (Crashlytics)</b> — when the app crashes: stack trace,
+        OS version, device model, AWAtv version. IP / email / behaviour are
+        not forwarded.
+      </li>
+      <li>
+        <b>Anonymous usage statistics (Analytics)</b> — which screens are
+        visited, which features are used. Sent under an anonymous Firebase
+        Installation ID, no PII.
+      </li>
+    </ul>
+    <p>
+      Both channels default to <b>OFF</b>. You enable them granularly during
+      onboarding or reject all. You can change either at any time under
+      <code>Settings → Privacy</code>.
+    </p>
+
+    <h2>3. Our data processors</h2>
+    <ul>
+      <li><b>Supabase</b> (Frankfurt, EU) — auth + cloud backup. <a href="https://supabase.com/privacy">Policy</a></li>
+      <li><b>Firebase / Google LLC</b> — Crashlytics + Analytics (only if you opt in). <a href="https://policies.google.com/privacy">Policy</a></li>
+      <li><b>Cloudflare</b> — web build + CDN. <a href="https://www.cloudflare.com/privacypolicy/">Policy</a></li>
+      <li><b>GitHub</b> — desktop updates (binary downloads). <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">Policy</a></li>
+      <li><b>TMDb</b> — film/series metadata lookups (only when you set a TMDb key). <a href="https://www.themoviedb.org/privacy-policy">Policy</a></li>
+    </ul>
+
+    <h2>4. Retention</h2>
+    <ul>
+      <li>Local data: deleted when you uninstall.</li>
+      <li>Supabase backups: until you request account deletion.</li>
+      <li>Crashlytics: 90 days.</li>
+      <li>Analytics: 14 months (Google default).</li>
+    </ul>
+
+    <h2>5. Your rights (GDPR Art. 15–22)</h2>
+    <ul>
+      <li><b>Access</b>: ask us what data we hold on you.</li>
+      <li><b>Rectification</b>: correct inaccurate data.</li>
+      <li><b>Erasure</b>: permanently delete your account and all backups ("right to be forgotten").</li>
+      <li><b>Portability</b>: export all your data in JSON format.</li>
+      <li><b>Object / restrict</b>: refuse telemetry collection.</li>
+    </ul>
+    <p>
+      To exercise these rights, email
+      <a href="mailto:privacy@awatv.app">privacy@awatv.app</a> — we respond
+      within 30 days.
+    </p>
+
+    <h2>6. Changes</h2>
+    <p>
+      If we update this policy, the app prompts you to acknowledge the new
+      version before continuing. Historical versions are visible in the
+      <a href="https://github.com/YDX64/awatv/commits/main/apps/mobile/web/privacy.html">git log</a>.
+    </p>
+
+    <footer>
+      Published with AWAtv v0.5.6. The product is closed-source; binaries
+      are distributed via GitHub Releases.
+    </footer>
+  </section>
+</main>
+
+<script>
+  // Tiny lang switcher — toggles between TR/EN sections.
+  const links = document.querySelectorAll('.lang-switch a');
+  const tr = document.querySelector('.doc-tr');
+  const en = document.querySelector('.doc-en');
+  function setLang(l) {
+    links.forEach(a => a.classList.toggle('active', a.dataset.lang === l));
+    tr.classList.toggle('active', l === 'tr');
+    en.classList.toggle('active', l === 'en');
+    history.replaceState(null, '', '#' + l);
+  }
+  links.forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    setLang(a.dataset.lang);
+  }));
+  if (location.hash === '#en') setLang('en');
+</script>
+</body>
+</html>

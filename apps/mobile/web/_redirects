@@ -19,5 +19,12 @@
 /main.dart.wasm  /main.dart.wasm  200
 /version.json  /version.json  200
 
+# Static privacy policy — bundled as /privacy.html for GDPR Art. 13
+# transparency. The onboarding wizard's "Gizlilik politikasını oku"
+# link points at /privacy; Cloudflare serves /privacy.html under the
+# bare /privacy path.
+/privacy  /privacy.html  200
+/privacy.html  /privacy.html  200
+
 # All other routes fall back to the SPA shell.
 /*  /index.html  200

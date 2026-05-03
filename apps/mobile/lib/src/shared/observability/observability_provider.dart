@@ -32,6 +32,24 @@ class ObservabilityOptIn extends _$ObservabilityOptIn {
     return value;
   }
 
+  /// GDPR-granular setter — Crashlytics only. The onboarding privacy
+  /// step calls this on every toggle change so the choice is persisted
+  /// before the user advances (no implicit consent on a force-quit
+  /// between toggle and continue).
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setCrashlyticsOptIn(bool value) async {
+    await AwatvObservability.setCrashlyticsOptIn(value);
+    state = AwatvObservability.readOptIn();
+  }
+
+  /// GDPR-granular setter — Analytics only. Same persistence guarantee
+  /// as [setCrashlyticsOptIn].
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setAnalyticsOptIn(bool value) async {
+    await AwatvObservability.setAnalyticsOptIn(value);
+    state = AwatvObservability.readOptIn();
+  }
+
   /// Convenience for a single-tap switch — toggles and returns the new
   /// value so the calling widget can show a snackbar with the right text.
   Future<bool> toggle() => setOptIn(!state);

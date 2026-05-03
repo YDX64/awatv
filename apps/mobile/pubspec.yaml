@@ -1,7 +1,7 @@
 name: awatv_mobile
 description: AWAtv mobile app (iOS + Android — Phase 1).
 publish_to: none
-version: 0.5.5+8
+version: 0.5.6+9
 
 environment:
   sdk: ^3.11.0

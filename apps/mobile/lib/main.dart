@@ -124,8 +124,15 @@ Future<void> main() async {
         if (!Hive.isBoxOpen(AwatvObservability.prefsBoxName)) {
           await Hive.openBox<dynamic>(AwatvObservability.prefsBoxName);
         }
-        final optIn = AwatvObservability.readOptIn();
-        await AwatvObservability.initialise(optIn: optIn);
+        // GDPR-granular: each subsystem's collection is gated on its
+        // own toggle. Crashlytics off / Analytics on (or vice versa)
+        // are valid combinations.
+        final crashlyticsOptIn = AwatvObservability.readCrashlyticsOptIn();
+        final analyticsOptIn = AwatvObservability.readAnalyticsOptIn();
+        await AwatvObservability.initialise(
+          crashlyticsOptIn: crashlyticsOptIn,
+          analyticsOptIn: analyticsOptIn,
+        );
       } on Object {
         // Wrapped twice on purpose — the inner wrapper logs, this one
         // guarantees the outer fire-and-forget cannot throw.

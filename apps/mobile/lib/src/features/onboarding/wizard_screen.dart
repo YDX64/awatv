@@ -1,3 +1,5 @@
+import 'dart:io' show Platform, Process;
+
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/features/playlists/playlist_providers.dart';
@@ -6,10 +8,14 @@ import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/discovery/discovered_iptv_server.dart';
 import 'package:awatv_mobile/src/shared/discovery/local_iptv_discovery.dart';
 import 'package:awatv_mobile/src/shared/notifications/notifications_provider.dart';
+import 'package:awatv_mobile/src/shared/observability/awatv_observability.dart';
+import 'package:awatv_mobile/src/shared/observability/observability_provider.dart';
 import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supa;
@@ -55,12 +61,11 @@ class _OnboardingWizardScreenState
   final PageController _pages = PageController();
   int _index = 0;
 
-  // Step 2 (privacy) — opt-ins default to "off"; user explicitly
-  // ticks them to enable. We do not auto-enable analytics.
-  bool _crashlytics = false;
-  bool _analytics = false;
+  // Privacy step now manages its own state inside `_StepPrivacy`,
+  // persisting toggles directly to Hive on every change so the
+  // "set-but-forgotten" GDPR bug from earlier versions is gone.
 
-  // Step 3 — notification permission outcome.
+  // Notification permission outcome.
   bool? _notificationsGranted;
 
   // Step 4 — playlist form values.
@@ -103,15 +108,9 @@ class _OnboardingWizardScreenState
                 children: <Widget>[
                   _StepWelcome(onNext: _next),
                   _StepAuth(onNext: _next, onSkip: _next),
-                  _StepPrivacy(
-                    crashlytics: _crashlytics,
-                    analytics: _analytics,
-                    onCrashlytics: (bool v) =>
-                        setState(() => _crashlytics = v),
-                    onAnalytics: (bool v) => setState(() => _analytics = v),
-                    onNext: _next,
-                    onSkip: _next,
-                  ),
+                  // GDPR: explicit choice required, no Skip button.
+                  // Toggles persist to Hive immediately on change.
+                  _StepPrivacy(onContinue: _next),
                   _StepNotifications(
                     granted: _notificationsGranted,
                     onAsk: _askForNotificationPermission,
@@ -409,27 +408,137 @@ class _StepWelcome extends StatelessWidget {
   }
 }
 
-class _StepPrivacy extends StatelessWidget {
-  const _StepPrivacy({
-    required this.crashlytics,
-    required this.analytics,
-    required this.onCrashlytics,
-    required this.onAnalytics,
-    required this.onNext,
-    required this.onSkip,
-  });
+/// GDPR-compliant privacy / consent step.
+///
+/// Old behaviour (≤v0.5.5) was non-compliant:
+///   * Toggles default OFF ✅
+///   * Toggle changes were NOT persisted (set-but-forgotten) ❌
+///   * "Atla" button bypassed the choice → implicit consent ❌
+///   * Single union flag governed both Crashlytics + Analytics
+///     (no granular consent under GDPR Art. 7(2)) ❌
+///   * No link to a privacy policy → fails GDPR Art. 13 transparency ❌
+///
+/// New behaviour:
+///   * Each toggle persists to its own Hive key on the same tick the
+///     user flips it (via `AwatvObservability.setCrashlyticsOptIn` /
+///     `setAnalyticsOptIn`). Even a force-quit between toggle and
+///     "Devam" survives — the choice is captured.
+///   * No "Atla" — only "Hepsini Reddet" (explicit refusal, both
+///     toggles forced to false) and "Seçimimle Devam" (respects the
+///     current toggle state) buttons. Both are valid GDPR consent
+///     responses; what's NOT allowed is silent dismissal.
+///   * Link to the privacy policy — copied to clipboard on tap (no
+///     extra plugin dependency) so the user can paste it in any
+///     browser of their choosing.
+///   * Hint that the choice is reversible from Ayarlar → Gizlilik.
+class _StepPrivacy extends ConsumerStatefulWidget {
+  const _StepPrivacy({required this.onContinue});
 
-  final bool crashlytics;
-  final bool analytics;
-  final ValueChanged<bool> onCrashlytics;
-  final ValueChanged<bool> onAnalytics;
-  final VoidCallback onNext;
-  final VoidCallback onSkip;
+  final VoidCallback onContinue;
+
+  @override
+  ConsumerState<_StepPrivacy> createState() => _StepPrivacyState();
+}
+
+class _StepPrivacyState extends ConsumerState<_StepPrivacy> {
+  // Initial values come from Hive — if the user is re-running
+  // onboarding (e.g. after `rm -rf awatv-storage`), we honour any
+  // previously-persisted preference.
+  bool _crashlytics = false;
+  bool _analytics = false;
+  bool _hydrated = false;
+
+  // The published privacy policy lives at this URL. Hosted on the
+  // same Cloudflare Pages domain that serves the web build so the
+  // user can land there with a single browser tap.
+  static const String _kPrivacyPolicyUrl = 'https://awatv.pages.dev/privacy';
+
+  @override
+  void initState() {
+    super.initState();
+    // Read once on mount — no need to ref.watch since we own the local
+    // state for the duration of the step.
+    _crashlytics = AwatvObservability.readCrashlyticsOptIn();
+    _analytics = AwatvObservability.readAnalyticsOptIn();
+    _hydrated = true;
+  }
+
+  Future<void> _setCrashlytics(bool v) async {
+    setState(() => _crashlytics = v);
+    await ref
+        .read(observabilityOptInProvider.notifier)
+        .setCrashlyticsOptIn(v);
+  }
+
+  Future<void> _setAnalytics(bool v) async {
+    setState(() => _analytics = v);
+    await ref
+        .read(observabilityOptInProvider.notifier)
+        .setAnalyticsOptIn(v);
+  }
+
+  Future<void> _rejectAll() async {
+    setState(() {
+      _crashlytics = false;
+      _analytics = false;
+    });
+    await ref
+        .read(observabilityOptInProvider.notifier)
+        .setCrashlyticsOptIn(false);
+    await ref
+        .read(observabilityOptInProvider.notifier)
+        .setAnalyticsOptIn(false);
+    if (!mounted) return;
+    widget.onContinue();
+  }
+
+  /// Open the privacy policy URL. Uses platform-native commands rather
+  /// than pulling in `url_launcher` for a one-off button — keeps the
+  /// dependency graph tight. Falls back to clipboard copy if the
+  /// platform can't open URLs (e.g. unprivileged sandboxed sub-process).
+  Future<void> _openPrivacyPolicy() async {
+    var launched = false;
+    try {
+      if (kIsWeb) {
+        // Can't reach Process on web. Fall through to clipboard.
+      } else if (Platform.isMacOS) {
+        final r = await Process.run('open', <String>[_kPrivacyPolicyUrl]);
+        launched = r.exitCode == 0;
+      } else if (Platform.isWindows) {
+        final r = await Process.run(
+          'cmd',
+          <String>['/c', 'start', '', _kPrivacyPolicyUrl],
+        );
+        launched = r.exitCode == 0;
+      } else if (Platform.isLinux) {
+        final r = await Process.run('xdg-open', <String>[_kPrivacyPolicyUrl]);
+        launched = r.exitCode == 0;
+      }
+    } on Object {
+      // ignore — fall through to clipboard
+    }
+    if (!launched) {
+      await Clipboard.setData(
+        const ClipboardData(text: _kPrivacyPolicyUrl),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Gizlilik politikası bağlantısı panoya kopyalandı.',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
+    final scheme = theme.colorScheme;
+    if (!_hydrated) return const SizedBox.shrink();
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(DesignTokens.spaceL),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -437,11 +546,11 @@ class _StepPrivacy extends StatelessWidget {
           Icon(
             Icons.lock_outline_rounded,
             size: 64,
-            color: theme.colorScheme.primary,
+            color: scheme.primary,
           ),
           const SizedBox(height: DesignTokens.spaceM),
           Text(
-            'Gizliligin onceligimiz',
+            'Gizliliğin önceliğimiz',
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w700,
@@ -449,43 +558,151 @@ class _StepPrivacy extends StatelessWidget {
           ),
           const SizedBox(height: DesignTokens.spaceS),
           Text(
-            'Listen bu cihazda kalir. Gelistirmemize katki saglamak '
-            'istersen iki teknik veriyi paylasabilirsin — istediginde '
-            'Ayarlardan kapatabilirsin.',
+            'Listen ve favori kanalların bu cihazda kalır. '
+            'Aşağıdaki iki teknik veri toplama kanalını ayrı ayrı '
+            'kontrol edebilirsin — bu seçimleri istediğin zaman '
+            'Ayarlar → Gizlilik üzerinden değiştirebilirsin.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.78),
+              color: scheme.onSurface.withValues(alpha: 0.78),
             ),
           ),
           const SizedBox(height: DesignTokens.spaceL),
-          SwitchListTile.adaptive(
-            value: crashlytics,
-            onChanged: onCrashlytics,
-            title: Text('onboarding.wizard_crash_reports_title'.tr()),
-            subtitle: const Text(
-              'Beklenmedik kapanmalari Sentry uzerinden bildirelim.',
-            ),
+          // -----------------------------------------------------------
+          // GDPR-granular toggles — each one persists to its own
+          // Hive key on every change.
+          // -----------------------------------------------------------
+          _ConsentTile(
+            icon: Icons.bug_report_outlined,
+            title: 'Çökme raporları',
+            subtitle:
+                'Uygulama beklenmedik şekilde kapanırsa stack trace + '
+                "cihaz / OS sürümü Firebase Crashlytics'e iletilir. "
+                'IP, e-posta veya kullanım davranışı paylaşılmaz.',
+            value: _crashlytics,
+            onChanged: _setCrashlytics,
           ),
-          SwitchListTile.adaptive(
-            value: analytics,
-            onChanged: onAnalytics,
-            title: Text('onboarding.wizard_anon_usage_title'.tr()),
-            subtitle: const Text(
-              'Hangi ekranlarin populer oldugunu kisisel veri olmadan paylas.',
-            ),
+          const SizedBox(height: DesignTokens.spaceXs),
+          _ConsentTile(
+            icon: Icons.insights_outlined,
+            title: 'Anonim kullanım istatistikleri',
+            subtitle:
+                'Hangi ekranların ne sıklıkta ziyaret edildiği, hangi '
+                'özelliklerin kullanıldığı (kişisel veri olmadan, '
+                "cihaz başına anonim ID ile) Firebase Analytics'e "
+                'iletilir. Sadece ürün önceliklerini şekillendirmek için.',
+            value: _analytics,
+            onChanged: _setAnalytics,
           ),
-          const Spacer(),
+          const SizedBox(height: DesignTokens.spaceM),
+          // Privacy policy link — required for GDPR Art. 13.
+          Row(
+            children: <Widget>[
+              const Icon(Icons.policy_outlined, size: 18),
+              const SizedBox(width: DesignTokens.spaceS),
+              Expanded(
+                child: TextButton(
+                  onPressed: _openPrivacyPolicy,
+                  style: TextButton.styleFrom(
+                    alignment: Alignment.centerLeft,
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: const Text(
+                    'Gizlilik politikasını oku',
+                    style: TextStyle(decoration: TextDecoration.underline),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: DesignTokens.spaceL),
+          // -----------------------------------------------------------
+          // Explicit-choice CTAs. NO "Atla" button — that would be
+          // implicit consent and is invalid under GDPR.
+          // -----------------------------------------------------------
           FilledButton.icon(
-            onPressed: onNext,
+            onPressed: widget.onContinue,
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            icon: const Icon(Icons.arrow_forward_rounded),
-            label: Text('onboarding.continue_button'.tr()),
+            icon: const Icon(Icons.check_rounded),
+            label: const Text('Seçimimle devam et'),
           ),
-          TextButton(
-            onPressed: onSkip,
-            child: Text('onboarding.skip_now'.tr()),
+          const SizedBox(height: DesignTokens.spaceXs),
+          OutlinedButton.icon(
+            onPressed: _rejectAll,
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            icon: const Icon(Icons.block_rounded),
+            label: const Text('Hepsini reddet ve devam'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Reusable consent row used in the privacy step. Visually a card
+/// with an icon, title, longer subtitle, and a switch — designed to
+/// give the user enough context to make an informed GDPR-grade choice
+/// without bouncing to a separate page.
+class _ConsentTile extends StatelessWidget {
+  const _ConsentTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(DesignTokens.spaceM),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 28, color: scheme.primary),
+          const SizedBox(width: DesignTokens.spaceM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurface.withValues(alpha: 0.72),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: DesignTokens.spaceS),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
           ),
         ],
       ),

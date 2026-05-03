@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// AWAtv typography scale.
 ///
@@ -6,16 +7,18 @@ import 'package:flutter/material.dart';
 /// streaming feel: display sizes are slightly compressed in letter-spacing,
 /// body sizes slightly relaxed for readability on TV at distance.
 ///
+/// Streas-mode (the default) uses **Inter** — a humanist sans optimised
+/// for screens that ports cleanly across web/native/desktop without
+/// font-substitution drift between platforms. We pull it through
+/// `google_fonts` which caches the file after first launch.
+///
 /// We resolve concrete `TextStyle`s against a [ColorScheme] so the same
 /// scale works for both dark and light themes.
 class AppTypography {
   const AppTypography._();
 
-  /// Primary font family. Inter is shipped with Material's default loader
-  /// on most platforms; SF Pro takes over on Apple platforms via the
-  /// system fallback. Keeping `fontFamily` null lets the host platform
-  /// resolve the closest match without bundling assets in this package.
-  static const String? primaryFamily = null;
+  /// Primary font family identifier. Streas shipping name.
+  static const String primaryFamily = 'Inter';
 
   /// Build a complete `TextTheme` from a colour scheme.
   ///
@@ -27,7 +30,10 @@ class AppTypography {
 
     TextStyle base(double size, FontWeight weight, double letterSpacing,
         {double? height, Color? color}) {
-      return TextStyle(
+      // GoogleFonts.inter wraps a TextStyle and lazy-loads the ttf in
+      // the background. The first frame uses the platform default while
+      // the asset downloads + caches — invisible on subsequent runs.
+      return GoogleFonts.inter(
         fontSize: size,
         fontWeight: weight,
         letterSpacing: letterSpacing,

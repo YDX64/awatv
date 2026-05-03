@@ -14,6 +14,11 @@ dependencies:
     sdk: flutter
   cached_network_image: ^3.4.1
   shimmer: ^3.0.0
+  # Inter font for the Streas-aligned typography ramp. google_fonts
+  # caches the ttf in the app's filesystem on first launch and falls
+  # back to a system-default font while loading, so cold-start UI
+  # never flashes a different metric. Apache-2.0 licensed.
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:

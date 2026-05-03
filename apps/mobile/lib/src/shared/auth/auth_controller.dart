@@ -119,6 +119,45 @@ class AuthController extends _$AuthController {
     );
   }
 
+  /// Create a new account with email + password. Supabase returns a
+  /// session immediately on success (auto-sign-in), so the listener in
+  /// [build] picks up the new state on the same tick — no extra
+  /// `signInWithPassword` round-trip needed.
+  ///
+  /// Used by the onboarding wizard's "Hesap Oluştur" tab. The login
+  /// screen exposes only sign-in for legacy reasons; this method exists
+  /// so a fresh user can register without having to wait for a magic
+  /// link to land in their inbox.
+  ///
+  /// Throws [AuthBackendNotConfiguredException] when Supabase isn't
+  /// compiled in, [supa.AuthException] for upstream failures (e.g. the
+  /// email already has an account → "User already registered").
+  Future<void> signUpWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    if (!Env.hasSupabase) {
+      throw const AuthBackendNotConfiguredException();
+    }
+    final trimmed = email.trim();
+    if (trimmed.isEmpty || !trimmed.contains('@')) {
+      throw const supa.AuthException('Please enter a valid email address.');
+    }
+    if (password.length < 6) {
+      // Supabase's default minimum is 6 chars; we mirror it on the
+      // client so the user gets fast feedback instead of a round-trip
+      // 422 from GoTrue.
+      throw const supa.AuthException(
+        'Password must be at least 6 characters.',
+      );
+    }
+    await supa.Supabase.instance.client.auth.signUp(
+      email: trimmed,
+      password: password,
+      emailRedirectTo: _redirectUri(),
+    );
+  }
+
   /// Sign the current user out. Idempotent — calling while already
   /// guest is a no-op so the settings screen doesn't have to branch
   /// on state before showing the action.

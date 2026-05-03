@@ -28,16 +28,30 @@ if [ ! -d "$APP_BUILD" ]; then
 fi
 
 # Locate the .app bundle. Flutter names this after the project's `name:` in
-# pubspec.yaml — currently "awatv_mobile.app" but we don't hardcode that.
-APP=$(find "$APP_BUILD" -maxdepth 1 -name "*.app" -type d | head -n 1)
-if [ -z "$APP" ]; then
+# pubspec.yaml — currently "awatv_mobile.app", but we always rename to
+# "AWAtv.app" before packaging so the user-facing artifact has a clean,
+# brand-aligned name. This also fixes the auto-update install bug in
+# v0.5.0–v0.5.2: the in-app updater unzips into /Applications/, and if
+# the new bundle's filename differed from /Applications/AWAtv.app it left
+# the old install untouched while dropping a brand-new awatv_mobile.app
+# next to it — `_findInstalledMacosApp` then relaunched the wrong one.
+SOURCE_APP=$(find "$APP_BUILD" -maxdepth 1 -name "*.app" -type d | head -n 1)
+if [ -z "$SOURCE_APP" ]; then
   echo "ERROR: no .app bundle found in $APP_BUILD" >&2
   exit 1
 fi
 
+# Stage the rename in a tmp dir so subsequent flutter builds don't
+# accumulate sibling .app folders inside the build output.
+STAGE="$(mktemp -d -t awatv-stage)"
+trap 'rm -rf "$STAGE"' EXIT
+APP="$STAGE/AWAtv.app"
+cp -R "$SOURCE_APP" "$APP"
+
 APP_NAME=$(basename "$APP")
-echo "Found app bundle: $APP_NAME"
-echo "Source path:      $APP"
+echo "Source bundle: $(basename "$SOURCE_APP")"
+echo "Renamed to:    $APP_NAME"
+echo "Stage path:    $APP"
 
 # 1. Produce a portable zip of the .app preserving macOS extended attributes
 #    (resource forks, code-signing metadata, symlinks). `ditto` is the right

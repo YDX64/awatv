@@ -18,10 +18,18 @@
 	<string>AWAtv</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!--
+	  Flutter pipes pubspec.yaml's `version: x.y.z+build` into these via
+	  Flutter-Generated.xcconfig at build time. Without the placeholders,
+	  the bundle would ship a frozen `0.2.0` from project init day, which
+	  caused v0.5.x users to get stuck in an infinite "yeni sürüm var"
+	  loop because PackageInfo.version reported 0.2.0 against a 0.5.x
+	  manifest forever. See `flutter build macos --build-name`.
+	-->
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.0</string>
+	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSApplicationCategoryType</key>

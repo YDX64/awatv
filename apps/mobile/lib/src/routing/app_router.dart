@@ -4,6 +4,7 @@ import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/features/auth/account_screen.dart';
 import 'package:awatv_mobile/src/features/auth/login_screen.dart';
 import 'package:awatv_mobile/src/features/auth/magic_link_callback_screen.dart';
+import 'package:awatv_mobile/src/features/auth/signup_screen.dart';
 import 'package:awatv_mobile/src/features/catchup/catchup_screen.dart';
 import 'package:awatv_mobile/src/features/channels/channels_screen.dart';
 import 'package:awatv_mobile/src/features/channels/epg_grid_screen.dart';
@@ -34,6 +35,7 @@ import 'package:awatv_mobile/src/features/settings/manage_devices_screen.dart';
 import 'package:awatv_mobile/src/features/settings/settings_screen.dart';
 import 'package:awatv_mobile/src/features/smart_alerts/smart_alerts_screen.dart';
 import 'package:awatv_mobile/src/features/stats/stats_screen.dart';
+import 'package:awatv_mobile/src/features/subtitles/subtitle_picker_screen.dart';
 import 'package:awatv_mobile/src/features/themes/theme_settings_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_detail_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_screen.dart';
@@ -218,6 +220,17 @@ GoRouter appRouter(Ref ref) {
         builder: (BuildContext context, GoRouterState state) =>
             const PremiumScreen(),
       ),
+      // Subtitle picker pushed from inside the player. Returns a
+      // [SubtitlePickResult] via Navigator.pop so the caller can hand
+      // the SRT body to the engine without re-reading from disk.
+      GoRoute(
+        path: '/subtitle-picker',
+        name: 'subtitlePicker',
+        builder: (BuildContext context, GoRouterState state) {
+          final title = state.uri.queryParameters['title'];
+          return SubtitlePickerScreen(title: title);
+        },
+      ),
       // Catchup TV hub — Xtream `archive=1` / timeshift playback.
       GoRoute(
         path: '/catchup',
@@ -343,6 +356,14 @@ GoRouter appRouter(Ref ref) {
           final next = state.uri.queryParameters['next'];
           return LoginScreen(next: next);
         },
+      ),
+      // Auth: 3-step signup wizard ported from Streas (`app/signup.tsx`).
+      // Reachable from welcome and the bottom of the login screen.
+      GoRoute(
+        path: '/signup',
+        name: 'signup',
+        builder: (BuildContext context, GoRouterState state) =>
+            const SignupScreen(),
       ),
       // Magic-link redirect target — Supabase appends `?code=…` (or
       // `?error_description=…`) once the user clicks the email link.

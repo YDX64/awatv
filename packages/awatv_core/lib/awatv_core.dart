@@ -25,6 +25,7 @@ export 'src/models/history_entry.dart';
 export 'src/models/playlist_source.dart';
 export 'src/models/recording_task.dart';
 export 'src/models/series_item.dart';
+export 'src/models/subtitle_settings.dart';
 export 'src/models/tmdb_models.dart';
 export 'src/models/vod_item.dart';
 // Parsers

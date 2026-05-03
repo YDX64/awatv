@@ -631,12 +631,103 @@ class _SelectACategory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: EmptyState(
-        icon: Icons.account_tree_outlined,
-        title: 'Bir kategori sec',
-        subtitle:
-            'Sol panelden bir grup veya tur sec, icerik burada listelensin.',
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: DesignTokens.spaceM),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          EmptyState(
+            icon: Icons.account_tree_outlined,
+            title: 'Bir kategori sec',
+            subtitle:
+                'Sol panelden bir grup veya tur sec, icerik burada listelensin.',
+          ),
+          SizedBox(height: DesignTokens.spaceL),
+          _TvGuideBanner(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Cherry-tinted "TV Rehberi" CTA banner — Streas spec § 2 § home.
+/// Routes users from the home empty state to the EPG grid so the IPTV
+/// schedule is one tap away even when no category is selected yet.
+class _TvGuideBanner extends StatelessWidget {
+  const _TvGuideBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: DesignTokens.spaceM),
+      child: Material(
+        clipBehavior: Clip.antiAlias,
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(DesignTokens.radiusL),
+        child: InkWell(
+          onTap: () => context.push('/live/epg'),
+          borderRadius: BorderRadius.circular(DesignTokens.radiusL),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: <Color>[
+                  scheme.primary.withValues(alpha: 0.27),
+                  scheme.primary.withValues(alpha: 0.07),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(DesignTokens.radiusL),
+              border: Border.all(
+                color: scheme.primary.withValues(alpha: 0.32),
+              ),
+            ),
+            padding: const EdgeInsets.all(DesignTokens.spaceM),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(DesignTokens.radiusS),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.calendar_view_day_rounded,
+                    color: scheme.primary,
+                  ),
+                ),
+                const SizedBox(width: DesignTokens.spaceM),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        'TV Rehberi',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Tum kanallar icin tam EPG akisi',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: scheme.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

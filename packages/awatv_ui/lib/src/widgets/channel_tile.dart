@@ -623,3 +623,439 @@ class _FavoriteButton extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Streas LiveChannelCard
+// ---------------------------------------------------------------------------
+
+/// Streas-style vertical live channel card.
+///
+/// Anatomy (per `/tmp/Streas/artifacts/iptv-app/components/LiveChannelCard.tsx`):
+///
+/// * 160-tall thumbnail with the channel logo overlaid on the artwork.
+/// * Persistent **LIVE** badge (red pulsing dot + label) in the top-left.
+/// * Optional viewers count badge in the top-right.
+/// * Below: name + currently airing programme + optional next-up preview.
+/// * Optional category tag (cherry-tinted secondary surface) at the bottom.
+/// * 1px outline border + 10px corner radius.
+///
+/// Press feedback follows Streas (`activeOpacity: 0.8`): subtle scale and
+/// opacity dip on tap-down. The LIVE dot pulses on a 1.2s loop — Streas RN
+/// is static; the pulse is added per the spec recommendation for visual
+/// punch.
+class LiveChannelCard extends StatefulWidget {
+  const LiveChannelCard({
+    required this.name,
+    this.thumbnailUrl,
+    this.currentShow,
+    this.nextProgramme,
+    this.category,
+    this.viewers,
+    this.onTap,
+    this.heroTag,
+    super.key,
+  });
+
+  /// Channel name.
+  final String name;
+
+  /// Backdrop / programme thumbnail URL. Falls back to a gradient
+  /// placeholder when missing.
+  final String? thumbnailUrl;
+
+  /// Title of the currently airing programme — shown beneath the channel
+  /// name.
+  final String? currentShow;
+
+  /// Optional next-up programme. Hidden when null.
+  final String? nextProgramme;
+
+  /// Category / genre label rendered as a tag pill at the bottom of the
+  /// info block (e.g. "Sports", "News").
+  final String? category;
+
+  /// Optional viewer count to display in the top-right badge (e.g. "12K").
+  final String? viewers;
+
+  /// Tap callback (typically opens the player).
+  final VoidCallback? onTap;
+
+  /// Hero tag for the thumbnail flight to a player screen.
+  final String? heroTag;
+
+  @override
+  State<LiveChannelCard> createState() => _LiveChannelCardState();
+}
+
+class _LiveChannelCardState extends State<LiveChannelCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _press = AnimationController(
+    vsync: this,
+    duration: DesignTokens.motionFast,
+  );
+
+  @override
+  void dispose() {
+    _press.dispose();
+    super.dispose();
+  }
+
+  void _down(_) {
+    if (widget.onTap == null) return;
+    _press.forward();
+  }
+
+  void _up(_) {
+    if (widget.onTap == null) return;
+    _press.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final text = theme.textTheme;
+
+    Widget thumbnail = SizedBox(
+      height: 160,
+      width: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          _LiveThumbnail(
+            url: widget.thumbnailUrl,
+            name: widget.name,
+            primary: scheme.primary,
+            secondary: scheme.secondary,
+            surface: scheme.surfaceContainerHighest,
+            onSurface: scheme.onSurface,
+          ),
+          Positioned(
+            top: 10,
+            left: 10,
+            child: _LiveBadge(dotColor: scheme.error),
+          ),
+          if (widget.viewers != null && widget.viewers!.isNotEmpty)
+            Positioned(
+              top: 10,
+              right: 10,
+              child: _ViewersBadge(label: widget.viewers!),
+            ),
+        ],
+      ),
+    );
+
+    if (widget.heroTag != null) {
+      thumbnail = Hero(tag: widget.heroTag!, child: thumbnail);
+    }
+
+    return Semantics(
+      button: widget.onTap != null,
+      label: widget.name,
+      hint: widget.currentShow,
+      child: AnimatedBuilder(
+        animation: _press,
+        builder: (BuildContext context, Widget? child) {
+          final t = _press.value;
+          return Transform.scale(
+            scale: 1 - (0.02 * t),
+            child: Opacity(opacity: 1 - (0.15 * t), child: child),
+          );
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          onTapDown: _down,
+          onTapUp: _up,
+          onTapCancel: () => _press.reverse(),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: scheme.outlineVariant,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                thumbnail,
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        widget.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.titleSmall?.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      if (widget.currentShow != null &&
+                          widget.currentShow!.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.currentShow!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.bodySmall?.copyWith(
+                            fontSize: 12,
+                            color: scheme.onSurface.withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ],
+                      if (widget.nextProgramme != null &&
+                          widget.nextProgramme!.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Next · ${widget.nextProgramme!}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.labelSmall?.copyWith(
+                            color: scheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ],
+                      if (widget.category != null &&
+                          widget.category!.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 8),
+                        _CategoryTag(label: widget.category!),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveThumbnail extends StatelessWidget {
+  const _LiveThumbnail({
+    required this.url,
+    required this.name,
+    required this.primary,
+    required this.secondary,
+    required this.surface,
+    required this.onSurface,
+  });
+
+  final String? url;
+  final String name;
+  final Color primary;
+  final Color secondary;
+  final Color surface;
+  final Color onSurface;
+
+  @override
+  Widget build(BuildContext context) {
+    if (url == null || url!.isEmpty) {
+      return _LiveThumbPlaceholder(
+        name: name,
+        primary: primary,
+        secondary: secondary,
+        surface: surface,
+        onSurface: onSurface,
+      );
+    }
+    return CachedNetworkImage(
+      imageUrl: url!,
+      fit: BoxFit.cover,
+      fadeInDuration: DesignTokens.motionMedium,
+      placeholder: (BuildContext _, String __) => ColoredBox(color: surface),
+      errorWidget: (BuildContext _, String __, Object ___) =>
+          _LiveThumbPlaceholder(
+        name: name,
+        primary: primary,
+        secondary: secondary,
+        surface: surface,
+        onSurface: onSurface,
+      ),
+    );
+  }
+}
+
+class _LiveThumbPlaceholder extends StatelessWidget {
+  const _LiveThumbPlaceholder({
+    required this.name,
+    required this.primary,
+    required this.secondary,
+    required this.surface,
+    required this.onSurface,
+  });
+  final String name;
+  final Color primary;
+  final Color secondary;
+  final Color surface;
+  final Color onSurface;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isNotEmpty
+        ? name.characters.first.toUpperCase()
+        : '?';
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            primary.withValues(alpha: 0.4),
+            secondary.withValues(alpha: 0.15),
+            surface,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 48,
+            fontWeight: FontWeight.w800,
+            color: onSurface.withValues(alpha: 0.85),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveBadge extends StatelessWidget {
+  const _LiveBadge({required this.dotColor});
+  final Color dotColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _PulseDot(color: dotColor, size: 7),
+          const SizedBox(width: 4),
+          const Text(
+            'LIVE',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PulseDot extends StatefulWidget {
+  const _PulseDot({required this.color, required this.size});
+  final Color color;
+  final double size;
+
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (BuildContext _, Widget? __) {
+        final t = _controller.value;
+        return Container(
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            color: widget.color,
+            shape: BoxShape.circle,
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: widget.color.withValues(alpha: 0.4 + 0.3 * t),
+                blurRadius: 4 + 4 * t,
+                spreadRadius: 1 * t,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ViewersBadge extends StatelessWidget {
+  const _ViewersBadge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.8),
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryTag extends StatelessWidget {
+  const _CategoryTag({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+          color: scheme.onSurface.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+  }
+}

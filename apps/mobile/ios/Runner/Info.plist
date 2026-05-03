@@ -117,5 +117,79 @@
 	<string>AWAtv sesli arama yapabilmen icin mikrofona erisir. Konusman yalnizca arama metnine cevrilir, hicbir yere kaydedilmez.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>AWAtv soyledigin kanal, film ve dizi adlarini metne cevirebilmek icin konusma tanima sistemini kullanir.</string>
+
+	<!--
+	  AdMob (Google Mobile Ads SDK) application identifier.
+	  Free tier renders a sticky banner on the home screen and an
+	  interstitial every Nth playback start. Premium tier suppresses
+	  both via the `PremiumFeature.noAds` gate.
+
+	  The default value below is AdMob's universally-recognised TEST
+	  app id — it serves real ads with a "Test Ad" watermark and never
+	  generates revenue. Replace with your real app id from
+	  https://apps.admob.com once you've created the iOS app entry.
+	  iOS rejects builds that ship a non-test id without a valid AdMob
+	  app, so leave the test id in until prod credentials land.
+	-->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~1458002511</string>
+
+	<!--
+	  SKAdNetwork identifiers — Apple's privacy-preserving attribution
+	  framework that AdMob (and most ad networks) rely on to measure
+	  install conversions on iOS 14+. Without this list the SDK still
+	  serves ads but conversion tracking degrades. Pulled from
+	  https://developers.google.com/admob/ios/quick-start#update_your_infoplist
+	  on 2026-05-04. Update this list when AdMob releases a new mediation
+	  partner that needs an additional id.
+	-->
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>4fzdc2evr5.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>4pfyvq9l8r.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>2fnua5tdw4.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>ydx93a7ass.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>p78axxw29g.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>v72qych5uu.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>ludvb6z3bs.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cp8zw746q7.skadnetwork</string>
+		</dict>
+	</array>
+
+	<!--
+	  ATT (App Tracking Transparency) prompt copy — required by Apple
+	  for iOS 14.5+ to show the IDFA permission dialog. The SDK shows
+	  this once and remembers the user's choice; granting unlocks
+	  personalised ads (better eCPM), denying falls back to contextual.
+	-->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>AWAtv reklamlari sana daha alakali gostermek icin bu izni ister. Reddetsen bile uygulama calisir; sadece reklamlar daha az hedeflenmis olur.</string>
 </dict>
 </plist>

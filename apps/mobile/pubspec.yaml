@@ -1,7 +1,7 @@
 name: awatv_mobile
 description: AWAtv mobile app (iOS + Android — Phase 1).
 publish_to: none
-version: 0.5.7+10
+version: 0.5.8+11
 
 environment:
   sdk: ^3.11.0
@@ -168,6 +168,23 @@ dependencies:
   firebase_crashlytics: ^4.1.3
   firebase_remote_config: ^5.1.3
   firebase_analytics: ^11.3.3
+
+  # AdMob — banner + interstitial for the free tier. Auto-suppressed
+  # for premium subscribers via `PremiumFeature.noAds` gate. Ads are
+  # opt-in per-platform: mobile (iOS / Android) loads the SDK; desktop
+  # / web / TV builds get a no-op `AwatvAds.disabled` instance because
+  # the SDK doesn't ship for those targets.
+  google_mobile_ads: ^5.3.1
+
+  # RevenueCat client SDK — In-App Purchase wrapper. Receipt validation
+  # happens server-side in RC's infra; the local SDK only initiates
+  # the purchase flow + reports outcomes. Server-side enforcement of
+  # premium state lives in supabase/functions/revenuecat-webhook +
+  # the public.subscriptions table (SELECT-only RLS for clients).
+  # This is the anti-tamper architecture: even if LuckyPatcher /
+  # Frida flips the local Hive flag, the next Supabase poll
+  # overwrites the lie with whatever RC's webhook last wrote.
+  purchases_flutter: ^8.4.2
 
 dev_dependencies:
   flutter_test:

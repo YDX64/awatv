@@ -18,6 +18,8 @@ import 'package:awatv_mobile/src/features/player/widgets/player_settings_sheet.d
 import 'package:awatv_mobile/src/features/player/widgets/player_track_picker_sheet.dart';
 import 'package:awatv_mobile/src/features/player/widgets/sleep_timer_sheet.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
+import 'package:awatv_mobile/src/features/subtitles/subtitle_picker_screen.dart';
+import 'package:awatv_mobile/src/features/subtitles/subtitle_settings_controller.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/background_playback/background_playback_controller.dart';
 import 'package:awatv_mobile/src/shared/cast/cast_provider.dart';
@@ -81,6 +83,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Timer? _hideTimer;
   Timer? _historyTimer;
   Timer? _lowBwTimer;
+  // 10-second watch-position save loop — Streas RN spec § 5.4 mandates
+  // a periodic flush to local storage AND on pause/exit/seek so the
+  // resume bar stays accurate even if the app is force-killed.
+  Timer? _watchPositionTimer;
+  // True when the live channel side-drawer is open. Drives the slide-
+  // in `translateX` animation on tablet and the modal sheet on phone.
+  bool _showChannelDrawer = false;
   // Last time we published a position update to [nowPlayingProvider]. The
   // engine emits roughly 4 Hz; we throttle to 1 Hz so the persistent bar
   // doesn't ride a high-frequency rebuild train while the player is
@@ -624,6 +633,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // History writes are best-effort; we don't surface failures.
       }
     });
+    // Watch-position ticker — runs on a 10-second cadence per Streas
+    // spec § 5.4. Covers the same backing store as the history ticker
+    // above but uses a dedicated cadence so we never lose the resume
+    // marker even if the user force-quits between writes.
+    _watchPositionTimer?.cancel();
+    _watchPositionTimer =
+        Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      if (_isPaused) return;
+      _flushWatchPosition();
+    });
+  }
+
+  /// One-shot watch-position write. Called by the periodic ticker, on
+  /// pause, on seek, and on screen exit. No-op for live streams (per
+  /// spec — live TV does not save resume positions).
+  Future<void> _flushWatchPosition() async {
+    if (widget.args.isLive) return;
+    final id = widget.args.itemId;
+    if (id == null) return;
+    final total = _total;
+    if (total == null || total == Duration.zero) return;
+    try {
+      await ref
+          .read(historyServiceProvider)
+          .markPosition(id, _position, total);
+    } on Object {
+      // Best-effort — the next tick will retry.
+    }
   }
 
   /// Single-tap / single-click on the video surface.
@@ -683,6 +721,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await c.play();
     } else {
       await c.pause();
+      // Flush the watch position on pause — guarantees the resume
+      // marker is up to date even if the user backgrounds the app
+      // before the next 10s tick fires.
+      unawaited(_flushWatchPosition());
     }
     _scheduleHide();
   }
@@ -692,6 +734,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (c == null) return;
     await c.seek(to);
     _scheduleHide();
+    // Flush the watch position immediately after a manual seek so the
+    // resume marker tracks the user's intent rather than the last tick.
+    unawaited(_flushWatchPosition());
   }
 
   Future<void> _skipBy(Duration delta) async {
@@ -848,6 +893,131 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         await cast.unmirror(
           localController: c,
         );
+      },
+    );
+    if (!mounted) return;
+    _scheduleHide();
+  }
+
+  Future<void> _onSubtitlePickerRequested() async {
+    _hideTimer?.cancel();
+    final result = await context.push<SubtitlePickResult>(
+      Uri(
+        path: '/subtitle-picker',
+        queryParameters: <String, String>{
+          if (widget.args.title != null) 'title': widget.args.title!,
+        },
+      ).toString(),
+    );
+    if (!mounted) return;
+    if (result != null && !result.disabled && result.srtBody != null) {
+      // Hand the SRT body to the engine. media_kit accepts an external
+      // SRT through `SubtitleTrack.uri(...)`, so we write the body to
+      // a temp file and feed the resulting `file://` URI in. Best-
+      // effort: an empty controller (mid-tear-down) silently no-ops.
+      try {
+        final svc = ref.read(subtitlesServiceProvider);
+        final uri = await svc.writeToTempFile(
+          result.srtBody!,
+          prefix: 'awatv_picker',
+        );
+        await _controller?.setSubtitleTrack(
+          SubtitleTrack.uri(
+            uri,
+            title: result.label,
+            language: ref
+                .read(subtitleSettingsControllerProvider)
+                .preferredLanguage,
+          ),
+        );
+      } on Object {
+        // Track loading is non-fatal — the picker already wrote the
+        // settings to Hive so the next playback session will pick the
+        // right SRT up automatically.
+      }
+    } else if (result != null && result.disabled) {
+      // Disable any active SRT immediately. media_kit doesn't expose a
+      // dedicated "no subtitle" track, so we leave the engine state as-is
+      // and rely on `SubtitleSettings.enabled = false` (set inside the
+      // picker) for the overlay to hide. The controller's native
+      // captions, if any, remain inside the unified track picker.
+    }
+    _scheduleHide();
+  }
+
+  Future<void> _onExternalPlayerRequested() async {
+    _hideTimer?.cancel();
+    // TODO(phase-3): Replace this stub with a proper VLC / MX / nPlayer
+    // deep-link picker per Streas spec §1.2 — the URI builders are
+    // documented there. For now, surface a snackbar so QA can verify
+    // the button is wired through the UI layer.
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Harici oynatici (VLC / MX / nPlayer) Phase 3 ile geliyor.',
+        ),
+      ),
+    );
+    _scheduleHide();
+  }
+
+  Future<void> _onLiveChannelDrawerRequested() async {
+    if (!mounted) return;
+    _hideTimer?.cancel();
+    setState(() => _showChannelDrawer = !_showChannelDrawer);
+    if (!_showChannelDrawer) _scheduleHide();
+  }
+
+  Future<void> _onLiveEpgRequested() async {
+    if (!mounted) return;
+    _hideTimer?.cancel();
+    final id = widget.args.itemId;
+    if (id == null) {
+      _scheduleHide();
+      return;
+    }
+    // Resolve the channel's tvg-id via the live channels pool so we
+    // can drive the EPG service without needing the full Channel model
+    // here. Best-effort: a missing pool / tvgId surfaces a placeholder.
+    String? tvgId;
+    try {
+      final pool = await ref.read(liveChannelsProvider.future);
+      for (final c in pool) {
+        if (c.id == id) {
+          tvgId = c.tvgId;
+          break;
+        }
+      }
+    } on Object {
+      tvgId = null;
+    }
+    if (!mounted) return;
+    final epgSvc = ref.read(epgServiceProvider);
+    final progs = (tvgId == null || tvgId.isEmpty)
+        ? const <EpgProgramme>[]
+        : await epgSvc.programmesFor(tvgId, around: DateTime.now());
+    if (!mounted) return;
+    final now = DateTime.now();
+    EpgProgramme? current;
+    EpgProgramme? next;
+    for (final p in progs) {
+      if (p.start.isBefore(now) && p.stop.isAfter(now)) {
+        current = p;
+      } else if (p.start.isAfter(now) && next == null) {
+        next = p;
+      }
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(DesignTokens.radiusXL),
+        ),
+      ),
+      builder: (BuildContext sheetCtx) {
+        return _LiveEpgSheet(current: current, next: next);
       },
     );
     if (!mounted) return;
@@ -1036,6 +1206,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _hideTimer?.cancel();
     _lowBwTimer?.cancel();
     _channelToastTimer?.cancel();
+    _watchPositionTimer?.cancel();
+    // Final watch-position flush so the resume marker captures the
+    // user's last frame before they back out.
+    unawaited(_flushWatchPosition());
     _stateSub?.cancel();
     _positionSub?.cancel();
     _bufferedSub?.cancel();
@@ -1276,6 +1450,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
             PlayerGestureHud(feedback: _gestureFeedback),
             PlayerBufferingOverlay(visible: showBuffering),
+            // Subtitle overlay sits above the player frame but below
+            // the chrome so taps still pass through to the gesture
+            // detector. The settings provider drives the visual knobs.
+            Builder(
+              builder: (BuildContext _) {
+                final s =
+                    ref.watch(subtitleSettingsControllerProvider);
+                if (!s.enabled) return const SizedBox.shrink();
+                final label = s.loadedLabel;
+                if (label == null || label.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return SubtitleOverlay(
+                  text: label,
+                  fontSize: s.size.px,
+                  color: Color(s.color.argb),
+                  backgroundColor: Color(s.background.argb),
+                  bold: s.bold,
+                  position: s.position == SubtitlePosition.top
+                      ? SubtitleOverlayPosition.top
+                      : SubtitleOverlayPosition.bottom,
+                );
+              },
+            ),
             if (_errorMessage != null) _ErrorPanel(message: _errorMessage!),
             // Controls layer fades as a single unit for a cohesive feel.
             IgnorePointer(
@@ -1321,6 +1519,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   onAlwaysOnTopRequested: () {
                     unawaited(_onAlwaysOnTopRequested());
                   },
+                  onSubtitlePickerRequested: () {
+                    unawaited(_onSubtitlePickerRequested());
+                  },
+                  onExternalPlayerRequested: !kIsWeb && !isDesktop
+                      ? () {
+                          unawaited(_onExternalPlayerRequested());
+                        }
+                      : null,
+                  onChannelListRequested: widget.args.isLive
+                      ? () {
+                          unawaited(_onLiveChannelDrawerRequested());
+                        }
+                      : null,
+                  onEpgRequested: widget.args.isLive
+                      ? () {
+                          unawaited(_onLiveEpgRequested());
+                        }
+                      : null,
+                  subtitlesActive: ref
+                          .watch(subtitleSettingsControllerProvider)
+                          .enabled &&
+                      ref
+                              .watch(subtitleSettingsControllerProvider)
+                              .loadedFileName !=
+                          null,
                 ),
               ),
             ),
@@ -1386,6 +1609,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                   onLast: () => unawaited(_switchToLastChannel()),
                 ),
+              ),
+            // Live channel side drawer — slide-in from the right per
+            // Streas spec § 1.1. On phone (<768) it's a full-height
+            // sheet; on tablet (>=768) it's a 280-wide column pinned
+            // to the right edge. Toggled by the bottom bar's list icon.
+            if (widget.args.isLive && _showChannelDrawer)
+              _LiveChannelDrawer(
+                currentId: widget.args.itemId,
+                onPick: (Channel target) async {
+                  setState(() => _showChannelDrawer = false);
+                  await _switchToChannel(target);
+                },
+                onDismiss: () =>
+                    setState(() => _showChannelDrawer = false),
               ),
             // "Channel: BBC One" toast — fades in for 2 seconds after
             // a P+/P-/L switch.
@@ -1862,6 +2099,397 @@ class _SwitcherBtn extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Live channel side-drawer — slides in from the right edge per Streas
+/// spec § 1.1. On phone form factors (<768 dp) it falls back to a full-
+/// height modal sheet; on tablet it pins as a 280-wide column. The list
+/// is sourced from the live channel pool and highlights the active row
+/// with a 3-px cherry stripe + tinted background.
+class _LiveChannelDrawer extends ConsumerWidget {
+  const _LiveChannelDrawer({
+    required this.currentId,
+    required this.onPick,
+    required this.onDismiss,
+  });
+
+  final String? currentId;
+  final ValueChanged<Channel> onPick;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final width = MediaQuery.sizeOf(context).width;
+    final isTablet = width >= 768;
+    final scheme = Theme.of(context).colorScheme;
+    final pool = ref.watch(liveChannelsProvider);
+
+    final list = pool.maybeWhen(
+      data: (List<Channel> channels) => channels,
+      orElse: () => const <Channel>[],
+    );
+
+    final body = Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            DesignTokens.spaceM,
+            DesignTokens.spaceM,
+            DesignTokens.spaceS,
+            DesignTokens.spaceS,
+          ),
+          child: Row(
+            children: <Widget>[
+              const Expanded(
+                child: Text(
+                  'Kanallar',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Kapat',
+                icon: const Icon(Icons.close_rounded, color: Colors.white),
+                onPressed: onDismiss,
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: Color(0xFF282828)),
+        Expanded(
+          child: ListView.builder(
+            itemCount: list.length,
+            itemBuilder: (BuildContext _, int i) {
+              final c = list[i];
+              final active = c.id == currentId;
+              return Material(
+                color: active
+                    ? scheme.primary.withValues(alpha: 0.13)
+                    : Colors.transparent,
+                child: InkWell(
+                  onTap: () => onPick(c),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(
+                          color: active
+                              ? scheme.primary
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Container(
+                          width: 44,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111111),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          alignment: Alignment.center,
+                          child: c.logoUrl != null && c.logoUrl!.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius:
+                                      BorderRadius.circular(6),
+                                  child: Image.network(
+                                    c.logoUrl!,
+                                    width: 32,
+                                    height: 24,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) =>
+                                        _ChannelInitial(
+                                      name: c.name,
+                                      tint: scheme.primary,
+                                    ),
+                                  ),
+                                )
+                              : _ChannelInitial(
+                                  name: c.name,
+                                  tint: scheme.primary,
+                                ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                c.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: active
+                                      ? scheme.primary
+                                      : Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (c.groups.isNotEmpty)
+                                Text(
+                                  c.groups.first,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white
+                                        .withValues(alpha: 0.45),
+                                    fontSize: 10,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (active)
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: scheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+
+    if (isTablet) {
+      return Stack(
+        children: <Widget>[
+          // Dim the rest of the player so taps outside the drawer
+          // dismiss it (matches Streas's full-screen intent).
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onDismiss,
+              child: Container(color: Colors.black.withValues(alpha: 0.4)),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            bottom: 0,
+            right: 0,
+            width: 280,
+            child: Material(
+              color: const Color(0xF20A0A0A),
+              child: SafeArea(child: body),
+            ),
+          ),
+        ],
+      );
+    }
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onDismiss,
+        child: ColoredBox(
+          color: Colors.black.withValues(alpha: 0.6),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(DesignTokens.spaceM),
+              child: Material(
+                color: const Color(0xF20A0A0A),
+                borderRadius:
+                    BorderRadius.circular(DesignTokens.radiusL),
+                child: GestureDetector(
+                  // Swallow taps inside the sheet so they don't dismiss
+                  // via the outer GestureDetector.
+                  onTap: () {},
+                  child: ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(DesignTokens.radiusL),
+                    child: body,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelInitial extends StatelessWidget {
+  const _ChannelInitial({required this.name, required this.tint});
+
+  final String name;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final letter =
+        name.isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
+    return Text(
+      letter,
+      style: TextStyle(
+        color: tint,
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+/// Bottom sheet showing the channel's "now" + "next" EPG entries.
+/// Sourced from [EpgService.programmesFor] inside the host screen
+/// before the sheet is shown — this widget is purely presentational.
+class _LiveEpgSheet extends StatelessWidget {
+  const _LiveEpgSheet({required this.current, required this.next});
+
+  final EpgProgramme? current;
+  final EpgProgramme? next;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(DesignTokens.spaceL),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: DesignTokens.spaceM),
+              decoration: BoxDecoration(
+                color: scheme.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Text(
+              'Yayin akisi',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: DesignTokens.spaceM),
+            _EpgRow(
+              programme: current,
+              label: 'SIMDI',
+              fallback: 'Yayin bilgisi yok',
+              accent: scheme.primary,
+            ),
+            const SizedBox(height: DesignTokens.spaceM),
+            _EpgRow(
+              programme: next,
+              label: 'SIRADAKI',
+              fallback: 'Sonraki yayin bilgisi yok',
+              accent: scheme.outline,
+            ),
+            const SizedBox(height: DesignTokens.spaceM),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EpgRow extends StatelessWidget {
+  const _EpgRow({
+    required this.programme,
+    required this.label,
+    required this.fallback,
+    required this.accent,
+  });
+
+  final EpgProgramme? programme;
+  final String label;
+  final String fallback;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = programme;
+    return Container(
+      padding: const EdgeInsets.all(DesignTokens.spaceM),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 3,
+            ),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: accent,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+          const SizedBox(width: DesignTokens.spaceM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  p?.title ?? fallback,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                if (p != null) ...<Widget>[
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_hhmm(p.start)} – ${_hhmm(p.stop)}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.65),
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _hhmm(DateTime d) {
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
   }
 }
 

@@ -1,0 +1,146 @@
+name: release-android-playstore
+
+# Builds a release-signed Android App Bundle (.aab) and uploads to
+# Google Play Console internal testing track.
+#
+# Required GitHub Secrets:
+#   ANDROID_KEYSTORE_BASE64
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   GOOGLE_PLAY_SERVICE_ACCOUNT (base64 of service-account JSON)
+#
+# Reuses: SUPABASE_URL, SUPABASE_ANON_KEY, WEB_PROXY_URL, TMDB_API_KEY,
+#         REVENUECAT_API_KEY_ANDROID, ADMOB_*_ANDROID
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Play Store track (internal | alpha | beta | production)'
+        required: true
+        default: 'internal'
+        type: choice
+        options: [internal, alpha, beta, production]
+  release:
+    types: [published]
+
+concurrency:
+  group: release-android-playstore
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: 3.41.7
+
+jobs:
+  build-and-upload:
+    name: Build .aab + upload to Play Store
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: |
+          (cd packages/awatv_core && dart run build_runner build --delete-conflicting-outputs)
+          (cd apps/mobile && dart run build_runner build --delete-conflicting-outputs)
+
+      - name: Bake .env from secrets
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          WEB_PROXY_URL: ${{ secrets.WEB_PROXY_URL }}
+          REVENUECAT_API_KEY_ANDROID: ${{ secrets.REVENUECAT_API_KEY_ANDROID }}
+          ADMOB_APP_ID_ANDROID: ${{ secrets.ADMOB_APP_ID_ANDROID }}
+          ADMOB_BANNER_ANDROID: ${{ secrets.ADMOB_BANNER_ANDROID }}
+          ADMOB_INTERSTITIAL_ANDROID: ${{ secrets.ADMOB_INTERSTITIAL_ANDROID }}
+        run: |
+          {
+            printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
+            printf 'SUPABASE_URL=%s\n' "$SUPABASE_URL"
+            printf 'SUPABASE_ANON_KEY=%s\n' "$SUPABASE_ANON_KEY"
+            printf 'WEB_PROXY_URL=%s\n' "$WEB_PROXY_URL"
+            printf 'REVENUECAT_API_KEY_ANDROID=%s\n' "$REVENUECAT_API_KEY_ANDROID"
+            printf 'ADMOB_APP_ID_ANDROID=%s\n' "$ADMOB_APP_ID_ANDROID"
+            printf 'ADMOB_BANNER_ANDROID=%s\n' "$ADMOB_BANNER_ANDROID"
+            printf 'ADMOB_INTERSTITIAL_ANDROID=%s\n' "$ADMOB_INTERSTITIAL_ANDROID"
+          } > apps/mobile/.env
+
+      - name: Decode keystore + emit key.properties
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo -n "$ANDROID_KEYSTORE_BASE64" | base64 --decode > /tmp/awatv-upload.jks
+          {
+            printf 'storeFile=/tmp/awatv-upload.jks\n'
+            printf 'storePassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
+          } > apps/mobile/android/key.properties
+
+      - name: Build .aab (release)
+        run: |
+          cd apps/mobile
+          flutter build appbundle --release \
+            --target-platform=android-arm,android-arm64,android-x64
+
+      - name: Upload .aab as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: awatv-android-aab
+          path: apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+      - name: Set up fastlane + decode service-account
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
+        run: |
+          gem install fastlane --no-document
+          echo -n "$GOOGLE_PLAY_SERVICE_ACCOUNT" | base64 --decode > /tmp/play-sa.json
+
+      - name: Upload AAB to Play Store
+        env:
+          TRACK_INPUT: ${{ inputs.track || 'internal' }}
+        run: |
+          AAB="apps/mobile/build/app/outputs/bundle/release/app-release.aab"
+          fastlane supply \
+            --aab "$AAB" \
+            --package_name "com.awatv.awatv_mobile" \
+            --track "$TRACK_INPUT" \
+            --json_key /tmp/play-sa.json \
+            --skip_upload_apk true \
+            --skip_upload_metadata true \
+            --skip_upload_changelogs true \
+            --skip_upload_images true \
+            --skip_upload_screenshots true \
+            --release_status "draft"
+
+      - name: Attach .aab to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            apps/mobile/build/app/outputs/bundle/release/app-release.aab \
+            --clobber

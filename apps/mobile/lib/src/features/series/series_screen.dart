@@ -61,29 +61,105 @@ class SeriesScreen extends ConsumerWidget {
           }
           final genres = _genres(items);
           final filtered = _filter(items, filter, mode);
-          return Column(
-            children: <Widget>[
-              GroupFilterChips(
-                surface: SortSurface.series,
-                groups: genres,
-                counts: _countByGroup(items, genres),
-              ),
-              Expanded(
-                child: filtered.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.video_library_outlined,
-                        title: 'Bu filtreye uyan dizi yok',
-                        message: 'Farkli bir tur deneyin.',
-                      )
-                    : deviceClass.isTablet
-                        ? _SeriesTabletLayout(items: filtered)
-                        : _SeriesPhoneGrid(items: filtered),
-              ),
-            ],
+          // Pick a "featured" series — same logic as Movies. Hero uses
+          // a gold "TV SHOWS" badge per Streas spec § 5.
+          final hero = items.firstWhere(
+            (SeriesItem s) =>
+                (s.backdropUrl?.isNotEmpty ?? false) ||
+                (s.posterUrl?.isNotEmpty ?? false),
+            orElse: () => items.first,
+          );
+          if (deviceClass.isTablet) {
+            // Tablet master/detail keeps its existing 40/60 layout —
+            // hero only paints on the phone form factor where the user
+            // sees one column at a time.
+            return Column(
+              children: <Widget>[
+                GroupFilterChips(
+                  surface: SortSurface.series,
+                  groups: genres,
+                  counts: _countByGroup(items, genres),
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.video_library_outlined,
+                          title: 'Bu filtreye uyan dizi yok',
+                          message: 'Farkli bir tur deneyin.',
+                        )
+                      : _SeriesTabletLayout(items: filtered),
+                ),
+              ],
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(allSeriesProvider);
+              await ref.read(allSeriesProvider.future);
+            },
+            child: CustomScrollView(
+              slivers: <Widget>[
+                SliverToBoxAdapter(
+                  child: _SeriesHero(
+                    item: hero,
+                    onPlay: () => context.push('/series/${hero.id}'),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: GroupFilterChips(
+                    surface: SortSurface.series,
+                    groups: genres,
+                    counts: _countByGroup(items, genres),
+                  ),
+                ),
+                if (filtered.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      icon: Icons.video_library_outlined,
+                      title: 'Bu filtreye uyan dizi yok',
+                      message: 'Farkli bir tur deneyin.',
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.all(DesignTokens.spaceM),
+                    sliver: SliverGrid.builder(
+                      gridDelegate:
+                          SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: _colsFor(
+                          MediaQuery.sizeOf(context).width,
+                        ),
+                        crossAxisSpacing: DesignTokens.spaceM,
+                        mainAxisSpacing: DesignTokens.spaceM,
+                        childAspectRatio: DesignTokens.posterAspect,
+                      ),
+                      itemCount: filtered.length,
+                      itemBuilder: (BuildContext ctx, int i) {
+                        final s = filtered[i];
+                        return PosterCard(
+                          title: s.title,
+                          posterUrl: s.posterUrl,
+                          year: s.year,
+                          rating: s.rating,
+                          onTap: () => context.push('/series/${s.id}'),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
           );
         },
       ),
     );
+  }
+
+  int _colsFor(double width) {
+    if (width > 1100) return 6;
+    if (width > 800) return 5;
+    if (width > 600) return 4;
+    return 3;
   }
 
   List<String> _genres(List<SeriesItem> items) {
@@ -121,55 +197,10 @@ class SeriesScreen extends ConsumerWidget {
   }
 }
 
-/// Phone single-column grid — preserved verbatim from the previous
-/// implementation so phone behaviour is invariant.
-class _SeriesPhoneGrid extends ConsumerWidget {
-  const _SeriesPhoneGrid({required this.items});
-
-  final List<SeriesItem> items;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(allSeriesProvider);
-        await ref.read(allSeriesProvider.future);
-      },
-      child: LayoutBuilder(
-        builder: (BuildContext ctx, BoxConstraints c) {
-          final width = c.maxWidth;
-          final cols = width > 1100
-              ? 6
-              : width > 800
-                  ? 5
-                  : width > 600
-                      ? 4
-                      : 3;
-          return GridView.builder(
-            padding: const EdgeInsets.all(DesignTokens.spaceM),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: cols,
-              crossAxisSpacing: DesignTokens.spaceM,
-              mainAxisSpacing: DesignTokens.spaceM,
-              childAspectRatio: DesignTokens.posterAspect,
-            ),
-            itemCount: items.length,
-            itemBuilder: (BuildContext ctx, int i) {
-              final s = items[i];
-              return PosterCard(
-                title: s.title,
-                posterUrl: s.posterUrl,
-                year: s.year,
-                rating: s.rating,
-                onTap: () => context.push('/series/${s.id}'),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
+// Phone single-column grid was removed — its responsibilities are now
+// served by the `CustomScrollView` slivers in `SeriesScreen.build` that
+// host the cinematic hero, genre chips and poster grid as one scroll
+// surface.
 
 /// Tablet 40 / 60 master + detail layout.
 ///
@@ -538,4 +569,155 @@ String _formatDuration(Duration d) {
   final s = d.inSeconds % 60;
   if (h > 0) return '${h}s ${m.toString().padLeft(2, '0')}d';
   return '${m}d ${s.toString().padLeft(2, '0')}s';
+}
+
+/// Cinematic Series hero — gold "TV SHOWS" badge per Streas spec § 5.
+/// Same geometry as `_VodHero` in vod_screen.dart, kept local because
+/// the data type differs (`SeriesItem` vs `VodItem`).
+class _SeriesHero extends StatelessWidget {
+  const _SeriesHero({
+    required this.item,
+    required this.onPlay,
+  });
+
+  final SeriesItem item;
+  final VoidCallback onPlay;
+
+  String? get _imageUrl {
+    final b = item.backdropUrl;
+    if (b != null && b.isNotEmpty) return b;
+    return item.posterUrl;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final url = _imageUrl;
+    final genres = item.genres
+        .where((String g) => g.trim().isNotEmpty)
+        .take(3)
+        .join(' · ');
+
+    return SizedBox(
+      height: 420,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          if (url != null && url.isNotEmpty)
+            CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.cover,
+              fadeInDuration: DesignTokens.motionMedium,
+              errorWidget: (BuildContext _, String __, Object ___) =>
+                  ColoredBox(color: scheme.surfaceContainerHighest),
+              placeholder: (BuildContext _, String __) =>
+                  ColoredBox(color: scheme.surfaceContainerHighest),
+            )
+          else
+            ColoredBox(color: scheme.surfaceContainerHighest),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const <double>[0, 0.55, 1],
+                  colors: <Color>[
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.55),
+                    scheme.surface,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: DesignTokens.spaceL,
+            right: DesignTokens.spaceL,
+            bottom: DesignTokens.spaceL,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: DesignTokens.spaceM,
+                    vertical: DesignTokens.spaceXs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: BrandColors.goldRating,
+                    borderRadius:
+                        BorderRadius.circular(DesignTokens.radiusXL),
+                  ),
+                  child: const Text(
+                    'TV SHOWS',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: DesignTokens.spaceM),
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    shadows: const <Shadow>[
+                      Shadow(
+                        color: Colors.black54,
+                        blurRadius: 12,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+                if (genres.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: DesignTokens.spaceXs),
+                  Text(
+                    genres,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: DesignTokens.spaceM),
+                Row(
+                  children: <Widget>[
+                    FilledButton.icon(
+                      onPressed: onPlay,
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Izle'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: DesignTokens.spaceL,
+                          vertical: DesignTokens.spaceM,
+                        ),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: DesignTokens.spaceS),
+                    if (item.rating != null) RatingPill(rating: item.rating!),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -1,5 +1,6 @@
-import 'package:awatv_mobile/src/features/profiles/widgets/pin_entry_sheet.dart';
-import 'package:awatv_mobile/src/features/profiles/widgets/profile_avatar.dart';
+import 'package:awatv_mobile/src/features/profiles/profile_avatar_pool.dart';
+import 'package:awatv_mobile/src/features/profiles/profile_picker_screen.dart'
+    show PinDots, PinDotsVariant, PinNumpad, PinNumpadSize;
 import 'package:awatv_mobile/src/shared/profiles/profile.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_ui/awatv_ui.dart';
@@ -7,11 +8,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Create / edit a single user profile.
+/// Streas-style profile editor.
 ///
-/// When [profileId] is `null` we create a new profile; otherwise we
-/// hydrate the form from the current list and persist updates back to
-/// Hive on save.
+/// Layout (top → bottom):
+///   * Cancel / title / Save (or Done) header.
+///   * Optional "primary profile" note for the default profile.
+///   * 90×90 big avatar + cherry edit badge → tap to expand picker.
+///   * Avatar emoji grid (6 per row) + colour swatches (12 chips).
+///   * Profile name input.
+///   * "PLAYBACK AND LANGUAGE SETTINGS" card with Junior Mode + PIN
+///     toggles, and a 4-digit PIN entry block when PIN is enabled.
+///   * Delete / two-step confirm box (non-primary only).
 class ProfileEditScreen extends ConsumerStatefulWidget {
   const ProfileEditScreen({this.profileId, super.key});
 
@@ -21,117 +28,90 @@ class ProfileEditScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileEditScreen> createState() => _ProfileEditScreenState();
 }
 
-const List<String> _kAvatarEmojis = <String>[
-  'TV', 'AB', 'AC', 'AD', '01', '02',
-  // Symbol-style "emoji" — keeping it ASCII so font availability never
-  // changes the result. Real emoji rendering is hardware-dependent on
-  // Flutter desktop.
-];
-
 class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
-  String? _avatarEmoji;
-  Color? _avatarColor;
-  bool _isKids = false;
-  bool _requiresPin = false;
-  String? _newPin;
-  bool _hadPin = false;
-  bool _saving = false;
+  final TextEditingController _nameController = TextEditingController();
   bool _hydrated = false;
+  bool _saving = false;
+  bool _pickerOpen = false;
+  bool _juniorMode = false;
+  bool _pinEnabled = false;
+  bool _hadPin = false;
+  bool _confirmDelete = false;
+  String? _nameError;
+  String _pin = '';
+  int _avatarIndex = 0;
+  int _colorIndex = 0;
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
-  void _hydrateIfNeeded(List<UserProfile> list) {
+  bool get _isEditing => widget.profileId != null;
+
+  bool get _isPrimary =>
+      _isEditing &&
+      widget.profileId == ProfileController.defaultProfileSentinel;
+
+  void _hydrate(List<UserProfile> list) {
     if (_hydrated) return;
+    UserProfile? profile;
     final id = widget.profileId;
-    if (id == null) {
-      _avatarColor = kProfileAvatarPalette.first;
-      _avatarEmoji = _kAvatarEmojis.first;
-      _hydrated = true;
-      return;
-    }
-    UserProfile? existing;
-    for (final p in list) {
-      if (p.id == id) {
-        existing = p;
-        break;
+    if (id != null) {
+      for (final p in list) {
+        if (p.id == id) {
+          profile = p;
+          break;
+        }
       }
     }
-    if (existing == null) {
-      _hydrated = true;
-      return;
+    if (profile != null) {
+      _nameController.text = profile.name;
+      _avatarIndex = avatarEmojiIndexFor(profile.avatarEmoji);
+      _colorIndex = avatarColorIndexFor(profile.avatarColor);
+      _juniorMode = profile.isKids;
+      _pinEnabled = profile.requiresPin && profile.hasPin;
+      _hadPin = profile.hasPin;
     }
-    _nameCtrl.text = existing.name;
-    _avatarEmoji = existing.avatarEmoji ?? _kAvatarEmojis.first;
-    _avatarColor = existing.avatarColor;
-    _isKids = existing.isKids;
-    _requiresPin = existing.requiresPin;
-    _hadPin = existing.hasPin;
     _hydrated = true;
   }
 
+  String get _emoji => kStreasAvatarEmojis[_avatarIndex];
+  Color get _color => kStreasAvatarColors[_colorIndex];
+
   Future<void> _save() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() => _saving = true);
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = 'Profil adı gerekli');
+      return;
+    }
+    setState(() {
+      _nameError = null;
+      _saving = true;
+    });
     try {
       final controller = ref.read(profileControllerProvider);
-      // If the user just enabled PIN we collect it now; for an existing
-      // profile with PIN the user can also pick "PIN'i değiştir" via
-      // the explicit row we render below.
-      var pinToSet = _newPin;
-      if (_requiresPin && !_hadPin && pinToSet == null) {
-        pinToSet = await PinEntrySheet.show(
-          context,
-          title: 'Yeni PIN',
-          subtitle: '4-6 haneli bir PIN seç',
-        );
-        if (pinToSet == null) {
-          setState(() {
-            _saving = false;
-            _requiresPin = false;
-          });
-          return;
-        }
-        // Confirm step.
-        if (!mounted) return;
-        final confirm = await PinEntrySheet.show(
-          context,
-          title: "PIN'i doğrula",
-          subtitle: "Az önce girdiğin PIN'i tekrar gir",
-          validator: (String s) => s == pinToSet ? null : 'PIN eşleşmiyor',
-        );
-        if (confirm == null) {
-          setState(() {
-            _saving = false;
-            _requiresPin = false;
-          });
-          return;
-        }
-      }
-      if (widget.profileId == null) {
-        await controller.createProfile(
-          name: _nameCtrl.text,
-          avatarEmoji: _avatarEmoji,
-          avatarColor: _avatarColor,
-          isKids: _isKids,
-          requiresPin: _requiresPin,
-          pin: pinToSet,
-        );
-      } else {
+      final pinToSet = _pinEnabled && _pin.length == 4 ? _pin : null;
+      if (_isEditing) {
         await controller.updateProfile(
           widget.profileId!,
-          name: _nameCtrl.text,
-          avatarEmoji: _avatarEmoji,
-          avatarColor: _avatarColor,
-          isKids: _isKids,
-          requiresPin: _requiresPin,
+          name: name,
+          avatarEmoji: _emoji,
+          avatarColor: _color,
+          isKids: _juniorMode,
+          requiresPin: _pinEnabled,
           pin: pinToSet,
-          clearPin: !_requiresPin && _hadPin,
+          clearPin: !_pinEnabled,
+        );
+      } else {
+        await controller.createProfile(
+          name: name,
+          avatarEmoji: _emoji,
+          avatarColor: _color,
+          isKids: _juniorMode,
+          requiresPin: _pinEnabled,
+          pin: pinToSet,
         );
       }
       if (!mounted) return;
@@ -146,250 +126,772 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     }
   }
 
-  Future<void> _changePin() async {
-    final controller = ref.read(profileControllerProvider);
-    final list = ref.read(profilesListProvider).valueOrNull ??
-        const <UserProfile>[];
-    UserProfile? profile;
-    for (final p in list) {
-      if (p.id == widget.profileId) {
-        profile = p;
-        break;
-      }
-    }
-    if (profile == null) return;
-
-    if (profile.hasPin) {
-      final old = await PinEntrySheet.show(
-        context,
-        title: 'Mevcut PIN',
-        subtitle: "Önce eski PIN'i gir",
-        validator: (String s) =>
-            controller.verifyPin(profile!, s) ? null : 'Yanlış PIN',
-      );
-      if (old == null) return;
-    }
-    if (!mounted) return;
-    final fresh = await PinEntrySheet.show(
-      context,
-      title: 'Yeni PIN',
-      subtitle: '4-6 haneli yeni bir PIN seç',
-    );
-    if (fresh == null) return;
-    if (!mounted) return;
-    final confirmed = await PinEntrySheet.show(
-      context,
-      title: "PIN'i doğrula",
-      subtitle: 'Tekrar gir',
-      validator: (String s) => s == fresh ? null : 'PIN eşleşmiyor',
-    );
-    if (confirmed == null) return;
-    await controller.setPin(profile.id, pin: fresh);
-    if (!mounted) return;
-    setState(() {
-      _hadPin = true;
-      _requiresPin = true;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('PIN güncellendi')),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final asyncList = ref.watch(profilesListProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.profileId == null ? 'Yeni profil' : 'Profili düzenle'),
-      ),
-      body: asyncList.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (Object e, StackTrace _) =>
-            Center(child: Text('Hata: $e')),
-        data: (List<UserProfile> list) {
-          _hydrateIfNeeded(list);
-          return Form(
-            key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.all(DesignTokens.spaceL),
-              children: <Widget>[
-                Center(
-                  child: ProfileAvatar(
-                    profile: UserProfile(
-                      id: 'preview',
-                      name: _nameCtrl.text.isEmpty ? 'Profil' : _nameCtrl.text,
-                      avatarColor: _avatarColor ?? kProfileAvatarPalette.first,
-                      avatarEmoji: _avatarEmoji,
-                      createdAt: DateTime.now(),
-                      updatedAt: DateTime.now(),
-                    ),
-                    size: 96,
-                  ),
-                ),
-                const SizedBox(height: DesignTokens.spaceL),
-                TextFormField(
-                  controller: _nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Profil adı',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (String? v) =>
-                      v == null || v.trim().isEmpty ? 'Ad gerekli' : null,
-                  onChanged: (_) => setState(() {}),
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: DesignTokens.spaceL),
-                Text(
-                  'Avatar',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: DesignTokens.spaceS),
-                Wrap(
-                  spacing: DesignTokens.spaceS,
-                  runSpacing: DesignTokens.spaceS,
-                  children: <Widget>[
-                    for (final e in _kAvatarEmojis)
-                      ChoiceChip(
-                        label: Text(
-                          e,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        selected: _avatarEmoji == e,
-                        onSelected: (_) => setState(() => _avatarEmoji = e),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: DesignTokens.spaceL),
-                Text(
-                  'Renk',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: DesignTokens.spaceS),
-                Wrap(
-                  spacing: DesignTokens.spaceS,
-                  runSpacing: DesignTokens.spaceS,
-                  children: <Widget>[
-                    for (final c in kProfileAvatarPalette)
-                      InkWell(
-                        onTap: () => setState(() => _avatarColor = c),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: c,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _avatarColor?.toARGB32() == c.toARGB32()
-                                  ? Theme.of(context).colorScheme.onSurface
-                                  : Colors.transparent,
-                              width: 3,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const Divider(height: DesignTokens.spaceXl),
-                SwitchListTile(
-                  title: const Text('Çocuk profili'),
-                  subtitle: const Text(
-                    'İçerikleri yaş kısıtlamasıyla göster',
-                  ),
-                  value: _isKids,
-                  onChanged: (bool v) => setState(() => _isKids = v),
-                ),
-                SwitchListTile(
-                  title: const Text('PIN gerekli'),
-                  subtitle: const Text(
-                    'Profile geçmek için PIN sor',
-                  ),
-                  value: _requiresPin,
-                  onChanged: (bool v) => setState(() {
-                    _requiresPin = v;
-                    if (!v) _newPin = null;
-                  }),
-                ),
-                if (_hadPin && widget.profileId != null)
-                  ListTile(
-                    leading: const Icon(Icons.password_rounded),
-                    title: const Text("PIN'i değiştir"),
-                    onTap: _changePin,
-                  ),
-                const SizedBox(height: DesignTokens.spaceL),
-                FilledButton.icon(
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.check_rounded),
-                  label: const Text('Kaydet'),
-                ),
-                if (widget.profileId != null &&
-                    widget.profileId != ProfileController.defaultProfileSentinel)
-                  Padding(
-                    padding:
-                        const EdgeInsets.only(top: DesignTokens.spaceM),
-                    child: TextButton.icon(
-                      onPressed: _saving ? null : () => _confirmDelete(context),
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      label: const Text('Profili sil'),
-                      style: TextButton.styleFrom(
-                        foregroundColor:
-                            Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _confirmDelete(BuildContext context) async {
-    final controller = ref.read(profileControllerProvider);
+  Future<void> _delete() async {
     final id = widget.profileId;
-    if (id == null) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('Profil silinsin mi?'),
-        content: const Text(
-          'Bu profilin favorileri ve geçmişi kalıcı olarak silinir.',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            child: const Text('Sil'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    if (id == null || _isPrimary) return;
     try {
-      await controller.deleteProfile(id);
+      await ref.read(profileControllerProvider).deleteProfile(id);
       if (!mounted) return;
-      context.pop();
+      context.go('/profiles');
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Silinemedi: $e')),
       );
     }
+  }
+
+  void _onPinKey(String key) {
+    if (key == '⌫') {
+      setState(() {
+        _pin = _pin.isEmpty ? _pin : _pin.substring(0, _pin.length - 1);
+      });
+      return;
+    }
+    if (_pin.length >= 4) return;
+    setState(() => _pin = _pin + key);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final asyncList = ref.watch(profilesListProvider);
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      body: SafeArea(
+        bottom: false,
+        child: asyncList.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (Object e, StackTrace _) =>
+              Center(child: Text('Hata: $e', style: const TextStyle(color: Colors.white))),
+          data: (List<UserProfile> list) {
+            _hydrate(list);
+            return _Form(
+              isEditing: _isEditing,
+              isPrimary: _isPrimary,
+              saving: _saving,
+              onCancel: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/profiles');
+                }
+              },
+              onSave: _save,
+              children: <Widget>[
+                if (_isPrimary) const _PrimaryNote(),
+                _BigAvatar(
+                  emoji: _emoji,
+                  color: _color,
+                  onTap: () => setState(() => _pickerOpen = !_pickerOpen),
+                ),
+                if (_pickerOpen)
+                  _AvatarPicker(
+                    avatarIndex: _avatarIndex,
+                    colorIndex: _colorIndex,
+                    onAvatarSelected: (int i) =>
+                        setState(() => _avatarIndex = i),
+                    onColorSelected: (int i) =>
+                        setState(() => _colorIndex = i),
+                  ),
+                _NameField(
+                  controller: _nameController,
+                  error: _nameError,
+                  onChanged: (_) {
+                    if (_nameError != null) {
+                      setState(() => _nameError = null);
+                    }
+                  },
+                ),
+                const _SectionLabel('OYNATMA VE DİL AYARLARI'),
+                _SettingsCard(
+                  children: <Widget>[
+                    if (!_isPrimary)
+                      _SettingRow(
+                        title: 'Çocuk Modu',
+                        description:
+                            'Yaş kısıtlamasıyla küratörlü içerik ve sadeleştirilmiş arayüz.',
+                        value: _juniorMode,
+                        onChanged: (bool v) =>
+                            setState(() => _juniorMode = v),
+                      ),
+                    _SettingRow(
+                      title: 'Profil PIN',
+                      description: 'Bu profile geçişi 4 haneli PIN ile kısıtla.',
+                      value: _pinEnabled,
+                      onChanged: (bool v) => setState(() {
+                        _pinEnabled = v;
+                        if (!v) _pin = '';
+                      }),
+                      isLast: !_pinEnabled,
+                    ),
+                    if (_pinEnabled)
+                      _PinEntryBlock(
+                        pin: _pin,
+                        onKey: _onPinKey,
+                        showHint: !_hadPin,
+                      ),
+                  ],
+                ),
+                if (_isEditing && !_isPrimary)
+                  _DeleteAction(
+                    confirm: _confirmDelete,
+                    onAskConfirm: () =>
+                        setState(() => _confirmDelete = true),
+                    onCancel: () =>
+                        setState(() => _confirmDelete = false),
+                    onDelete: _delete,
+                  ),
+                const SizedBox(height: 60),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _Form extends StatelessWidget {
+  const _Form({
+    required this.isEditing,
+    required this.isPrimary,
+    required this.saving,
+    required this.onCancel,
+    required this.onSave,
+    required this.children,
+  });
+
+  final bool isEditing;
+  final bool isPrimary;
+  final bool saving;
+  final VoidCallback onCancel;
+  final VoidCallback onSave;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        _Header(
+          isEditing: isEditing,
+          saving: saving,
+          onCancel: onCancel,
+          onSave: onSave,
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior:
+                ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.isEditing,
+    required this.saving,
+    required this.onCancel,
+    required this.onSave,
+  });
+
+  final bool isEditing;
+  final bool saving;
+  final VoidCallback onCancel;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      child: Row(
+        children: <Widget>[
+          GestureDetector(
+            onTap: onCancel,
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Vazgeç',
+                style: TextStyle(
+                  color: Color(0x99FFFFFF),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Text(
+                isEditing ? 'Profili Düzenle' : 'Profil Ekle',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: saving ? null : onSave,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      isEditing ? 'Tamam' : 'Kaydet',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrimaryNote extends StatelessWidget {
+  const _PrimaryNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0x0FFFFFFF),
+        border: Border.all(color: const Color(0x1AFFFFFF)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Text(
+        'Bu senin ana profilin. Silinemez ve Çocuk Modu açılamaz.',
+        style: TextStyle(
+          color: Color(0x8CFFFFFF),
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          height: 18 / 12,
+        ),
+      ),
+    );
+  }
+}
+
+class _BigAvatar extends StatelessWidget {
+  const _BigAvatar({
+    required this.emoji,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Center(
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: SizedBox(
+            width: 130,
+            height: 100,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: <Widget>[
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    emoji,
+                    style: const TextStyle(fontSize: 50, height: 1),
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 8,
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: BrandColors.primary,
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(color: const Color(0xFF0A0A0A)),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.edit_outlined,
+                      size: 12,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarPicker extends StatelessWidget {
+  const _AvatarPicker({
+    required this.avatarIndex,
+    required this.colorIndex,
+    required this.onAvatarSelected,
+    required this.onColorSelected,
+  });
+
+  final int avatarIndex;
+  final int colorIndex;
+  final ValueChanged<int> onAvatarSelected;
+  final ValueChanged<int> onColorSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedColor = kStreasAvatarColors[colorIndex];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const _SectionLabel('AVATAR SEÇ', tightLeft: true),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              for (var i = 0; i < kStreasAvatarEmojis.length; i++)
+                GestureDetector(
+                  onTap: () => onAvatarSelected(i),
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: avatarIndex == i
+                          ? selectedColor
+                          : const Color(0x14FFFFFF),
+                      border: Border.all(
+                        color: avatarIndex == i
+                            ? Colors.white
+                            : Colors.transparent,
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      kStreasAvatarEmojis[i],
+                      style: const TextStyle(fontSize: 28, height: 1),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _SectionLabel('RENK SEÇ', tightLeft: true),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              for (var i = 0; i < kStreasAvatarColors.length; i++)
+                GestureDetector(
+                  onTap: () => onColorSelected(i),
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: kStreasAvatarColors[i],
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colorIndex == i
+                            ? Colors.white
+                            : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NameField extends StatelessWidget {
+  const _NameField({
+    required this.controller,
+    required this.error,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String? error;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0x0FFFFFFF),
+              border: Border.all(
+                color: error != null
+                    ? const Color(0xFFEF4444)
+                    : const Color(0x26FFFFFF),
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              controller: controller,
+              maxLength: 20,
+              onChanged: onChanged,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+              ),
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 16),
+                border: InputBorder.none,
+                counterText: '',
+                hintText: 'Profil Adı',
+                hintStyle: TextStyle(
+                  color: Color(0x59FFFFFF),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+          ),
+          if (error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                error!,
+                style: const TextStyle(
+                  color: Color(0xFFEF4444),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label, {this.tightLeft = false});
+
+  final String label;
+  final bool tightLeft;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(tightLeft ? 0 : 20, 16, 20, 10),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0x73FFFFFF),
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xCC0F1A2E),
+        border: Border.all(color: const Color(0x14FFFFFF)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingRow extends StatelessWidget {
+  const _SettingRow({
+    required this.title,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+    this.isLast = false,
+  });
+
+  final String title;
+  final String description;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : const Border(
+                bottom: BorderSide(color: Color(0x12FFFFFF)),
+              ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: Color(0x73FFFFFF),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w400,
+                    height: 16 / 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: Colors.white,
+            activeTrackColor: BrandColors.primary,
+            inactiveTrackColor: const Color(0x26FFFFFF),
+            inactiveThumbColor: Colors.white,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PinEntryBlock extends StatelessWidget {
+  const _PinEntryBlock({
+    required this.pin,
+    required this.onKey,
+    required this.showHint,
+  });
+
+  final String pin;
+  final ValueChanged<String> onKey;
+  final bool showHint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: <Widget>[
+          if (showHint)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Bu profile geçişi 4 haneli bir PIN ile kısıtla.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0x80FFFFFF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+          PinDots(filled: pin.length, variant: PinDotsVariant.form),
+          const SizedBox(height: 12),
+          PinNumpad(onKey: onKey, size: PinNumpadSize.small),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeleteAction extends StatelessWidget {
+  const _DeleteAction({
+    required this.confirm,
+    required this.onAskConfirm,
+    required this.onCancel,
+    required this.onDelete,
+  });
+
+  final bool confirm;
+  final VoidCallback onAskConfirm;
+  final VoidCallback onCancel;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!confirm) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 20),
+        child: GestureDetector(
+          onTap: onAskConfirm,
+          behavior: HitTestBehavior.opaque,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Center(
+              child: Text(
+                'Profili Sil',
+                style: TextStyle(
+                  color: Color(0xFFEF4444),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xE60F1A2E),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: <Widget>[
+          const Text(
+            'Bu profil silinsin mi?',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Tüm izleme geçmişi ve ayarlar kaybolacak.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0x80FFFFFF),
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: GestureDetector(
+                  onTap: onCancel,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0x33FFFFFF)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'Vazgeç',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: onDelete,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'Sil',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -1,3 +1,6 @@
+import 'dart:async' show unawaited;
+import 'dart:io' show Platform, Process;
+
 import 'package:awatv_mobile/src/app/theme_mode_provider.dart';
 import 'package:awatv_mobile/src/features/premium/premium_badge.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
@@ -6,9 +9,11 @@ import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/auth/cloud_sync_gate.dart';
 import 'package:awatv_mobile/src/shared/discovery/share_helper.dart';
 import 'package:awatv_mobile/src/shared/network/app_settings_helper.dart';
+import 'package:awatv_mobile/src/shared/observability/awatv_observability.dart';
 import 'package:awatv_mobile/src/shared/observability/observability_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
+import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/cloud_sync_providers.dart';
 import 'package:awatv_mobile/src/shared/sync/sync_status.dart';
 import 'package:awatv_mobile/src/shared/updater/update_settings_card.dart';
@@ -16,8 +21,19 @@ import 'package:awatv_ui/awatv_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+/// Privacy policy URL — surfaced in the Privacy section. Mirrors the
+/// constant used by the onboarding wizard so we have a single hosted
+/// destination across the app.
+const String _kPrivacyPolicyUrl = 'https://awatv.pages.dev/privacy';
+
+/// Hive key tracking onboarding wizard completion. Resetting this key
+/// causes the next launch (or a manual /onboarding push) to surface
+/// the wizard again. Kept in sync with `wizard_screen.dart`.
+const String _kOnboardingDoneKey = 'prefs:onboarding.completed';
 
 /// Settings landing — theme, parental control gate, links to playlists,
 /// premium and an "About" line.
@@ -214,8 +230,12 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => ShareHelper.shareApp(context),
           ),
           const Divider(),
+          const _SectionHeader('Yardim'),
+          const _ResetOnboardingTile(),
+          const Divider(),
           const _SectionHeader('Gizlilik'),
           const _PrivacySection(),
+          const _PrivacyPolicyTile(),
           const Divider(),
           const _SectionHeader('Sürüm'),
           // Live version line + auto-update controls (desktop only).
@@ -617,27 +637,42 @@ class _MiniAvatar extends StatelessWidget {
 
 /// Privacy / observability opt-in section.
 ///
-/// Two switches:
-///   * **Anonim hata bildirimi** — Crashlytics
-///   * **Anonim kullanim istatistikleri** — Analytics
+/// GDPR-granular: Crashlytics and Analytics each get their own switch
+/// because they cover materially different data:
+///   * **Anonim hata bildirimi** — Crashlytics. Stack traces + device
+///     metadata when the app crashes. No usage signals.
+///   * **Anonim kullanim istatistikleri** — Analytics. Screen views,
+///     feature engagement events. Tells us how the app is used.
 ///
-/// Both are wired to the same Hive-backed flag (`observability.optIn`)
-/// because in practice users either accept *both* anonymous reporting
-/// channels or none — splitting the two led to an awkward "what do
-/// these even do" UX in playtests. We keep two rows so the disclosure
-/// stays explicit, but flip them together.
-///
-/// Caveat surfaced inline: Crashlytics' collection toggle is sticky
-/// for the lifetime of the process, so a freshly-disabled session can
-/// still send a crash. The hint text mentions a restart so users
-/// aren't surprised.
-class _PrivacySection extends ConsumerWidget {
+/// Each switch persists to its own Hive key on every flip via
+/// `setCrashlyticsOptIn` / `setAnalyticsOptIn` so a force-quit between
+/// toggle and "save" still survives the user's choice. Crashlytics has
+/// a runtime caveat (the SDK keeps reporting in the current session
+/// even after a flip-off) which the hint text below mentions.
+class _PrivacySection extends ConsumerStatefulWidget {
   const _PrivacySection();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final optIn = ref.watch(observabilityOptInProvider);
+  ConsumerState<_PrivacySection> createState() => _PrivacySectionState();
+}
+
+class _PrivacySectionState extends ConsumerState<_PrivacySection> {
+  late bool _crashlytics;
+  late bool _analytics;
+
+  @override
+  void initState() {
+    super.initState();
+    _crashlytics = AwatvObservability.readCrashlyticsOptIn();
+    _analytics = AwatvObservability.readAnalyticsOptIn();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Watch the union flag so a flip elsewhere (onboarding wizard,
+    // privacy policy link) refreshes both switches in lock-step.
+    ref.watch(observabilityOptInProvider);
 
     return Column(
       children: <Widget>[
@@ -648,9 +683,8 @@ class _PrivacySection extends ConsumerWidget {
             'Coken islemler hakkinda anonim bilgi gonderir, '
             'gelecekte hatalari onlemize yardimci olur.',
           ),
-          value: optIn,
-          onChanged: (bool v) =>
-              _setOptIn(ref, context, v, restartHint: true),
+          value: _crashlytics,
+          onChanged: _setCrashlytics,
         ),
         SwitchListTile(
           secondary: const Icon(Icons.insights_outlined),
@@ -659,8 +693,8 @@ class _PrivacySection extends ConsumerWidget {
             'Hangi ekranlarin daha sik kullanildigini ogrenmemize yardim et. '
             'Kisisel bilgi toplanmaz.',
           ),
-          value: optIn,
-          onChanged: (bool v) => _setOptIn(ref, context, v),
+          value: _analytics,
+          onChanged: _setAnalytics,
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -682,21 +716,122 @@ class _PrivacySection extends ConsumerWidget {
     );
   }
 
-  Future<void> _setOptIn(
-    WidgetRef ref,
-    BuildContext context,
-    bool next, {
-    bool restartHint = false,
-  }) async {
+  Future<void> _setCrashlytics(bool v) async {
+    setState(() => _crashlytics = v);
     final messenger = ScaffoldMessenger.of(context);
-    await ref.read(observabilityOptInProvider.notifier).setOptIn(next);
-    final label = next
-        ? 'Anonim raporlama acildi. Tesekkurler!'
-        : 'Anonim raporlama kapatildi.';
-    final hint = restartHint && !next
-        ? ' Uygulamayi yeniden baslattiginda tam olarak devre disi kalir.'
-        : '';
+    await ref
+        .read(observabilityOptInProvider.notifier)
+        .setCrashlyticsOptIn(v);
+    final label = v
+        ? 'Cokme raporlari acildi. Tesekkurler!'
+        : 'Cokme raporlari kapatildi.';
+    final hint = v
+        ? ''
+        : ' Uygulamayi yeniden baslattiginda tam olarak devre disi kalir.';
     messenger.showSnackBar(SnackBar(content: Text('$label$hint')));
+  }
+
+  Future<void> _setAnalytics(bool v) async {
+    setState(() => _analytics = v);
+    final messenger = ScaffoldMessenger.of(context);
+    await ref
+        .read(observabilityOptInProvider.notifier)
+        .setAnalyticsOptIn(v);
+    final label = v
+        ? 'Kullanim istatistikleri acildi.'
+        : 'Kullanim istatistikleri kapatildi.';
+    messenger.showSnackBar(SnackBar(content: Text(label)));
+  }
+}
+
+/// Tile that opens the published privacy policy URL. Mirrors the
+/// onboarding step's behaviour: tries to launch the platform default
+/// browser, falls back to clipboard copy on web / sandboxed sub-process.
+class _PrivacyPolicyTile extends StatelessWidget {
+  const _PrivacyPolicyTile();
+
+  Future<void> _open(BuildContext context) async {
+    var launched = false;
+    try {
+      if (kIsWeb) {
+        // ignore — fall through to clipboard
+      } else if (Platform.isMacOS) {
+        final r = await Process.run('open', <String>[_kPrivacyPolicyUrl]);
+        launched = r.exitCode == 0;
+      } else if (Platform.isWindows) {
+        final r = await Process.run(
+          'cmd',
+          <String>['/c', 'start', '', _kPrivacyPolicyUrl],
+        );
+        launched = r.exitCode == 0;
+      } else if (Platform.isLinux) {
+        final r = await Process.run('xdg-open', <String>[_kPrivacyPolicyUrl]);
+        launched = r.exitCode == 0;
+      }
+    } on Object {
+      // ignore — fall through to clipboard
+    }
+    if (!launched && context.mounted) {
+      await Clipboard.setData(
+        const ClipboardData(text: _kPrivacyPolicyUrl),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gizlilik politikasi baglantisi panoya kopyalandi.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.policy_outlined),
+      title: const Text('Gizlilik politikasi'),
+      subtitle: const Text('Kayit altina aldigimiz veriler ve haklarin'),
+      trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+      onTap: () => _open(context),
+    );
+  }
+}
+
+/// Tile that resets the onboarding completion flag so the next visit
+/// to /onboarding renders the full wizard again. Useful when a user
+/// wants to re-watch the intro / re-consent to GDPR toggles.
+class _ResetOnboardingTile extends ConsumerWidget {
+  const _ResetOnboardingTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListTile(
+      leading: const Icon(Icons.replay_circle_filled_outlined),
+      title: const Text("Onboarding'i tekrar goster"),
+      subtitle: const Text(
+        'Karsilama akisini bastan calistir, gizlilik secimlerini tazele',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _reset(context, ref),
+    );
+  }
+
+  Future<void> _reset(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    try {
+      final storage = ref.read(awatvStorageProvider);
+      await storage.prefsBox.delete(_kOnboardingDoneKey);
+    } on Object catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Sifirlanamadi: $e')),
+      );
+      return;
+    }
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Onboarding sifirlandi.')),
+    );
+    unawaited(router.push<void>('/onboarding/wizard'));
   }
 }
 

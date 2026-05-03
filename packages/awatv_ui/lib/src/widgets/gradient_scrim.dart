@@ -22,6 +22,24 @@ class GradientScrim extends StatelessWidget {
     super.key,
   });
 
+  /// Streas-spec scrim used by `BackdropHeader` / hero banners.
+  ///
+  /// Vertical fade `transparent → rgba(0,0,0,0.5) → rgba(0,0,0,0.95)` at
+  /// stops `[0.3, 0.65, 1]`, mirroring the Streas RN HeroBanner gradient
+  /// 1:1 so titles and CTAs stay legible across any backdrop image.
+  const GradientScrim.streas({this.child, super.key})
+      : from = Alignment.topCenter,
+        to = Alignment.bottomCenter,
+        begin = null,
+        end = null,
+        stops = const <double>[0.3, 0.65, 1],
+        colors = const <Color>[
+          Color(0x00000000),
+          Color(0x80000000),
+          Color(0xF2000000),
+        ],
+        intensity = 1.0;
+
   /// What the scrim sits on top of (typically a network image). When null,
   /// the widget renders just the gradient — useful as a `Positioned.fill`
   /// child inside a `Stack`.

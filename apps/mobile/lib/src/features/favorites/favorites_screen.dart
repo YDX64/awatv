@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:awatv_core/awatv_core.dart';
+import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/favorites/favorites_providers.dart';
 import 'package:awatv_mobile/src/features/favorites/folder_picker_sheet.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
+import 'package:awatv_mobile/src/shared/channel_history/channel_history_provider.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
 import 'package:awatv_mobile/src/shared/premium/feature_gate_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_features.dart';
@@ -13,6 +15,7 @@ import 'package:awatv_mobile/src/shared/stream_url.dart';
 import 'package:awatv_mobile/src/shared/web_proxy.dart';
 import 'package:awatv_player/awatv_player.dart';
 import 'package:awatv_ui/awatv_ui.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,6 +67,7 @@ class FavoritesScreen extends ConsumerWidget {
                 onSelect: (String id) =>
                     ref.read(selectedFavoriteFolderProvider.notifier).state = id,
               ),
+              const _RecentChannelStrip(),
               const Divider(height: 1),
               Expanded(
                 child: _FolderChannelsBody(folderId: activeId),
@@ -71,6 +75,205 @@ class FavoritesScreen extends ConsumerWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Horizontal strip of recently-watched live channels — Streas spec § 8.
+/// Sits between the folder chip row and the active folder grid so users
+/// always see their last few channels regardless of which folder is open.
+/// Hides itself when there's no history yet so it doesn't waste vertical
+/// real-estate on a fresh install.
+class _RecentChannelStrip extends ConsumerWidget {
+  const _RecentChannelStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(channelHistoryStreamProvider);
+    final allChannels = ref.watch(liveChannelsProvider).value;
+
+    final history = historyAsync.value ?? const <String>[];
+    if (history.isEmpty || allChannels == null || allChannels.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    // Resolve ids → channels in history order, drop unknown ids, cap
+    // at 10 (Streas spec).
+    final byId = <String, Channel>{
+      for (final c in allChannels) c.id: c,
+    };
+    final recent = <Channel>[];
+    for (final id in history) {
+      final c = byId[id];
+      if (c == null) continue;
+      recent.add(c);
+      if (recent.length >= 10) break;
+    }
+    if (recent.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: DesignTokens.spaceS),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              DesignTokens.spaceM,
+              DesignTokens.spaceXs,
+              DesignTokens.spaceM,
+              DesignTokens.spaceS,
+            ),
+            child: Text(
+              'Son izlenenler',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 96,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(
+                horizontal: DesignTokens.spaceM,
+              ),
+              itemCount: recent.length,
+              separatorBuilder: (_, __) =>
+                  const SizedBox(width: DesignTokens.spaceS),
+              itemBuilder: (BuildContext _, int i) {
+                final ch = recent[i];
+                return _RecentChannelCard(
+                  channel: ch,
+                  onTap: () => _play(context, ch),
+                  scheme: scheme,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _play(BuildContext context, Channel channel) {
+    final urls = streamUrlVariants(channel.streamUrl).map(proxify).toList();
+    final variants = MediaSource.variants(
+      urls,
+      title: channel.name,
+      userAgent: channel.extras['http-user-agent'],
+    );
+    final args = PlayerLaunchArgs(
+      source: variants.isEmpty
+          ? MediaSource(
+              url: proxify(channel.streamUrl),
+              title: channel.name,
+              userAgent: channel.extras['http-user-agent'],
+            )
+          : variants.first,
+      fallbacks: variants.length <= 1
+          ? const <MediaSource>[]
+          : variants.sublist(1),
+      title: channel.name,
+      itemId: channel.id,
+      kind: HistoryKind.live,
+      isLive: true,
+    );
+    context.push('/play', extra: args);
+  }
+}
+
+class _RecentChannelCard extends StatelessWidget {
+  const _RecentChannelCard({
+    required this.channel,
+    required this.onTap,
+    required this.scheme,
+  });
+
+  final Channel channel;
+  final VoidCallback onTap;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
+      borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignTokens.spaceXs,
+            vertical: DesignTokens.spaceXs,
+          ),
+          child: SizedBox(
+            width: 70,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  width: 64,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(DesignTokens.radiusS),
+                  ),
+                  alignment: Alignment.center,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(DesignTokens.radiusS),
+                    child: channel.logoUrl == null ||
+                            channel.logoUrl!.isEmpty
+                        ? Center(
+                            child: Text(
+                              channel.name.isEmpty
+                                  ? '?'
+                                  : channel.name.characters.first
+                                      .toUpperCase(),
+                              style: TextStyle(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                              ),
+                            ),
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: channel.logoUrl!,
+                            fit: BoxFit.contain,
+                            errorWidget: (_, __, ___) => Center(
+                              child: Text(
+                                channel.name.isEmpty
+                                    ? '?'
+                                    : channel.name.characters.first
+                                        .toUpperCase(),
+                                style: TextStyle(
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  channel.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

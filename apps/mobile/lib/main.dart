@@ -6,6 +6,7 @@ import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/desktop/desktop_runtime.dart';
 import 'package:awatv_mobile/src/desktop/desktop_window.dart';
 import 'package:awatv_mobile/src/desktop/system_tray.dart';
+import 'package:awatv_mobile/src/shared/ads/awatv_ads.dart';
 import 'package:awatv_mobile/src/shared/background_playback/audio_session_config.dart';
 import 'package:awatv_mobile/src/shared/background_playback/background_playback_controller.dart';
 import 'package:awatv_mobile/src/shared/notifications/notifications_provider.dart';
@@ -104,6 +105,14 @@ Future<void> main() async {
     // Storage failure means most features won't persist — surface that
     // via the home screen instead of crashing here.
   }
+
+  // AdMob — initialise the Google Mobile Ads SDK so the home banner
+  // and interstitial controllers can render slots. No-op on web /
+  // desktop / TV (the SDK isn't shipped there). Premium users still
+  // gate ads off via `PremiumFeature.noAds` even after the SDK
+  // initialises. Fire-and-forget: a slow ad-server probe must never
+  // delay the first frame.
+  unawaited(AwatvAds.initialise());
 
   // Firebase observability (Crashlytics + Analytics). Privacy-first:
   // collection is *off* by default and only enabled once the user

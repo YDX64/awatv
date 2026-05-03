@@ -24,8 +24,9 @@ max_rows = 1000
 [db]
 # Local Postgres port.
 port = 54322
-# Postgres major version. Supabase production runs 15+; 16 is the modern target.
-major_version = 16
+# Postgres major version. AWATV-USER project runs 17 (verified via
+# Management API on 2026-05-04). CLI 2.95+ rejects 16 as invalid.
+major_version = 17
 
 [db.pooler]
 enabled = false
@@ -93,9 +94,12 @@ enable_signup = true
 enable_signup = true
 double_confirm_changes = true
 # Min password length when password auth is enabled. Magic-link is preferred.
-[auth.email.template.invite]
-subject = "You're invited to AWAtv"
-content_path = "./supabase/templates/invite.html"
+# Template configuration disabled until templates/invite.html ships — the CLI
+# refuses to deploy when the file is missing. Re-enable + add the file when
+# we want to customise the invite email.
+# [auth.email.template.invite]
+# subject = "You're invited to AWAtv"
+# content_path = "./supabase/templates/invite.html"
 
 # OAuth providers — keys come from environment variables; never commit secrets.
 [auth.external.apple]

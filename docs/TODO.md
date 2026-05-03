@@ -6,6 +6,35 @@ Status keys: 🔴 blocked (needs user action) · 🟡 in-progress · 🟢 ready-
 
 ---
 
+## STATUS — last updated 2026-05-04 (autonomous overnight session)
+
+**Phase 2 (Streas layout polish) status:**
+
+- ✅ Agent A — Auth + profile screens (6 files + new profile_avatar_pool.dart)
+- ✅ Agent B — Tab screens (settings, search, vod, series, favorites, home)
+- ✅ Agent D — Premium + paywall + add-source (5 files + sample_playlist_chip + i18n keys)
+- ✅ Agent E — Shared components in awatv_ui (7 files including 3 new widgets)
+- 🟡 Agent C — Player + detail + subtitle picker (in flight at session end)
+
+**Anti-tamper + freemium economy DELIVERED:**
+
+- ✅ Server-authoritative `premium_status_provider.dart` — Hive becomes cache only, Supabase `subscriptions` row is the only source of truth, realtime stream catches webhook updates in <1s
+- ✅ AdMob infrastructure (awatv_ads.dart + ads_providers.dart + ad_banner.dart) — sticky banner + interstitial-every-3rd-play, auto-suppressed for premium tier
+- ✅ Platform config: iOS Info.plist (`GADApplicationIdentifier` + 9 `SKAdNetworkItems` + `NSUserTrackingUsageDescription`) + Android manifest (`com.google.android.gms.ads.APPLICATION_ID`)
+- ✅ pubspec.yaml: `google_mobile_ads ^5.3.1` + `purchases_flutter ^8.4.2`
+- ✅ Edge Functions DEPLOYED on AWATV-USER: `revenuecat-webhook`, `sync-snapshot`, `tmdb-proxy`
+- ✅ Workflow `release-android-playstore.yml` for Play Store internal track upload
+- ✅ Apple TV path documented in `docs/APPLE_TV_NOTES.md`
+- ✅ RC + AdMob setup guide at `docs/REVENUECAT_ADMOB_SETUP.md`
+
+**Pending merge after Agent C lands:**
+
+- Aggregate all 5 agents' output, flutter analyze, fix any remaining lint, bump pubspec to 0.5.8+11
+- Single big commit + push → CI build for v0.5.8
+- Release v0.5.8 with Streas Phase 2 + AdMob + anti-tamper + Play Store workflow
+
+---
+
 ## P0 — User-action-required (unblocks everything else)
 
 ### 🔴 Apple Developer setup → iOS TestFlight

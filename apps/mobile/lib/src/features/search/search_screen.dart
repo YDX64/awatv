@@ -33,9 +33,25 @@ class SearchScreen extends ConsumerStatefulWidget {
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
+/// Result kind toggle — pinned filter pills under the search bar so
+/// users can narrow a noisy query down to a single content type.
+enum _SearchKindFilter { all, channels, vods, series }
+
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _ctrl = TextEditingController();
   String _q = '';
+  _SearchKindFilter _filter = _SearchKindFilter.all;
+
+  /// Popular search hints. Tapping fills the input + triggers a live
+  /// filter immediately (no debounce — Streas does the same).
+  static const List<String> _kPopular = <String>[
+    'Haber',
+    'Spor',
+    'Film',
+    'Cocuk',
+    'Muzik',
+    'Dizi',
+  ];
 
   @override
   void dispose() {
@@ -106,7 +122,36 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           // app bar so the user can see what the mic is hearing while
           // a session is still in progress. Empty / hidden otherwise.
           const VoiceSearchPartialHint(),
-          Expanded(child: _buildResults(ql, deviceClass, filteredChannels, filteredVod, filteredSeries)),
+          if (ql.isNotEmpty)
+            _SearchKindFilterBar(
+              selected: _filter,
+              counts: <_SearchKindFilter, int>{
+                _SearchKindFilter.all:
+                    filteredChannels.length + filteredVod.length + filteredSeries.length,
+                _SearchKindFilter.channels: filteredChannels.length,
+                _SearchKindFilter.vods: filteredVod.length,
+                _SearchKindFilter.series: filteredSeries.length,
+              },
+              onChanged: (_SearchKindFilter f) => setState(() => _filter = f),
+            ),
+          Expanded(
+            child: _buildResults(
+              ql,
+              deviceClass,
+              _filter == _SearchKindFilter.vods ||
+                      _filter == _SearchKindFilter.series
+                  ? const <Channel>[]
+                  : filteredChannels,
+              _filter == _SearchKindFilter.channels ||
+                      _filter == _SearchKindFilter.series
+                  ? const <VodItem>[]
+                  : filteredVod,
+              _filter == _SearchKindFilter.channels ||
+                      _filter == _SearchKindFilter.vods
+                  ? const <SeriesItem>[]
+                  : filteredSeries,
+            ),
+          ),
         ],
       ),
     );
@@ -134,10 +179,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     List<SeriesItem> filteredSeries,
   ) {
     if (ql.isEmpty) {
-      return const EmptyState(
-        icon: Icons.search,
-        title: 'Aramaya basla',
-        message: 'Adi yaz, sonuclar an?nda gorunsun.',
+      return _SearchBrowseBody(
+        popular: _kPopular,
+        onPickQuery: _setQuery,
       );
     }
     if (filteredChannels.isEmpty &&
@@ -481,6 +525,248 @@ class _Section<T> extends StatelessWidget {
         for (final item in items) builder(item),
         const SizedBox(height: DesignTokens.spaceM),
       ],
+    );
+  }
+}
+
+/// Filter pills under the search bar: All / Channels / Movies / Series.
+/// Mirrors Streas' "type chips" pattern. Counts come from the live
+/// filter so the user can tell immediately which buckets have hits.
+class _SearchKindFilterBar extends StatelessWidget {
+  const _SearchKindFilterBar({
+    required this.selected,
+    required this.counts,
+    required this.onChanged,
+  });
+
+  final _SearchKindFilter selected;
+  final Map<_SearchKindFilter, int> counts;
+  final ValueChanged<_SearchKindFilter> onChanged;
+
+  static const List<({_SearchKindFilter kind, String label})> _entries =
+      <({_SearchKindFilter kind, String label})>[
+    (kind: _SearchKindFilter.all, label: 'Tumu'),
+    (kind: _SearchKindFilter.channels, label: 'Kanallar'),
+    (kind: _SearchKindFilter.vods, label: 'Filmler'),
+    (kind: _SearchKindFilter.series, label: 'Diziler'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 52,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: DesignTokens.spaceM,
+          vertical: DesignTokens.spaceS,
+        ),
+        itemCount: _entries.length,
+        separatorBuilder: (_, __) =>
+            const SizedBox(width: DesignTokens.spaceS),
+        itemBuilder: (BuildContext _, int i) {
+          final entry = _entries[i];
+          final isActive = entry.kind == selected;
+          final count = counts[entry.kind] ?? 0;
+          return ChoiceChip(
+            label: Text(
+              count > 0 ? '${entry.label} ($count)' : entry.label,
+            ),
+            selected: isActive,
+            onSelected: (_) => onChanged(entry.kind),
+            selectedColor: scheme.primary.withValues(alpha: 0.18),
+            labelStyle: TextStyle(
+              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+              color: isActive ? scheme.primary : scheme.onSurface,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Empty-state browse experience: popular search pills + category grid.
+/// Shown when the query is empty so the user always has something to
+/// tap rather than staring at a blank illustration.
+class _SearchBrowseBody extends StatelessWidget {
+  const _SearchBrowseBody({
+    required this.popular,
+    required this.onPickQuery,
+  });
+
+  final List<String> popular;
+  final ValueChanged<String> onPickQuery;
+
+  /// Browse-by-category quick links. Routes to existing tabs / shell
+  /// destinations the user already knows.
+  static const List<({IconData icon, String label, String route})> _kBrowse =
+      <({IconData icon, String label, String route})>[
+    (icon: Icons.live_tv_outlined, label: 'Canli kanallar', route: '/live'),
+    (icon: Icons.movie_outlined, label: 'Filmler', route: '/movies'),
+    (icon: Icons.video_library_outlined, label: 'Diziler', route: '/series'),
+    (
+      icon: Icons.calendar_view_day_outlined,
+      label: 'TV Rehberi',
+      route: '/live/epg',
+    ),
+    (
+      icon: Icons.favorite_border_rounded,
+      label: 'Favoriler',
+      route: '/favorites',
+    ),
+    (
+      icon: Icons.history_rounded,
+      label: 'Izleme gecmisi',
+      route: '/stats',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(
+        DesignTokens.spaceM,
+        DesignTokens.spaceM,
+        DesignTokens.spaceM,
+        DesignTokens.spaceXl,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Populer aramalar',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: DesignTokens.spaceS),
+          Wrap(
+            spacing: DesignTokens.spaceS,
+            runSpacing: DesignTokens.spaceS,
+            children: <Widget>[
+              for (final term in popular)
+                Material(
+                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(DesignTokens.radiusXL),
+                  child: InkWell(
+                    borderRadius:
+                        BorderRadius.circular(DesignTokens.radiusXL),
+                    onTap: () => onPickQuery(term),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: DesignTokens.spaceM,
+                        vertical: DesignTokens.spaceS,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.trending_up_rounded,
+                            size: 14,
+                            color: scheme.primary,
+                          ),
+                          const SizedBox(width: DesignTokens.spaceXs),
+                          Text(
+                            term,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: DesignTokens.spaceL),
+          Text(
+            'Kategoriye gore gez',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: DesignTokens.spaceS),
+          LayoutBuilder(
+            builder: (BuildContext _, BoxConstraints c) {
+              final cols = c.maxWidth > 720 ? 3 : 2;
+              return GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: cols,
+                mainAxisSpacing: DesignTokens.spaceS,
+                crossAxisSpacing: DesignTokens.spaceS,
+                childAspectRatio: 2.4,
+                children: <Widget>[
+                  for (final entry in _kBrowse)
+                    _BrowseCard(
+                      icon: entry.icon,
+                      label: entry.label,
+                      onTap: () => context.push(entry.route),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BrowseCard extends StatelessWidget {
+  const _BrowseCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(DesignTokens.radiusM),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(DesignTokens.spaceM),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(DesignTokens.radiusS),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: scheme.primary, size: 20),
+              ),
+              const SizedBox(width: DesignTokens.spaceS),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

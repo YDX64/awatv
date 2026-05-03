@@ -151,6 +151,20 @@
         <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+
+        <!--
+          AdMob (Google Mobile Ads SDK) application id. The SDK refuses
+          to initialise without this meta-data tag; the app crashes on
+          boot if it's missing. Default below is AdMob's universally-
+          recognised TEST app id — serves real ads with a "Test Ad"
+          watermark and never accumulates revenue. Replace with your
+          real app id from https://apps.admob.com once you create the
+          Android app entry. Free tier renders banners + interstitials;
+          premium (gate `PremiumFeature.noAds`) suppresses both.
+        -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

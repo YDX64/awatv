@@ -38,6 +38,11 @@ class PlayerControlsLayer extends StatelessWidget {
     this.alwaysOnTopVisible = false,
     this.alwaysOnTopActive = false,
     this.onAlwaysOnTopRequested,
+    this.onSubtitlePickerRequested,
+    this.onExternalPlayerRequested,
+    this.onChannelListRequested,
+    this.onEpgRequested,
+    this.subtitlesActive = false,
     super.key,
   });
 
@@ -91,6 +96,28 @@ class PlayerControlsLayer extends StatelessWidget {
   /// the intent.
   final VoidCallback? onAlwaysOnTopRequested;
 
+  /// Tapped from the bottom bar's CC chip — pushes `/subtitle-picker`.
+  /// When null, the chip is hidden; the unified track picker remains
+  /// available via [onSettingsRequested].
+  final VoidCallback? onSubtitlePickerRequested;
+
+  /// Tapped from the top bar's "Open with" icon — opens the external
+  /// player picker (VLC / MX / nPlayer deep-link). When null, the icon
+  /// is hidden so non-mobile builds don't show it.
+  final VoidCallback? onExternalPlayerRequested;
+
+  /// Tapped from the live bottom bar's list icon — slides in the
+  /// channel-side drawer. When null, the icon is hidden.
+  final VoidCallback? onChannelListRequested;
+
+  /// Tapped from the live bottom bar's calendar icon — opens the EPG
+  /// bottom sheet (now + next programme). When null, the icon is hidden.
+  final VoidCallback? onEpgRequested;
+
+  /// True when an SRT is currently loaded — the CC chip turns
+  /// cherry-tinted to mirror the Streas RN active state.
+  final bool subtitlesActive;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -132,6 +159,9 @@ class PlayerControlsLayer extends StatelessWidget {
                 alwaysOnTopVisible: alwaysOnTopVisible,
                 alwaysOnTopActive: alwaysOnTopActive,
                 onAlwaysOnTop: onAlwaysOnTopRequested,
+                onExternalPlayer: onExternalPlayerRequested,
+                onSubtitlePicker: onSubtitlePickerRequested,
+                subtitlesActive: subtitlesActive,
               ),
               Expanded(
                 child: Center(
@@ -146,7 +176,14 @@ class PlayerControlsLayer extends StatelessWidget {
                 ),
               ),
               if (isLive)
-                _LiveStrip(now: epgNow, next: epgNext)
+                _LiveStrip(
+                  now: epgNow,
+                  next: epgNext,
+                  onChannelList: onChannelListRequested,
+                  onEpg: onEpgRequested,
+                  onSubtitlePicker: onSubtitlePickerRequested,
+                  subtitlesActive: subtitlesActive,
+                )
               else
                 _BottomBar(
                   position: position,
@@ -155,6 +192,8 @@ class PlayerControlsLayer extends StatelessWidget {
                   onSeekTo: onSeekTo,
                   onSettings: onSettingsRequested,
                   onScrubStartChanged: onScrubStartChanged,
+                  onSubtitlePicker: onSubtitlePickerRequested,
+                  subtitlesActive: subtitlesActive,
                 ),
             ],
           ),
@@ -178,6 +217,9 @@ class _TopBar extends StatelessWidget {
     required this.alwaysOnTopVisible,
     required this.alwaysOnTopActive,
     required this.onAlwaysOnTop,
+    required this.onExternalPlayer,
+    required this.onSubtitlePicker,
+    required this.subtitlesActive,
   });
 
   final String title;
@@ -192,6 +234,9 @@ class _TopBar extends StatelessWidget {
   final bool alwaysOnTopVisible;
   final bool alwaysOnTopActive;
   final VoidCallback? onAlwaysOnTop;
+  final VoidCallback? onExternalPlayer;
+  final VoidCallback? onSubtitlePicker;
+  final bool subtitlesActive;
 
   @override
   Widget build(BuildContext context) {
@@ -247,6 +292,37 @@ class _TopBar extends StatelessWidget {
             statusBadge!,
             const SizedBox(width: DesignTokens.spaceXs),
           ],
+          if (onExternalPlayer != null)
+            IconButton(
+              tooltip: 'Harici oynatici (VLC / MX / nPlayer)',
+              onPressed: onExternalPlayer,
+              icon: const Icon(
+                Icons.open_in_new_rounded,
+                color: Colors.white,
+              ),
+            ),
+          if (onSubtitlePicker != null)
+            // Cherry-tinted pill when subtitles are active — matches
+            // the Streas RN rgba(225,29,72,0.2) chip background.
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: subtitlesActive
+                  ? BoxDecoration(
+                      color: scheme.primary.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    )
+                  : null,
+              child: IconButton(
+                tooltip: subtitlesActive
+                    ? 'Altyazi acik'
+                    : 'Altyazi sec',
+                onPressed: onSubtitlePicker,
+                icon: Icon(
+                  Icons.subtitles_rounded,
+                  color: subtitlesActive ? scheme.primary : Colors.white,
+                ),
+              ),
+            ),
           if (alwaysOnTopVisible && onAlwaysOnTop != null)
             IconButton(
               tooltip: alwaysOnTopActive
@@ -510,6 +586,8 @@ class _BottomBar extends StatefulWidget {
     required this.onSeekTo,
     required this.onSettings,
     required this.onScrubStartChanged,
+    required this.onSubtitlePicker,
+    required this.subtitlesActive,
   });
 
   final Duration position;
@@ -518,6 +596,8 @@ class _BottomBar extends StatefulWidget {
   final ValueChanged<Duration> onSeekTo;
   final VoidCallback onSettings;
   final ValueChanged<bool> onScrubStartChanged;
+  final VoidCallback? onSubtitlePicker;
+  final bool subtitlesActive;
 
   @override
   State<_BottomBar> createState() => _BottomBarState();
@@ -631,11 +711,22 @@ class _BottomBarState extends State<_BottomBar> {
                 ),
               ),
               const Spacer(),
+              if (widget.onSubtitlePicker != null)
+                IconButton(
+                  tooltip: 'Altyazi sec',
+                  onPressed: widget.onSubtitlePicker,
+                  icon: Icon(
+                    Icons.closed_caption_rounded,
+                    color: widget.subtitlesActive
+                        ? scheme.primary
+                        : Colors.white,
+                  ),
+                ),
               IconButton(
                 tooltip: 'Altyazı / ses / kalite',
                 onPressed: widget.onSettings,
                 icon: const Icon(
-                  Icons.subtitles_rounded,
+                  Icons.tune_rounded,
                   color: Colors.white,
                 ),
               ),
@@ -674,13 +765,25 @@ class _BottomBarState extends State<_BottomBar> {
 }
 
 class _LiveStrip extends StatelessWidget {
-  const _LiveStrip({required this.now, required this.next});
+  const _LiveStrip({
+    required this.now,
+    required this.next,
+    required this.onChannelList,
+    required this.onEpg,
+    required this.onSubtitlePicker,
+    required this.subtitlesActive,
+  });
 
   final String? now;
   final String? next;
+  final VoidCallback? onChannelList;
+  final VoidCallback? onEpg;
+  final VoidCallback? onSubtitlePicker;
+  final bool subtitlesActive;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         DesignTokens.spaceM,
@@ -717,6 +820,33 @@ class _LiveStrip extends StatelessWidget {
               ],
             ),
           ),
+          if (onSubtitlePicker != null)
+            IconButton(
+              tooltip: 'Altyazi sec',
+              onPressed: onSubtitlePicker,
+              icon: Icon(
+                Icons.closed_caption_rounded,
+                color: subtitlesActive ? scheme.primary : Colors.white,
+              ),
+            ),
+          if (onEpg != null)
+            IconButton(
+              tooltip: 'Yayin akisi',
+              onPressed: onEpg,
+              icon: const Icon(
+                Icons.event_note_rounded,
+                color: Colors.white,
+              ),
+            ),
+          if (onChannelList != null)
+            IconButton(
+              tooltip: 'Kanal listesi',
+              onPressed: onChannelList,
+              icon: const Icon(
+                Icons.format_list_bulleted_rounded,
+                color: Colors.white,
+              ),
+            ),
         ],
       ),
     );

@@ -1,297 +1,252 @@
 import 'package:awatv_mobile/src/app/env.dart';
+import 'package:awatv_mobile/src/features/onboarding/welcome_screen.dart'
+    show GradientCta, StreasInput, resolvePostLoginDestination;
 import 'package:awatv_mobile/src/shared/auth/auth_controller.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
-import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
 import 'package:awatv_ui/awatv_ui.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 
-/// Magic-link sign-in screen.
+/// Streas-style 2-step email→password login.
 ///
-/// Three render modes:
-///   1. **Backend not configured** (`!Env.hasSupabase`) — yellow banner,
-///      disabled email field, guest CTA highlighted.
-///   2. **Form** — email entry + "Send magic link" + "Continue without
-///      signing in" ghost button.
-///   3. **Sent** — success card with the email address and a "Wrong
-///      email?" affordance to go back to the form.
-///
-/// The screen is purposefully shallow: actual auth state lives in
-/// [authControllerProvider] and the magic-link callback flips the
-/// route as soon as a session lands.
+/// Step 1 collects + validates the email; tapping "Devam" locks the
+/// email field and reveals the password field plus "Şifremi unuttum"
+/// link. Tapping "Giriş yap" submits credentials to Supabase via the
+/// existing [authControllerProvider]. The legacy magic-link path is
+/// preserved behind a small footer toggle so users on hand-provisioned
+/// accounts can still receive a one-time link.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({this.next, super.key});
 
-  /// Where to navigate after a successful sign-in. Encoded as `?next=`
-  /// in the query string by `authGuard`.
   final String? next;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-enum _LoginPhase { entering, sending, sent }
+enum _LoginStep { email, password }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  _LoginPhase _phase = _LoginPhase.entering;
-  String? _error;
-  String _sentTo = '';
-  bool _passwordMode = true;        // Default to password — magic link is opt-in.
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final FocusNode _passwordFocus = FocusNode();
+  _LoginStep _step = _LoginStep.email;
   bool _passwordVisible = false;
+  bool _magicLinkMode = false;
+  bool _loading = false;
+  String? _error;
+  String? _magicLinkSentTo;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
-  Future<void> _send() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  void _handleEmailContinue() {
     final email = _emailController.text.trim();
-    setState(() {
-      _phase = _LoginPhase.sending;
-      _error = null;
-    });
-
-    try {
-      await ref.read(authControllerProvider.notifier).sendMagicLink(email);
-      if (!mounted) return;
-      setState(() {
-        _phase = _LoginPhase.sent;
-        _sentTo = email;
-      });
-    } on AuthBackendNotConfiguredException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _phase = _LoginPhase.entering;
-        _error = e.message ?? 'auth.error_backend_default'.tr();
-      });
-    } on supa.AuthException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _phase = _LoginPhase.entering;
-        _error = e.message;
-      });
-    } on Object catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _phase = _LoginPhase.entering;
-        _error = 'auth.error_send_failed'
-            .tr(namedArgs: <String, String>{'message': e.toString()});
-      });
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Geçerli bir e-posta adresi gir.');
+      return;
     }
+    setState(() {
+      _error = null;
+      _step = _LoginStep.password;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _passwordFocus.requestFocus();
+    });
   }
 
-  Future<void> _signInWithPassword() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    final email = _emailController.text.trim();
+  Future<void> _handleSignIn() async {
     final pw = _passwordController.text;
+    if (pw.isEmpty) {
+      setState(() => _error = 'Şifreni gir.');
+      return;
+    }
     setState(() {
-      _phase = _LoginPhase.sending;
+      _loading = true;
       _error = null;
     });
     try {
       await ref.read(authControllerProvider.notifier).signInWithPassword(
-            email: email,
+            email: _emailController.text.trim(),
             password: pw,
           );
       if (!mounted) return;
-      // Auth state listener will route us; reset form just in case.
-      setState(() => _phase = _LoginPhase.entering);
-      final next = widget.next ?? '/';
-      final destination = _resolvePostLoginDestination(next);
-      context.go(destination);
+      final next = widget.next ?? resolvePostLoginDestination(ref);
+      context.go(next);
     } on AuthBackendNotConfiguredException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _phase = _LoginPhase.entering;
-        _error = e.message ?? 'auth.error_backend_default'.tr();
-      });
+      setState(() => _error = e.message ?? 'Bulut sunucusu yapılandırılmamış.');
     } on supa.AuthException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _phase = _LoginPhase.entering;
-        _error = e.message;
-      });
+      setState(() => _error = e.message);
     } on Object catch (e) {
       if (!mounted) return;
-      setState(() {
-        _phase = _LoginPhase.entering;
-        _error = 'auth.error_signin_failed'
-            .tr(namedArgs: <String, String>{'message': e.toString()});
-      });
+      setState(() => _error = 'Giriş yapılamadı: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _continueAsGuest() {
-    final next = widget.next ?? '/';
-    context.go(_resolvePostLoginDestination(next));
-  }
-
-  /// If the user has 2+ profiles, send them through the picker so they
-  /// can choose who's watching before any per-profile state (favourites,
-  /// history) is read. Otherwise fall through to the [next] hint or the
-  /// home route — single-profile users never see a picker.
-  String _resolvePostLoginDestination(String next) {
-    String fallback;
-    if (next.startsWith('/login') || next.startsWith('/auth') || next == '/') {
-      fallback = '/home';
-    } else {
-      fallback = next;
+  Future<void> _handleMagicLink() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Geçerli bir e-posta adresi gir.');
+      return;
     }
-    try {
-      final list = ref.read(profileControllerProvider).currentList();
-      if (list.length >= 2) return '/profiles';
-    } on Object {
-      // Storage hiccup — keep the user on the fallback rather than
-      // bouncing them through a possibly-empty picker.
-    }
-    return fallback;
-  }
-
-  void _resetForm() {
     setState(() {
-      _phase = _LoginPhase.entering;
+      _loading = true;
       _error = null;
     });
+    try {
+      await ref.read(authControllerProvider.notifier).sendMagicLink(email);
+      if (!mounted) return;
+      setState(() => _magicLinkSentTo = email);
+    } on AuthBackendNotConfiguredException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message ?? 'Bulut sunucusu yapılandırılmamış.');
+    } on supa.AuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Bağlantı gönderilemedi: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _handleBack() {
+    if (_step == _LoginStep.password) {
+      setState(() {
+        _step = _LoginStep.email;
+        _error = null;
+      });
+      return;
+    }
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/onboarding');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final hasBackend = Env.hasSupabase;
-
+    final mediaQuery = MediaQuery.of(context);
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: _continueAsGuest,
-          tooltip: 'auth.skip_tooltip'.tr(),
-        ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
+      backgroundColor: const Color(0xFF0A0A0A),
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                DesignTokens.spaceL,
-                DesignTokens.spaceM,
-                DesignTokens.spaceL,
-                DesignTokens.spaceXl,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  const _BrandHero(),
-                  const SizedBox(height: DesignTokens.spaceL),
-                  Text(
-                    _phase == _LoginPhase.sent
-                        ? 'auth.title_check_email'.tr()
-                        : 'auth.title_sign_in'.tr(),
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: DesignTokens.spaceS),
-                  Text(
-                    _phase == _LoginPhase.sent
-                        ? 'auth.subtitle_check_email'.tr(
-                            namedArgs: <String, String>{'email': _sentTo},
-                          )
-                        : 'auth.subtitle_sign_in'.tr(),
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.72),
-                    ),
-                  ),
-                  const SizedBox(height: DesignTokens.spaceL),
-                  if (!hasBackend)
-                    const _BackendNotConfiguredBanner()
-                  else if (_phase == _LoginPhase.sent)
-                    _SentPanel(
-                      email: _sentTo,
-                      onWrongEmail: _resetForm,
-                    )
-                  else
-                    _LoginForm(
-                      formKey: _formKey,
-                      emailController: _emailController,
-                      passwordController: _passwordController,
-                      passwordMode: _passwordMode,
-                      passwordVisible: _passwordVisible,
-                      enabled: _phase != _LoginPhase.sending,
-                      sending: _phase == _LoginPhase.sending,
-                      error: _error,
-                      onSubmit: _passwordMode ? _signInWithPassword : _send,
-                      onTogglePasswordMode: () => setState(() {
-                        _passwordMode = !_passwordMode;
-                        _error = null;
-                      }),
-                      onTogglePasswordVisible: () => setState(() {
-                        _passwordVisible = !_passwordVisible;
-                      }),
-                    ),
-                  const SizedBox(height: DesignTokens.spaceL),
-                  TextButton.icon(
-                    onPressed: _continueAsGuest,
-                    icon: const Icon(Icons.no_accounts_outlined),
-                    label: Text('auth.continue_without_signin'.tr()),
-                  ),
-                  const SizedBox(height: DesignTokens.spaceL),
-                  Row(
-                    children: <Widget>[
-                      const Icon(Icons.lock_outline, size: 16),
-                      const SizedBox(width: DesignTokens.spaceS),
-                      Expanded(
-                        child: Text(
-                          'auth.credentials_local_hint'.tr(),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+        bottom: false,
+        child: Column(
+          children: <Widget>[
+            // ─── Header ────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _BackChevron(onTap: _handleBack),
               ),
             ),
-          ),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                  28,
+                  24,
+                  28,
+                  24 + mediaQuery.viewInsets.bottom,
+                ),
+                child: _magicLinkSentTo != null
+                    ? _MagicLinkSentPanel(
+                        email: _magicLinkSentTo!,
+                        onWrongEmail: () => setState(() {
+                          _magicLinkSentTo = null;
+                          _magicLinkMode = false;
+                        }),
+                      )
+                    : _LoginForm(
+                        step: _step,
+                        emailController: _emailController,
+                        passwordController: _passwordController,
+                        passwordFocus: _passwordFocus,
+                        passwordVisible: _passwordVisible,
+                        magicLinkMode: _magicLinkMode,
+                        loading: _loading,
+                        error: _error,
+                        hasBackend: Env.hasSupabase,
+                        onEmailChanged: (_) {
+                          if (_error != null) {
+                            setState(() => _error = null);
+                          }
+                        },
+                        onPasswordChanged: (_) {
+                          if (_error != null) {
+                            setState(() => _error = null);
+                          }
+                        },
+                        onTogglePasswordVisible: () => setState(() {
+                          _passwordVisible = !_passwordVisible;
+                        }),
+                        onSubmit: () {
+                          if (_magicLinkMode) {
+                            _handleMagicLink();
+                          } else if (_step == _LoginStep.email) {
+                            _handleEmailContinue();
+                          } else {
+                            _handleSignIn();
+                          }
+                        },
+                        onForgotPassword: () => setState(() {
+                          _magicLinkMode = true;
+                          _step = _LoginStep.email;
+                          _error = null;
+                        }),
+                        onToggleMagicLink: () => setState(() {
+                          _magicLinkMode = !_magicLinkMode;
+                          _step = _LoginStep.email;
+                          _error = null;
+                        }),
+                        onSignupTap: () => context.push('/signup'),
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _BrandHero extends StatelessWidget {
-  const _BrandHero();
+class _BackChevron extends StatelessWidget {
+  const _BackChevron({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 96,
-        height: 96,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: BrandColors.brandGradient,
-        ),
-        child: const Icon(
-          Icons.live_tv_rounded,
-          size: 52,
-          color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: const SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(
+            Icons.chevron_left_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
         ),
       ),
     );
@@ -300,162 +255,254 @@ class _BrandHero extends StatelessWidget {
 
 class _LoginForm extends StatelessWidget {
   const _LoginForm({
-    required this.formKey,
+    required this.step,
     required this.emailController,
     required this.passwordController,
-    required this.passwordMode,
+    required this.passwordFocus,
     required this.passwordVisible,
-    required this.enabled,
-    required this.sending,
+    required this.magicLinkMode,
+    required this.loading,
     required this.error,
-    required this.onSubmit,
-    required this.onTogglePasswordMode,
+    required this.hasBackend,
+    required this.onEmailChanged,
+    required this.onPasswordChanged,
     required this.onTogglePasswordVisible,
+    required this.onSubmit,
+    required this.onForgotPassword,
+    required this.onToggleMagicLink,
+    required this.onSignupTap,
   });
 
-  final GlobalKey<FormState> formKey;
+  final _LoginStep step;
   final TextEditingController emailController;
   final TextEditingController passwordController;
-  final bool passwordMode;
+  final FocusNode passwordFocus;
   final bool passwordVisible;
-  final bool enabled;
-  final bool sending;
+  final bool magicLinkMode;
+  final bool loading;
   final String? error;
-  final VoidCallback onSubmit;
-  final VoidCallback onTogglePasswordMode;
+  final bool hasBackend;
+  final ValueChanged<String> onEmailChanged;
+  final ValueChanged<String> onPasswordChanged;
   final VoidCallback onTogglePasswordVisible;
+  final VoidCallback onSubmit;
+  final VoidCallback onForgotPassword;
+  final VoidCallback onToggleMagicLink;
+  final VoidCallback onSignupTap;
+
+  bool get _isPasswordStep => step == _LoginStep.password && !magicLinkMode;
+
+  String get _ctaLabel {
+    if (magicLinkMode) return 'BAĞLANTI GÖNDER';
+    if (step == _LoginStep.email) return 'DEVAM';
+    return 'GİRİŞ YAP';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Form(
-      key: formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          TextFormField(
-            controller: emailController,
-            enabled: enabled,
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const <String>[AutofillHints.email],
-            textInputAction: TextInputAction.send,
-            decoration: InputDecoration(
-              labelText: 'auth.field_email_label'.tr(),
-              hintText: 'auth.field_email_hint'.tr(),
-              prefixIcon: const Icon(Icons.alternate_email_rounded),
-              border: const OutlineInputBorder(),
-            ),
-            validator: (String? value) {
-              final v = (value ?? '').trim();
-              if (v.isEmpty) return 'auth.field_email_required'.tr();
-              if (!v.contains('@') || !v.contains('.')) {
-                return 'auth.field_email_invalid'.tr();
-              }
-              return null;
-            },
-            onFieldSubmitted: (_) => enabled ? onSubmit() : null,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Text(
+          'E-posta ile giriş yap',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            height: 1.15,
           ),
-          if (error != null) ...<Widget>[
-            const SizedBox(height: DesignTokens.spaceM),
-            Container(
-              padding: const EdgeInsets.all(DesignTokens.spaceM),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.error.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(DesignTokens.radiusM),
-                border: Border.all(
-                  color: theme.colorScheme.error.withValues(alpha: 0.4),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          magicLinkMode
+              ? 'E-posta adresine bir oturum bağlantısı gönderelim. Bağlantıya tıklayarak şifresiz giriş yapabilirsin.'
+              : 'AwaTV bulut senkronizasyonu için bu e-posta ve şifreyi kullanacaksın.',
+          style: const TextStyle(
+            color: Color(0x80FFFFFF),
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            height: 20 / 13,
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (!hasBackend) const _BackendNotConfiguredBanner(),
+        if (!hasBackend) const SizedBox(height: 14),
+        StreasInput(
+          controller: emailController,
+          placeholder: 'E-posta',
+          keyboardType: TextInputType.emailAddress,
+          autofocus: step == _LoginStep.email && !magicLinkMode,
+          locked: _isPasswordStep,
+          error: error != null && step == _LoginStep.email,
+          onChanged: onEmailChanged,
+          onSubmitted: (_) => onSubmit(),
+          textInputAction: TextInputAction.next,
+        ),
+        if (_isPasswordStep) ...<Widget>[
+          const SizedBox(height: 14),
+          StreasInput(
+            controller: passwordController,
+            placeholder: 'Şifre',
+            obscureText: !passwordVisible,
+            error: error != null,
+            onChanged: onPasswordChanged,
+            onSubmitted: (_) => onSubmit(),
+            autofocus: true,
+            textInputAction: TextInputAction.done,
+            suffix: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTogglePasswordVisible,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  passwordVisible
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: 18,
+                  color: const Color(0x66FFFFFF),
                 ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Icon(
-                    Icons.error_outline_rounded,
-                    size: 18,
-                    color: theme.colorScheme.error,
-                  ),
-                  const SizedBox(width: DesignTokens.spaceS),
-                  Expanded(
-                    child: Text(
-                      error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          if (passwordMode) ...<Widget>[
-            const SizedBox(height: DesignTokens.spaceM),
-            TextFormField(
-              controller: passwordController,
-              enabled: enabled,
-              obscureText: !passwordVisible,
-              autofillHints: const <String>[AutofillHints.password],
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: 'auth.field_password_label'.tr(),
-                prefixIcon: const Icon(Icons.lock_outline_rounded),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    passwordVisible
-                        ? Icons.visibility_off_rounded
-                        : Icons.visibility_rounded,
-                  ),
-                  onPressed: onTogglePasswordVisible,
-                ),
-                border: const OutlineInputBorder(),
-              ),
-              validator: (String? value) {
-                if (!passwordMode) return null;
-                if ((value ?? '').isEmpty) {
-                  return 'auth.field_password_required'.tr();
-                }
-                return null;
-              },
-              onFieldSubmitted: (_) => enabled ? onSubmit() : null,
-            ),
-          ],
-          const SizedBox(height: DesignTokens.spaceM),
-          FilledButton.icon(
-            onPressed: enabled ? onSubmit : null,
-            icon: sending
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(passwordMode
-                    ? Icons.login_rounded
-                    : Icons.send_rounded),
-            label: Text(sending
-                ? (passwordMode
-                    ? 'auth.submit_signing_in'.tr()
-                    : 'auth.submit_sending'.tr())
-                : (passwordMode
-                    ? 'auth.submit_sign_in'.tr()
-                    : 'auth.submit_send_magic_link'.tr())),
-          ),
-          const SizedBox(height: DesignTokens.spaceS),
-          TextButton(
-            onPressed: enabled ? onTogglePasswordMode : null,
-            child: Text(
-              passwordMode
-                  ? 'auth.use_magic_link'.tr()
-                  : 'auth.use_password'.tr(),
             ),
           ),
         ],
-      ),
+        if (error != null) ...<Widget>[
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 13,
+                color: Color(0xFFEF4444),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  error!,
+                  style: const TextStyle(
+                    color: Color(0xFFEF4444),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (_isPasswordStep) ...<Widget>[
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onForgotPassword,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  'Şifremi unuttum',
+                  style: TextStyle(
+                    color: BrandColors.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _EmailRecap(email: emailController.text.trim()),
+        ],
+        const SizedBox(height: 8),
+        GradientCta(
+          label: _ctaLabel,
+          loading: loading,
+          onPressed: hasBackend && !loading ? onSubmit : null,
+        ),
+        const SizedBox(height: 14),
+        Center(
+          child: GestureDetector(
+            onTap: onToggleMagicLink,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                magicLinkMode
+                    ? 'Şifre ile giriş yap'
+                    : 'Sihirli bağlantı ile giriş yap',
+                style: const TextStyle(
+                  color: Color(0x99FFFFFF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              const Text(
+                "AwaTV'de yeni misin? ",
+                style: TextStyle(
+                  color: Color(0x80FFFFFF),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              GestureDetector(
+                onTap: onSignupTap,
+                child: const Text(
+                  'KAYIT OL',
+                  style: TextStyle(
+                    color: BrandColors.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _SentPanel extends StatelessWidget {
-  const _SentPanel({
+class _EmailRecap extends StatelessWidget {
+  const _EmailRecap({required this.email});
+
+  final String email;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Text(
+          'Bu e-posta ile giriş yapacaksın:',
+          style: TextStyle(
+            color: Color(0x73FFFFFF),
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          email,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MagicLinkSentPanel extends StatelessWidget {
+  const _MagicLinkSentPanel({
     required this.email,
     required this.onWrongEmail,
   });
@@ -465,47 +512,84 @@ class _SentPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        const Text(
+          'E-postanı kontrol et',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            height: 1.15,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          '$email adresine bir oturum bağlantısı gönderdik. Bağlantıya tıklayarak girişi tamamla.',
+          style: const TextStyle(
+            color: Color(0x80FFFFFF),
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            height: 20 / 13,
+          ),
+        ),
+        const SizedBox(height: 24),
         Container(
-          padding: const EdgeInsets.all(DesignTokens.spaceL),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(DesignTokens.radiusL),
+            color: BrandColors.primary.withValues(alpha: 0.08),
             border: Border.all(
-              color: theme.colorScheme.primary.withValues(alpha: 0.32),
+              color: BrandColors.primary.withValues(alpha: 0.32),
             ),
+            borderRadius: BorderRadius.circular(DesignTokens.radiusM),
           ),
           child: Column(
             children: <Widget>[
-              Icon(
+              const Icon(
                 Icons.mark_email_read_outlined,
                 size: 36,
-                color: theme.colorScheme.primary,
+                color: BrandColors.primary,
               ),
-              const SizedBox(height: DesignTokens.spaceS),
+              const SizedBox(height: 10),
               Text(
                 email,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              const SizedBox(height: DesignTokens.spaceS),
-              Text(
-                'auth.waiting_link'.tr(),
+              const SizedBox(height: 6),
+              const Text(
+                'Bağlantıyı bekliyoruz…',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                style: TextStyle(
+                  color: Color(0xA6FFFFFF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: DesignTokens.spaceM),
-        TextButton(
-          onPressed: onWrongEmail,
-          child: Text('auth.wrong_email'.tr()),
+        const SizedBox(height: 12),
+        Center(
+          child: GestureDetector(
+            onTap: onWrongEmail,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                'Yanlış e-posta?',
+                style: TextStyle(
+                  color: BrandColors.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );
@@ -517,41 +601,32 @@ class _BackendNotConfiguredBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(DesignTokens.spaceM),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: BrandColors.warning.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(DesignTokens.radiusM),
-        border: Border.all(
-          color: BrandColors.warning.withValues(alpha: 0.48),
-        ),
+        border: Border.all(color: BrandColors.warning.withValues(alpha: 0.48)),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
+      child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Icon(
+          Icon(
             Icons.cloud_off_outlined,
+            size: 16,
             color: BrandColors.warning,
           ),
-          const SizedBox(width: DesignTokens.spaceM),
+          SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'auth.backend_not_configured_title'.tr(),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: BrandColors.warning,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: DesignTokens.spaceXs),
-                Text(
-                  'auth.backend_not_configured_body'.tr(),
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
+            child: Text(
+              'Bulut sunucusu yapılandırılmamış. Ayarlardan Supabase '
+              'bilgilerini doldurabilirsin.',
+              style: TextStyle(
+                color: Color(0xCCFFFFFF),
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                height: 17 / 12,
+              ),
             ),
           ),
         ],

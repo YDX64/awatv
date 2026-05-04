@@ -224,7 +224,7 @@ class CloudSyncEngine {
     _channel = null;
     if (ch != null) {
       try {
-        await _client?.removeChannel(ch);
+        await _client.removeChannel(ch);
       } on Object {
         // Best-effort.
       }
@@ -406,7 +406,7 @@ class CloudSyncEngine {
       column: 'user_id',
       value: user,
     );
-    final ch = _client!.channel('cloud-sync:$user')
+    final ch = _client.channel('cloud-sync:$user')
       ..onPostgresChanges(
         event: supa.PostgresChangeEvent.all,
         schema: 'public',
@@ -849,7 +849,7 @@ class CloudSyncEngine {
       final mutationAt = event.updatedAt.toUtc().toIso8601String();
       switch (event) {
         case FavoriteUpserted():
-          await _client!.from('favorites').upsert(<String, dynamic>{
+          await _client.from('favorites').upsert(<String, dynamic>{
             'user_id': user,
             'item_id': event.itemId,
             'item_kind': event.itemKind.wire,
@@ -865,7 +865,7 @@ class CloudSyncEngine {
               .eq('item_id', event.itemId);
           _forgetRemoteFavorite(event.itemId);
         case HistoryUpserted():
-          await _client!.from('watch_history').upsert(<String, dynamic>{
+          await _client.from('watch_history').upsert(<String, dynamic>{
             'user_id': user,
             'item_id': event.entry.itemId,
             'item_kind': _historyKindWire(event.entry.kind),
@@ -886,7 +886,7 @@ class CloudSyncEngine {
               .eq('item_id', event.itemId);
           _forgetRemoteHistory(event.itemId);
         case PlaylistSourceUpserted():
-          await _client!.from('playlist_sources').upsert(<String, dynamic>{
+          await _client.from('playlist_sources').upsert(<String, dynamic>{
             'user_id': user,
             'name': event.name,
             'kind': event.kind.name,
@@ -908,7 +908,7 @@ class CloudSyncEngine {
               .eq('client_id', event.clientId);
           _forgetRemoteSource(event.clientId);
         case DeviceSessionUpserted():
-          await _client!.from('device_sessions').upsert(<String, dynamic>{
+          await _client.from('device_sessions').upsert(<String, dynamic>{
             'user_id': user,
             'device_id': event.deviceId,
             'device_kind': event.deviceKind.wire,

@@ -1,7 +1,7 @@
 name: awatv_mobile
 description: AWAtv mobile app (iOS + Android — Phase 1).
 publish_to: none
-version: 0.5.9+12
+version: 0.5.10+13
 
 environment:
   sdk: ^3.11.0
@@ -38,6 +38,19 @@ dependencies:
   # Network & images
   dio: ^5.7.0
   cached_network_image: ^3.4.1
+
+  # Deep-link / external URL opener — used by:
+  #   * features/player/external_player_launcher.dart for the
+  #     VLC / MX Player / nPlayer hand-off
+  #   * features/auth/login_screen.dart when posting magic-link
+  #     callback URLs
+  #   * settings tile that opens https://awatv.pages.dev/privacy
+  #
+  # Was previously resolved transitively from supabase_flutter's
+  # dep tree which is brittle — declaring it explicitly so a future
+  # upstream upgrade dropping the dep doesn't silently break the
+  # external player picker. Apache-2.0.
+  url_launcher: ^6.3.2
   shimmer: ^3.0.0
 
   # QR generation for the remote-control pairing screen.

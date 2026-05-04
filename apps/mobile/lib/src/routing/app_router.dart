@@ -63,6 +63,19 @@ part 'app_router.g.dart';
 ///
 /// The redirect ensures users with zero playlists land on `/onboarding`
 /// instead of an empty Channels grid.
+/// Reads `prefs:welcome.seen` Hive flag synchronously. Used by the
+/// router redirect to decide whether to show welcome (first time) or
+/// jump straight to the wizard (subsequent bounces). Returns false on
+/// any storage error so the user always falls back to seeing welcome.
+bool _readWelcomeSeen(Ref ref) {
+  try {
+    final raw = ref.read(awatvStorageProvider).prefsBox.get(prefsWelcomeSeenKey);
+    return raw == 'true';
+  } on Object {
+    return false;
+  }
+}
+
 @Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
   final playlistService = ref.watch(playlistServiceProvider);
@@ -127,7 +140,21 @@ GoRouter appRouter(Ref ref) {
       }
       try {
         final sources = await playlistService.list();
-        if (sources.isEmpty && loc != '/onboarding') return '/onboarding';
+        if (sources.isEmpty) {
+          // First-time decision: welcome screen vs wizard. We show
+          // welcome ONCE (the cinematic Streas-style entry surface)
+          // and after the user clicks any of its CTAs the
+          // `prefs:welcome.seen` Hive flag is flipped. Later bounces
+          // (e.g. user signs in but cloud sync hasn't pulled their
+          // remote playlists yet) go straight to the wizard's
+          // playlist-import step instead of dumping them on welcome
+          // again — which was the v0.5.11 bug where every welcome CTA
+          // looped right back here because /home redirected back to
+          // /onboarding which renders welcome.
+          final welcomeSeen = _readWelcomeSeen(ref);
+          final target = welcomeSeen ? '/onboarding/wizard' : '/onboarding';
+          if (!loc.startsWith(target)) return target;
+        }
       } on Object {
         // If we can't read storage, prefer the welcome screen over a
         // half-broken main shell.

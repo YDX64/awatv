@@ -1180,6 +1180,25 @@ class _StepAuthState extends ConsumerState<_StepAuth> {
   bool _advancedOnce = false;
 
   @override
+  void initState() {
+    super.initState();
+    // If the user lands on this step ALREADY signed in (e.g. they
+    // completed signup in a previous session and are coming back to
+    // tweak the wizard), skip past the auth form. ref.listen() in
+    // build() only fires on state CHANGES, not on the initial value
+    // — without this post-frame check the user would sit on a "Giriş
+    // Yap" form even though they're already authenticated.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _advancedOnce) return;
+      final s = ref.read(authControllerProvider).valueOrNull;
+      if (s is AuthSignedIn) {
+        _advancedOnce = true;
+        widget.onNext();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();

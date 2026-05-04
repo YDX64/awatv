@@ -1,10 +1,23 @@
+import 'dart:async';
+
 import 'package:awatv_mobile/src/app/env.dart';
 import 'package:awatv_mobile/src/shared/auth/auth_state.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
+import 'package:awatv_mobile/src/shared/service_providers.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+/// Hive `prefs` key flipping to `true` the moment the user taps any
+/// CTA on the welcome screen. The router redirect reads this so a
+/// subsequent bounce-to-onboarding goes to the wizard (which has a
+/// playlist-import step the user can actually complete) instead of
+/// dumping them back on welcome — the bug v0.5.11 had where every
+/// "Login / Signup / Misafir devam et" tap looped right back here
+/// because /home → empty playlists → /onboarding → /onboarding renders
+/// welcome.
+const String prefsWelcomeSeenKey = 'prefs:welcome.seen';
 
 /// AWAtv welcome screen — Streas-port.
 ///
@@ -68,23 +81,56 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen>
     super.dispose();
   }
 
+  /// Marks welcome as seen so the router redirect won't bounce the
+  /// user back here next time `/home` redirects out due to empty
+  /// playlists — they'll go to the wizard instead.
+  Future<void> _markSeen() async {
+    try {
+      await ref
+          .read(awatvStorageProvider)
+          .prefsBox
+          .put(prefsWelcomeSeenKey, 'true');
+    } on Object {
+      // Best-effort — the user can still navigate, just may see welcome
+      // again on next bounce. Not worth blocking the click on.
+    }
+  }
+
   /// Streas opens a native document picker for `.m3u` / `.m3u8` files;
   /// AWAtv routes to the onboarding wizard instead — that screen already
   /// supports M3U URL + Xtream + Stalker import flows and handles
   /// validation centrally. The label keeps Streas' "upload playlist"
   /// language.
-  void _uploadPlaylist() {
-    context.push('/onboarding/wizard');
+  Future<void> _uploadPlaylist() async {
+    await _markSeen();
+    if (!mounted) return;
+    unawaited(context.push('/onboarding/wizard'));
   }
 
-  void _continueAsGuest() {
+  Future<void> _continueAsGuest() async {
     // Flutter does not have an explicit "guest" call — the auth
-    // controller already emits AuthGuest by default. Just bounce to the
-    // appropriate post-login destination.
-    context.go(_postLoginDestination());
+    // controller already emits AuthGuest by default. Set the
+    // welcome-seen flag and route through the onboarding wizard so
+    // the user gets a playlist-import flow instead of bouncing onto
+    // an empty /home which would just redirect right back here.
+    await _markSeen();
+    if (!mounted) return;
+    // Replace the welcome route entirely — we don't want it on the
+    // back stack since there's nothing to "go back" to.
+    context.go('/onboarding/wizard');
   }
 
-  String _postLoginDestination() => resolvePostLoginDestination(ref);
+  Future<void> _onLogin() async {
+    await _markSeen();
+    if (!mounted) return;
+    unawaited(context.push('/login'));
+  }
+
+  Future<void> _onSignup() async {
+    await _markSeen();
+    if (!mounted) return;
+    unawaited(context.push('/signup'));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -153,8 +199,8 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen>
                     },
                     child: _ButtonStack(
                       hasBackend: hasBackend,
-                      onLogin: () => context.push('/login'),
-                      onSignup: () => context.push('/signup'),
+                      onLogin: _onLogin,
+                      onSignup: _onSignup,
                       onGuest: _continueAsGuest,
                       onUpload: _uploadPlaylist,
                     ),

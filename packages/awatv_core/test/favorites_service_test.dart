@@ -19,8 +19,19 @@ void main() {
   tearDown(() async {
     await service.dispose();
     await storage.close();
+    // Small grace window for Hive's async file-flush queue to drain.
+    // Without this the directory still has the lock + .hive-lock files
+    // and `delete(recursive: true)` returns "Directory not empty"
+    // (errno 66 on macOS). Empirically 50ms is enough; 100ms is a
+    // belt-and-braces.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
     if (await tmp.exists()) {
-      await tmp.delete(recursive: true);
+      try {
+        await tmp.delete(recursive: true);
+      } on FileSystemException {
+        // OS will reap /var/folders on its own — don't fail the test
+        // on a leftover lock file.
+      }
     }
   });
 

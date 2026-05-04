@@ -3,13 +3,18 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   // easy_localization writes to SharedPreferences for locale persistence.
-  // The test binding uses an in-memory implementation, so we just need
-  // to ensure it's initialised before the first MaterialApp build.
+  // The test binding uses an in-memory implementation, so we seed it via
+  // `setMockInitialValues` before EasyLocalization tries to read.
+  // Without this the boot throws `MissingPluginException(No implementation
+  // found for method getAll on channel plugins.flutter.io/shared_preferences)`
+  // because Flutter unit tests don't load native plugin channels.
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     await EasyLocalization.ensureInitialized();
   });
 

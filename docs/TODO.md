@@ -208,6 +208,22 @@ Each is independently scopable. Order by user value.
 
 ---
 
+## P3 — Test infrastructure fixes
+
+### ⚪ Fix 3 pre-existing test failures (not blocking CI)
+
+The CI never runs `flutter test` (only `flutter analyze`), so these failures don't block release. But the test suite shouldn't rot.
+
+1. **`test/widget_test.dart: AwaTvApp boots`** — Even with `SharedPreferences.setMockInitialValues({})` seeded (added in v0.5.10), the test still hits MissingPluginException for other channels (path_provider, hive's app-documents-dir resolver, supabase_flutter's deep-link channel). Needs a full mock harness or to be split into smaller smoke tests.
+
+2. **`test/onboarding_welcome_test.dart`** — Same root cause: WelcomeScreen now eagerly reads `Env.hasSupabase` + storage, which trips test-env plugin channels. Needs to wrap with `MethodChannel` mocks for each used channel.
+
+3. **`test/watch_party_state_test.dart: dropMember removes another member by id`** — Pre-existing assertion mismatch (probably an enum/equality change earlier in the session). Inspect the failing assertion at `test/watch_party_state_test.dart:158`.
+
+Net: 84 passing tests + 3 failures, all pre-existing infrastructure issues. Effort: ~2-3 hours.
+
+---
+
 ## P4 — Cleanup + polish
 
 ### ⚪ Settings → "Onboarding'i tekrar göster" tile

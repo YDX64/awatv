@@ -152,7 +152,12 @@ dependencies:
   # drives AVPictureInPictureController against media_kit's underlying
   # AVPlayer surface. The plugin is a no-op on web / desktop / TV — we
   # call it only after `Platform.isAndroid` short-circuits.
-  floating: ^5.0.0
+  # PiP (Picture-in-Picture) for Android. Pinned to ^6 because 5.0.1
+  # uses the deprecated `PluginRegistry.Registrar` API which Flutter
+  # has since removed — every Android release-build under 6.0.0 fails
+  # at the Kotlin compile step. See pub.dev/packages/floating CHANGELOG
+  # for the v1 plugin embedding migration in v6.
+  floating: ^6.0.0
 
   # Voice search — wraps the platform speech-to-text engines:
   #   * iOS / macOS  → SFSpeechRecognizer (system Siri infrastructure)

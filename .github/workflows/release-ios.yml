@@ -61,8 +61,42 @@ env:
   FLUTTER_VERSION: 3.41.7
 
 jobs:
+  # ----------------------------------------------------------------------
+  # Pre-flight gate. Every release.published event triggers this workflow
+  # automatically; without Apple Developer secrets the keychain-import
+  # step explodes and emails the maintainer a red CI status. Probe the
+  # secrets first and short-circuit the whole job with a friendly
+  # warning when they're missing.
+  # ----------------------------------------------------------------------
+  preflight:
+    name: Probe Apple Developer secrets
+    runs-on: ubuntu-latest
+    outputs:
+      have_creds: ${{ steps.cf.outputs.have_creds }}
+    steps:
+      - id: cf
+        env:
+          A1: ${{ secrets.APPLE_TEAM_ID }}
+          A2: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          A3: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          A4: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+          A5: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          A6: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          A7: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          if [ -n "$A1" ] && [ -n "$A2" ] && [ -n "$A3" ] && [ -n "$A4" ] \
+             && [ -n "$A5" ] && [ -n "$A6" ] && [ -n "$A7" ]; then
+            echo "have_creds=true" >> "$GITHUB_OUTPUT"
+            echo "Apple Developer secrets present; will proceed."
+          else
+            echo "have_creds=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Apple Developer secrets missing; skipping iOS build. See docs/IOS_TESTFLIGHT_SETUP.md to enable."
+          fi
+
   build-and-upload:
     name: Build .ipa + upload to TestFlight
+    needs: preflight
+    if: needs.preflight.outputs.have_creds == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4

@@ -36,8 +36,36 @@ env:
   FLUTTER_VERSION: 3.41.7
 
 jobs:
+  # Pre-flight gate. release.published fires this workflow on every
+  # GitHub Release tag; without Play Store keystore + service-account
+  # secrets the keystore-decode step explodes. Probe the 5 required
+  # secrets and short-circuit cleanly when missing.
+  preflight:
+    name: Probe Play Store secrets
+    runs-on: ubuntu-latest
+    outputs:
+      have_creds: ${{ steps.cf.outputs.have_creds }}
+    steps:
+      - id: cf
+        env:
+          A1: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          A2: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          A3: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          A4: ${{ secrets.ANDROID_KEY_ALIAS }}
+          A5: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$A1" ] && [ -n "$A2" ] && [ -n "$A3" ] && [ -n "$A4" ] && [ -n "$A5" ]; then
+            echo "have_creds=true" >> "$GITHUB_OUTPUT"
+            echo "Play Store secrets present; will proceed."
+          else
+            echo "have_creds=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Play Store secrets missing; skipping AAB upload. See docs/SECRETS_REQUIRED.md to enable."
+          fi
+
   build-and-upload:
     name: Build .aab + upload to Play Store
+    needs: preflight
+    if: needs.preflight.outputs.have_creds == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

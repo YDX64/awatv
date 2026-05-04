@@ -4,6 +4,52 @@
 
 ---
 
+## v0.5.12 — Welcome screen bouncing-redirect fix
+
+**Released:** 2026-05-04 · **Tag:** [`awatv-v0.5.12`](https://github.com/YDX64/awatv/releases/tag/awatv-v0.5.12) · **Commit:** `16d4369`
+
+### Why
+
+User reported: "acildi simdi misafir devam et calismiyro diger butonlarda dogru isleve sahip degil gibi" — every welcome CTA (Login / Signup / Misafir devam et) seemed to do nothing while only "Upload your playlist" worked.
+
+**Root cause:** every welcome CTA ultimately routed to `/home`. The router redirect at `/home` checks `playlistService.list()`, finds zero sources, and bounces back to `/onboarding` which renders WelcomeScreen — so the user lands right back where they started. The Upload button was the only one that worked because it pushed `/onboarding/wizard` directly, bypassing the empty-playlist redirect.
+
+### Fix
+
+1. **Welcome screen writes a `prefs:welcome.seen` Hive flag** the moment any CTA is tapped. `_markSeen()` runs before each navigation; failures are best-effort (worst case the user sees welcome one more time on a subsequent bounce).
+
+2. **`_continueAsGuest` now uses `context.go('/onboarding/wizard')` directly** (was: `/home` → bounce). Login + Signup buttons route through the same `_markSeen → push` pattern so the flag flips for them too. After successful login/signup the redirect, finding `welcome-seen=true`, bounces `/home` to `/onboarding/wizard`'s playlist-import step instead of welcome.
+
+3. **Router redirect honours the flag:**
+   ```dart
+   if (sources.isEmpty) {
+     final welcomeSeen = _readWelcomeSeen(ref);
+     final target = welcomeSeen ? '/onboarding/wizard' : '/onboarding';
+     if (!loc.startsWith(target)) return target;
+   }
+   ```
+   First-time users still see welcome; everyone else gets the wizard which has a real path forward (playlist import → `/home`).
+
+4. **Bonus: wizard step 2 (auth) now auto-advances on initial mount** if the user is already signed in. `ref.listen()` only fires on state CHANGES, not on the initial value — so an already-authenticated user landing on step 2 used to sit stuck on the form. `addPostFrameCallback` in initState reads the current AuthState once and advances if AuthSignedIn.
+
+### Files
+
+- `apps/mobile/lib/src/features/onboarding/welcome_screen.dart` — `_markSeen()` helper + 4 async button handlers + new `prefsWelcomeSeenKey` constant
+- `apps/mobile/lib/src/features/onboarding/wizard_screen.dart` — `_StepAuthState.initState` post-frame check
+- `apps/mobile/lib/src/routing/app_router.dart` — `_readWelcomeSeen(ref)` helper + redirect logic update
+- `apps/mobile/pubspec.yaml` — `0.5.11+14` → `0.5.12+15`
+
+### Verification
+
+- All 4 welcome buttons now reach distinct destinations:
+  - GİRİŞ YAP → `/login` (then `/home` after success, no bounce because flag set)
+  - HESAP OLUŞTUR → `/signup` (same)
+  - Misafir devam et → `/onboarding/wizard` directly
+  - UPLOAD YOUR PLAYLIST → `/onboarding/wizard` (unchanged, was already working)
+- `dart analyze`: clean (3 pre-existing info-only redundant-default-arg hints)
+
+---
+
 ## CI hardening pass (post-v0.5.11) — every-push-fail diagnosis
 
 **Commits:** `f3ba58f` + `94194e8` + `180afcb` + `e59af96` (no version bump)

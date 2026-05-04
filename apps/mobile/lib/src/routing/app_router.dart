@@ -37,6 +37,7 @@ import 'package:awatv_mobile/src/features/smart_alerts/smart_alerts_screen.dart'
 import 'package:awatv_mobile/src/features/stats/stats_screen.dart';
 import 'package:awatv_mobile/src/features/subtitles/subtitle_picker_screen.dart';
 import 'package:awatv_mobile/src/features/themes/theme_settings_screen.dart';
+import 'package:awatv_mobile/src/features/vod/cast_detail_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_detail_screen.dart';
 import 'package:awatv_mobile/src/features/vod/vod_screen.dart';
 import 'package:awatv_mobile/src/features/watch_party/watch_party_landing_screen.dart';
@@ -188,6 +189,20 @@ GoRouter appRouter(Ref ref) {
         builder: (BuildContext context, GoRouterState state) {
           final id = state.pathParameters['id']!;
           return SeriesDetailScreen(seriesId: id);
+        },
+      ),
+      // Cast / actor detail stub. Phase 3 wires the tap target on the VOD
+      // detail cast row; the full filmography (`/person/{id}/movie_credits`)
+      // is Phase 4. The screen reads the optional `name` query param so
+      // the AppBar shows the actor's name even before TMDB lookup lands.
+      GoRoute(
+        path: '/cast/:id',
+        name: 'castDetail',
+        builder: (BuildContext context, GoRouterState state) {
+          final raw = state.pathParameters['id'] ?? '';
+          final id = int.tryParse(raw) ?? 0;
+          final name = state.uri.queryParameters['name'];
+          return CastDetailScreen(castId: id, name: name);
         },
       ),
       GoRoute(

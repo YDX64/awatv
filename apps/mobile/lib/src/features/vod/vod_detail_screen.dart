@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:awatv_core/awatv_core.dart';
 import 'package:awatv_mobile/src/features/downloads/downloads_providers.dart';
 import 'package:awatv_mobile/src/features/premium/premium_lock_sheet.dart';
+import 'package:awatv_mobile/src/features/vod/vod_credits_provider.dart';
 import 'package:awatv_mobile/src/features/vod/vod_providers.dart';
 import 'package:awatv_mobile/src/routing/app_router.dart';
 import 'package:awatv_mobile/src/shared/loading_view.dart';
@@ -567,35 +568,102 @@ class _ActionCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Cast / crew row — horizontal scroll of 60-px avatars (placeholder)
+// Cast / crew row — TMDB-backed when a tmdbId is resolved.
 // ---------------------------------------------------------------------------
 
-class _CastRow extends StatelessWidget {
+class _CastRow extends ConsumerWidget {
   const _CastRow({required this.vod});
 
   final VodItem vod;
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tmdbId = vod.tmdbId;
+    final asyncCredits = ref.watch(vodCreditsProvider(tmdbId));
+    return asyncCredits.when(
+      // Stable skeleton while we hit the network or disk cache. We don't
+      // want the row to flicker once data lands so the skeleton is
+      // visually similar in height and layout to the loaded state.
+      loading: _CastRowSkeleton.new,
+      // Errors collapse the row entirely. The metadata service swallows
+      // most failures and emits `TmdbCredits.empty`, so reaching this
+      // branch means something pretty exceptional happened — better to
+      // hide than to show a bare error toast.
+      error: (Object _, StackTrace __) => const SizedBox.shrink(),
+      data: (TmdbCredits credits) {
+        if (credits.cast.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const _SectionHeading(text: 'Oyuncular'),
+            const SizedBox(height: DesignTokens.spaceS),
+            SizedBox(
+              height: 110,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: credits.cast.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: DesignTokens.spaceM),
+                itemBuilder: (BuildContext _, int i) {
+                  return _CastAvatar(member: credits.cast[i]);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CastRowSkeleton extends StatelessWidget {
+  const _CastRowSkeleton();
+
+  @override
   Widget build(BuildContext context) {
-    // TMDB credits aren't wired yet — render a placeholder with a hint
-    // so the section reads as "intentional but coming soon" rather than
-    // "missing data".
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         const _SectionHeading(text: 'Oyuncular'),
         const SizedBox(height: DesignTokens.spaceS),
         SizedBox(
-          height: 92,
+          height: 110,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: 6,
             separatorBuilder: (_, __) =>
                 const SizedBox(width: DesignTokens.spaceM),
-            itemBuilder: (BuildContext _, int i) {
-              return _CastAvatar(
-                index: i,
-                vodTitle: vod.title,
+            itemBuilder: (BuildContext _, int __) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1C1C1C),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: 56,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1C1C1C),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 40,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1C1C1C),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -606,58 +674,101 @@ class _CastRow extends StatelessWidget {
 }
 
 class _CastAvatar extends StatelessWidget {
-  const _CastAvatar({
-    required this.index,
-    required this.vodTitle,
-  });
+  const _CastAvatar({required this.member});
 
-  final int index;
-  final String vodTitle;
+  final TmdbCastMember member;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1C),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: scheme.primary.withValues(alpha: 0.18),
+    final imageUrl = TmdbClient.profileUrl(member.profilePath);
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () {
+        // Forward the actor's name as a query param so the stub screen
+        // can render a real headline before its own filmography lookup
+        // lands in Phase 4.
+        final encoded = Uri.encodeQueryComponent(member.name);
+        context.push('/cast/${member.id}?name=$encoded');
+      },
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ClipOval(
+              child: SizedBox(
+                width: 60,
+                height: 60,
+                child: imageUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (BuildContext _, String __) => Container(
+                          color: const Color(0xFF1C1C1C),
+                        ),
+                        errorWidget: (BuildContext _, String __, Object ___) =>
+                            _AvatarFallback(scheme: scheme),
+                      )
+                    : _AvatarFallback(scheme: scheme),
+              ),
             ),
-          ),
-          alignment: Alignment.center,
-          child: Icon(
-            Icons.person_rounded,
-            color: Colors.white.withValues(alpha: 0.4),
-            size: 28,
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          width: 64,
-          child: Text(
-            'Oyuncu ${index + 1}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 11,
+            const SizedBox(height: 6),
+            Text(
+              member.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
+            if (member.character.isNotEmpty)
+              Text(
+                member.character,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.55),
+                  fontSize: 10,
+                ),
+              ),
+          ],
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _AvatarFallback extends StatelessWidget {
+  const _AvatarFallback({required this.scheme});
+
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1C),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.18)),
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.person_rounded,
+        color: Colors.white.withValues(alpha: 0.4),
+        size: 28,
+      ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// "Similar" row — same-genre fallback fed by the all-vod provider
+// "Similar" row — merges TMDB `/similar` (when available) with local
+// genre-overlap scoring.
 // ---------------------------------------------------------------------------
 
 class _SimilarRow extends ConsumerWidget {
@@ -668,10 +779,32 @@ class _SimilarRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final all = ref.watch(allVodProvider);
-    final list = all.maybeWhen(
-      data: _pickSimilar,
+    // Genre-overlap scoring on the local catalogue — always available, even
+    // when the TMDB key isn't configured. Returns top 5 (or 12 when we have
+    // no TMDB feed to merge with).
+    final localTop = all.maybeWhen<List<VodItem>>(
+      data: (List<VodItem> list) => _pickSimilar(list, limit: 5),
       orElse: () => const <VodItem>[],
     );
+    final localFallback = all.maybeWhen<List<VodItem>>(
+      data: (List<VodItem> list) => _pickSimilar(list, limit: 12),
+      orElse: () => const <VodItem>[],
+    );
+
+    // TMDB-backed similar, when we have a tmdbId and the key is set. The
+    // metadata service swallows errors and emits an empty list so we can
+    // freely use `valueOrNull`.
+    final asyncSimilar = ref.watch(vodSimilarTmdbIdsProvider(vod.tmdbId));
+    final tmdbIds = asyncSimilar.valueOrNull ?? const <int>[];
+
+    final list = tmdbIds.isEmpty
+        ? localFallback
+        : _mergeWithTmdb(
+            local: localTop,
+            tmdbIds: tmdbIds,
+            allCatalog: all.valueOrNull ?? const <VodItem>[],
+          );
+
     if (list.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -694,11 +827,11 @@ class _SimilarRow extends ConsumerWidget {
     );
   }
 
-  List<VodItem> _pickSimilar(List<VodItem> all) {
+  List<VodItem> _pickSimilar(List<VodItem> all, {required int limit}) {
     if (vod.genres.isEmpty) {
       return all
           .where((VodItem v) => v.id != vod.id)
-          .take(12)
+          .take(limit)
           .toList(growable: false);
     }
     final mySet = vod.genres.toSet();
@@ -710,7 +843,44 @@ class _SimilarRow extends ConsumerWidget {
       scored.add(_Scored(item: v, score: overlap));
     }
     scored.sort((a, b) => b.score.compareTo(a.score));
-    return scored.take(12).map((s) => s.item).toList(growable: false);
+    return scored.take(limit).map((s) => s.item).toList(growable: false);
+  }
+
+  /// Merge strategy: take the TMDB-recommended titles that we *also* have
+  /// locally (top 5), then top up with the genre-overlap top 5 — deduped
+  /// by tmdbId where available, falling back to vod id.
+  List<VodItem> _mergeWithTmdb({
+    required List<VodItem> local,
+    required List<int> tmdbIds,
+    required List<VodItem> allCatalog,
+  }) {
+    final byTmdb = <int, VodItem>{};
+    for (final v in allCatalog) {
+      final id = v.tmdbId;
+      if (id != null && id != vod.tmdbId && v.id != vod.id) {
+        byTmdb[id] = v;
+      }
+    }
+    final out = <VodItem>[];
+    final seenVodIds = <String>{};
+
+    // 1) TMDB-recommended titles we actually own — top 5.
+    for (final tid in tmdbIds) {
+      final hit = byTmdb[tid];
+      if (hit == null) continue;
+      if (seenVodIds.add(hit.id)) {
+        out.add(hit);
+        if (out.length == 5) break;
+      }
+    }
+
+    // 2) Top up with local genre-overlap until we hit 10 entries — skip
+    //    anything we already added.
+    for (final l in local) {
+      if (out.length == 10) break;
+      if (seenVodIds.add(l.id)) out.add(l);
+    }
+    return out;
   }
 }
 

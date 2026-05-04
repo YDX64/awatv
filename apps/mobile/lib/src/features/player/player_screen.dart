@@ -8,9 +8,11 @@ import 'package:awatv_mobile/src/desktop/pip_window.dart';
 import 'package:awatv_mobile/src/desktop/widgets/now_playing_state.dart';
 import 'package:awatv_mobile/src/features/channels/channels_providers.dart';
 import 'package:awatv_mobile/src/features/parental/widgets/parental_lock_overlay.dart';
+import 'package:awatv_mobile/src/features/player/external_player_launcher.dart';
 import 'package:awatv_mobile/src/features/player/player_backend_preference.dart';
 import 'package:awatv_mobile/src/features/player/widgets/are_you_still_watching.dart';
 import 'package:awatv_mobile/src/features/player/widgets/cast_device_picker.dart';
+import 'package:awatv_mobile/src/features/player/widgets/external_player_picker_sheet.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_buffering_overlay.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_controls_layer.dart';
 import 'package:awatv_mobile/src/features/player/widgets/player_gestures.dart';
@@ -46,6 +48,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+// `url_launcher` is resolved transitively via other plugins; the
+// direct dep is not yet in apps/mobile/pubspec.yaml. Used by
+// _onExternalPlayerRequested for the App Store / Play Store install
+// fallback when an external player is missing.
+// ignore: depend_on_referenced_packages
+import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Full-screen, Netflix-tier player.
@@ -947,18 +955,70 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _onExternalPlayerRequested() async {
     _hideTimer?.cancel();
-    // TODO(phase-3): Replace this stub with a proper VLC / MX / nPlayer
-    // deep-link picker per Streas spec §1.2 — the URI builders are
-    // documented there. For now, surface a snackbar so QA can verify
-    // the button is wired through the UI layer.
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Harici oynatici (VLC / MX / nPlayer) Phase 3 ile geliyor.',
+
+    // Build the Uri from the active media source. We bind once at
+    // sheet-open time — if the user changes channel mid-pick the
+    // launcher still passes the URL we showed in the title bar, which
+    // matches the upstream Streas behaviour.
+    final currentUrl = widget.args.source.url;
+    final streamUri = Uri.tryParse(currentUrl);
+    if (streamUri == null || !streamUri.hasScheme) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Yayin URLsi gecersiz, harici oynatici acilamiyor.'),
         ),
-      ),
+      );
+      _scheduleHide();
+      return;
+    }
+
+    // Forward UA / Referer if the source has them — VLC / MX both pick
+    // them up via Android intent extras. iOS players ignore the map.
+    final headers = <String, String>{};
+    final ua = widget.args.source.userAgent;
+    final referer = widget.args.source.referer;
+    if (ua != null && ua.isNotEmpty) headers['User-Agent'] = ua;
+    if (referer != null && referer.isNotEmpty) headers['Referer'] = referer;
+    final sourceHeaders = widget.args.source.headers;
+    if (sourceHeaders != null) headers.addAll(sourceHeaders);
+
+    final result = await ExternalPlayerPickerSheet.show(
+      context,
+      streamUri: streamUri,
+      headers: headers.isEmpty ? null : headers,
     );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (result != null && !result.launched) {
+      // Surface a "not installed" toast with a one-tap install link
+      // that opens the App Store / Play Store entry for the picked
+      // player. Matches the Streas RN failure copy ("X is not
+      // installed") localised into Turkish.
+      const launcher = ExternalPlayerLauncher();
+      final store = launcher.storeUri(result.player);
+      final label = result.player.displayName;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("$label yuklu degil — App Store'dan indirin"),
+          action: store == null
+              ? null
+              : SnackBarAction(
+                  label: 'Indir',
+                  onPressed: () {
+                    // Fire-and-forget the store launch; the snackbar
+                    // dismisses on tap regardless of the OS response.
+                    unawaited(
+                      launchUrl(store, mode: LaunchMode.externalApplication),
+                    );
+                  },
+                ),
+        ),
+      );
+    }
     _scheduleHide();
   }
 

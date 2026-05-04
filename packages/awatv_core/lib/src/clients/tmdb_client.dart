@@ -1,3 +1,4 @@
+import 'package:awatv_core/src/models/tmdb_credits.dart';
 import 'package:awatv_core/src/models/tmdb_models.dart';
 import 'package:awatv_core/src/utils/awatv_exceptions.dart';
 import 'package:awatv_core/src/utils/awatv_logger.dart';
@@ -41,6 +42,13 @@ class TmdbClient {
   static String? backdropUrl(String? path) => (path == null || path.isEmpty)
       ? null
       : '$imageBase$backdropSize$path';
+
+  /// Build a fully-qualified profile-photo URL for a cast / crew member
+  /// from a TMDB `profile_path`. Uses the `w185` size — that's the canonical
+  /// square-ish thumbnail size TMDB recommends for credit avatars.
+  static String? profileUrl(String? path) => (path == null || path.isEmpty)
+      ? null
+      : '${imageBase}w185$path';
 
   /// Search a movie by title; pick the highest-popularity match. Optionally
   /// constrain by year.
@@ -129,6 +137,89 @@ class TmdbClient {
   /// Trailer YouTube id for a TMDB series. `null` if none.
   Future<String?> seriesTrailerYoutubeId(int tmdbId) =>
       _trailerYoutubeId('tv', tmdbId);
+
+  /// `/movie/{id}/credits` (or `/tv/{id}/credits` when `isMovie` is `false`).
+  ///
+  /// Returns the top **8 cast** members (ordered by TMDB `order`) plus up to
+  /// **4 crew** members in the most useful jobs — Director, Writer,
+  /// Screenplay, Story. Producers / DPs / etc. are dropped to keep the
+  /// detail-screen UI focused.
+  ///
+  /// Returns [TmdbCredits.empty] on any non-200 response or empty payload.
+  Future<TmdbCredits> credits(int tmdbId, {bool isMovie = true}) async {
+    final kind = isMovie ? 'movie' : 'tv';
+    final params = <String, String>{
+      'api_key': apiKey,
+      'language': language,
+    };
+    final data = await _getJson(
+      Uri.parse('$_base/$kind/$tmdbId/credits')
+          .replace(queryParameters: params),
+    );
+    if (data is! Map) return TmdbCredits.empty;
+    final raw = TmdbCredits.fromJson(data.cast<String, dynamic>());
+    if (raw.isEmpty) return TmdbCredits.empty;
+
+    // Top-billed 8 cast — TMDB's `order` field is reliable for this.
+    final cast = <TmdbCastMember>[...raw.cast]
+      ..sort((a, b) => (a.order ?? 999).compareTo(b.order ?? 999));
+    final cappedCast = cast.take(8).toList(growable: false);
+
+    // Pick at most 4 crew, prioritising headline credits.
+    const wantedJobs = <String>[
+      'Director',
+      'Writer',
+      'Screenplay',
+      'Story',
+    ];
+    final crew = <TmdbCrewMember>[];
+    for (final job in wantedJobs) {
+      for (final c in raw.crew) {
+        if (c.job == job) {
+          crew.add(c);
+          if (crew.length == 4) break;
+        }
+      }
+      if (crew.length == 4) break;
+    }
+
+    return TmdbCredits(cast: cappedCast, crew: crew);
+  }
+
+  /// `/movie/{id}/similar` (or `/tv/{id}/similar` when `isMovie` is `false`).
+  ///
+  /// Returns up to [limit] tmdb ids of similar titles, ordered as TMDB
+  /// returns them. The detail screen merges these with the local
+  /// genre-overlap top-5 to fill the "Benzer Filmler" row when the
+  /// catalogue is sparse.
+  Future<List<int>> similarTmdbIds(
+    int tmdbId, {
+    bool isMovie = true,
+    int limit = 10,
+  }) async {
+    final kind = isMovie ? 'movie' : 'tv';
+    final params = <String, String>{
+      'api_key': apiKey,
+      'language': language,
+      'page': '1',
+    };
+    final data = await _getJson(
+      Uri.parse('$_base/$kind/$tmdbId/similar')
+          .replace(queryParameters: params),
+    );
+    if (data is! Map) return const <int>[];
+    final results = data['results'];
+    if (results is! List) return const <int>[];
+    final out = <int>[];
+    for (final r in results) {
+      if (r is! Map) continue;
+      final id = (r['id'] as num?)?.toInt();
+      if (id == null || id == tmdbId) continue;
+      out.add(id);
+      if (out.length == limit) break;
+    }
+    return out;
+  }
 
   Future<String?> _trailerYoutubeId(String kind, int tmdbId) async {
     final params = <String, String>{

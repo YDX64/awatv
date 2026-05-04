@@ -1,11 +1,14 @@
-import 'dart:developer' as developer;
+import 'dart:async';
 
+import 'package:awatv_mobile/src/shared/billing/billing_providers.dart';
+import 'package:awatv_mobile/src/shared/billing/revenuecat_client.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_status_provider.dart';
 import 'package:awatv_mobile/src/shared/premium/premium_tier.dart';
 import 'package:awatv_mobile/src/shared/remote_config/app_remote_config.dart';
 import 'package:awatv_mobile/src/shared/remote_config/rc_snapshot.dart';
 import 'package:awatv_ui/awatv_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -48,6 +51,15 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
   bool _restoring = false;
   String? _localError;
 
+  /// Hidden debug gesture: 5 long-presses on any plan tile within
+  /// 4 s triggers [_debugSimulateActivate] so dev / QA builds can flip
+  /// to premium without a sandbox account. The counter resets on every
+  /// timeout. Only ever wired in `kDebugMode` builds.
+  int _debugLongPressCount = 0;
+  DateTime? _debugLongPressFirst;
+  static const int _debugLongPressNeeded = 5;
+  static const Duration _debugLongPressWindow = Duration(seconds: 4);
+
   Future<void> _confirmAndPurchase() async {
     if (_activating) return;
     final selected = ref.read(selectedPlanProvider);
@@ -74,6 +86,81 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final selected = ref.read(selectedPlanProvider);
     try {
+      final billing = ref.read(awatvBillingProvider);
+      // If RC isn't available on this build (web/desktop/TV, or .env
+      // missing the keys), surface a friendly error instead of letting
+      // the SDK throw an opaque "configurationError".
+      if (!billing.isAvailable) {
+        if (!mounted) return;
+        setState(
+          () => _localError = 'premium.paywall.snack_failed'.tr(
+            namedArgs: <String, String>{
+              'error': 'Premium satin alimi bu cihazda kullanilamiyor.',
+            },
+          ),
+        );
+        return;
+      }
+      final productId = _productIdForPlan(selected);
+      final outcome = await billing.purchaseProduct(productId);
+      if (!mounted) return;
+      switch (outcome) {
+        case PurchaseOutcomeSuccess():
+          // The store accepted the purchase; the RevenueCat → Edge
+          // Function → Supabase realtime chain will flip
+          // `premiumStatusProvider` to active within seconds and the
+          // build will rebuild as `_AlreadyPremiumScaffold`.
+          messenger.showSnackBar(
+            SnackBar(
+              backgroundColor: BrandColors.success,
+              content: Text(
+                'premium.paywall.snack_active'.tr(
+                  namedArgs: <String, String>{'plan': _planLabel(selected)},
+                ),
+              ),
+            ),
+          );
+        case PurchaseOutcomeCancelled():
+          // User dismissed the StoreKit / Play sheet — not an error,
+          // no toast. Just unlock the CTA.
+          break;
+        case PurchaseOutcomeFailure(:final message):
+          setState(
+            () => _localError = 'premium.paywall.snack_failed'.tr(
+              namedArgs: <String, String>{'error': message},
+            ),
+          );
+      }
+    } on Object catch (e) {
+      // Defensive — billing.purchaseProduct already wraps every known
+      // failure into PurchaseOutcomeFailure, so reaching here means the
+      // provider lookup itself blew up. Surface it inline.
+      if (!mounted) return;
+      setState(
+        () => _localError = 'premium.paywall.snack_failed'.tr(
+          namedArgs: <String, String>{'error': e.toString()},
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _activating = false);
+    }
+  }
+
+  /// Debug-only entrypoint reachable via the hidden long-press gesture
+  /// on a plan tile (5x). Bypasses the StoreKit sheet so simulator
+  /// builds can exercise the rest of the app against a "premium" tier
+  /// without owning a sandbox account. NEVER reachable in release —
+  /// `simulateActivate` itself refuses non-debug calls upstream.
+  Future<void> _debugSimulateActivate() async {
+    if (!kDebugMode) return;
+    if (_activating) return;
+    setState(() {
+      _activating = true;
+      _localError = null;
+    });
+    final messenger = ScaffoldMessenger.of(context);
+    final selected = ref.read(selectedPlanProvider);
+    try {
       await ref
           .read(premiumStatusProvider.notifier)
           .simulateActivate(selected);
@@ -88,8 +175,6 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
           ),
         ),
       );
-      // Don't pop — the screen now flips to the "Already premium"
-      // success state inline so the user gets the dopamine hit.
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _localError = e.toString());
@@ -104,17 +189,44 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
       _restoring = true;
       _localError = null;
     });
-    // No-op stub — real restore wires through RevenueCat in Phase 3.
-    developer.log(
-      'Premium restore requested (no-op until RevenueCat ships).',
-      name: 'awatv.premium',
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    setState(() => _restoring = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('premium.paywall.snack_restore'.tr())),
-    );
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final billing = ref.read(awatvBillingProvider);
+      if (!billing.isAvailable) {
+        if (!mounted) return;
+        messenger.showSnackBar(
+          SnackBar(content: Text('premium.paywall.snack_restore'.tr())),
+        );
+        return;
+      }
+      final outcome = await billing.restorePurchases();
+      if (!mounted) return;
+      switch (outcome) {
+        case RestoreOutcomeSuccess():
+          // RC posted the receipt to the backend; the webhook will
+          // update Supabase and the realtime listener flips the UI
+          // automatically. Show a gentle "checking" snackbar so the
+          // user has feedback while the round-trip lands.
+          messenger.showSnackBar(
+            SnackBar(content: Text('premium.paywall.snack_restore'.tr())),
+          );
+        case RestoreOutcomeFailure(:final message):
+          setState(
+            () => _localError = 'premium.paywall.snack_failed'.tr(
+              namedArgs: <String, String>{'error': message},
+            ),
+          );
+      }
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(
+        () => _localError = 'premium.paywall.snack_failed'.tr(
+          namedArgs: <String, String>{'error': e.toString()},
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _restoring = false);
+    }
   }
 
   Future<void> _signOutPremium() async {
@@ -136,6 +248,36 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
         PremiumPlan.yearly => rc.priceYearly,
         PremiumPlan.lifetime => rc.priceLifetime,
       };
+
+  /// Map our internal [PremiumPlan] enum to the App Store / Play /
+  /// RevenueCat product identifier. Single source of truth so the
+  /// purchase flow, restore flow, and analytics events all reference
+  /// the same string.
+  String _productIdForPlan(PremiumPlan plan) => switch (plan) {
+        PremiumPlan.monthly => AwatvProductIds.monthly,
+        PremiumPlan.yearly => AwatvProductIds.yearly,
+        PremiumPlan.lifetime => AwatvProductIds.lifetime,
+      };
+
+  /// Handler for the hidden 5x long-press debug gesture. Counts the
+  /// presses inside [_debugLongPressWindow]; when the threshold is
+  /// hit it kicks off [_debugSimulateActivate]. No-op in release.
+  void _onPlanTileLongPress() {
+    if (!kDebugMode) return;
+    final now = DateTime.now();
+    final first = _debugLongPressFirst;
+    if (first == null || now.difference(first) > _debugLongPressWindow) {
+      _debugLongPressFirst = now;
+      _debugLongPressCount = 1;
+      return;
+    }
+    _debugLongPressCount += 1;
+    if (_debugLongPressCount >= _debugLongPressNeeded) {
+      _debugLongPressCount = 0;
+      _debugLongPressFirst = null;
+      unawaited(_debugSimulateActivate());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -187,6 +329,8 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
                   rc: rc,
                   variantB: variantB,
                   highlighted: highlighted,
+                  onTileLongPress:
+                      kDebugMode ? _onPlanTileLongPress : null,
                 ),
               ),
               const Padding(
@@ -349,11 +493,16 @@ class _PlanTilesStack extends ConsumerWidget {
     required this.rc,
     required this.variantB,
     required this.highlighted,
+    this.onTileLongPress,
   });
 
   final RcSnapshot rc;
   final bool variantB;
   final PremiumPlan highlighted;
+
+  /// Wired only in debug builds — fires the hidden 5x long-press
+  /// gesture that activates `simulateActivate`. Null in release.
+  final VoidCallback? onTileLongPress;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -386,6 +535,7 @@ class _PlanTilesStack extends ConsumerWidget {
                 ref.read(_userPickedPlanProvider.notifier).state = true;
                 ref.read(selectedPlanProvider.notifier).state = plan;
               },
+              onLongPress: onTileLongPress,
             ),
           ),
       ],
@@ -400,6 +550,7 @@ class _PaywallTile extends StatelessWidget {
     required this.selected,
     required this.isHero,
     required this.onTap,
+    this.onLongPress,
   });
 
   final PremiumPlan plan;
@@ -407,6 +558,9 @@ class _PaywallTile extends StatelessWidget {
   final bool selected;
   final bool isHero;
   final VoidCallback onTap;
+
+  /// Hidden debug gesture handler — only non-null in debug builds.
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -457,6 +611,7 @@ class _PaywallTile extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
+          onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(DesignTokens.radiusL),
           child: Stack(
             clipBehavior: Clip.none,

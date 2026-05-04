@@ -1,4 +1,5 @@
 import 'package:awatv_core/src/clients/tmdb_client.dart';
+import 'package:awatv_core/src/models/tmdb_credits.dart';
 import 'package:awatv_core/src/models/tmdb_models.dart';
 import 'package:awatv_core/src/storage/awatv_storage.dart';
 import 'package:awatv_core/src/utils/awatv_logger.dart';
@@ -69,5 +70,83 @@ class MetadataService {
     return kind == MediaType.movie
         ? tmdb.movieTrailerYoutubeId(tmdbId)
         : tmdb.seriesTrailerYoutubeId(tmdbId);
+  }
+
+  /// Cached `/credits` lookup. Credits change rarely so we keep them on
+  /// disk for 24 h regardless of the broader [_ttl]. Returns
+  /// [TmdbCredits.empty] when the user has no TMDB key configured (so
+  /// the UI can hide the cast row without checking the env directly).
+  Future<TmdbCredits> credits(
+    int tmdbId, {
+    MediaType kind = MediaType.movie,
+  }) async {
+    final isMovie = kind == MediaType.movie;
+    final cacheKey = 'tmdb:credits:${isMovie ? "movie" : "tv"}:$tmdbId';
+    const cacheTtl = Duration(hours: 24);
+
+    final cached = await _storage.getMetadataJson(cacheKey, ttl: cacheTtl);
+    if (cached != null) {
+      try {
+        return TmdbCredits.fromJson(cached);
+      } on Object catch (e) {
+        _log.warn('credits cache decode failed for $cacheKey: $e');
+      }
+    }
+
+    final tmdb = _tmdb;
+    if (tmdb == null) return TmdbCredits.empty;
+
+    try {
+      final fresh = await tmdb.credits(tmdbId, isMovie: isMovie);
+      await _storage.putMetadataJson(cacheKey, fresh.toJson());
+      return fresh;
+    } on Object catch (e) {
+      _log.warn('credits fetch failed for $cacheKey: $e');
+      return TmdbCredits.empty;
+    }
+  }
+
+  /// `/similar` — returns up to [limit] tmdb ids of titles TMDB considers
+  /// similar to [tmdbId]. Cached for 24 h. Returns an empty list when the
+  /// TMDB key isn't configured so callers can fall through to local-only
+  /// genre-overlap scoring.
+  Future<List<int>> similarTmdbIds(
+    int tmdbId, {
+    MediaType kind = MediaType.movie,
+    int limit = 10,
+  }) async {
+    final isMovie = kind == MediaType.movie;
+    final cacheKey =
+        'tmdb:similar:${isMovie ? "movie" : "tv"}:$tmdbId:l$limit';
+    const cacheTtl = Duration(hours: 24);
+
+    final cached = await _storage.getMetadataJson(cacheKey, ttl: cacheTtl);
+    if (cached != null) {
+      try {
+        final raw = cached['ids'];
+        if (raw is List) {
+          final out = <int>[];
+          for (final e in raw) {
+            if (e is num) out.add(e.toInt());
+          }
+          return out;
+        }
+      } on Object catch (e) {
+        _log.warn('similar cache decode failed for $cacheKey: $e');
+      }
+    }
+
+    final tmdb = _tmdb;
+    if (tmdb == null) return const <int>[];
+
+    try {
+      final ids =
+          await tmdb.similarTmdbIds(tmdbId, isMovie: isMovie, limit: limit);
+      await _storage.putMetadataJson(cacheKey, <String, dynamic>{'ids': ids});
+      return ids;
+    } on Object catch (e) {
+      _log.warn('similar fetch failed for $cacheKey: $e');
+      return const <int>[];
+    }
   }
 }

@@ -74,10 +74,12 @@ class _SubtitlePickerScreenState
           lang: _draft.preferredLanguage,
         );
       } else {
-        // Stub mode: fabricate plausible results so the UI is fully
-        // exercisable when the OpenSubtitles API key is missing.
-        // Real OpenSubtitles integration ships in Phase 3 — see
-        // /Users/max/AWAtv/docs/streas-port/player-spec.md §6.6.
+        // No-key fallback: the real client lives in
+        // `packages/awatv_core/lib/src/clients/opensubtitles_client.dart`
+        // and is already used above when `Env.openSubtitlesKey` is set
+        // (wired through `subtitlesServiceProvider`). When the key is
+        // missing we fabricate plausible results so the UI is still
+        // fully exercisable in dev / free-tier builds.
         await Future<void>.delayed(const Duration(milliseconds: 350));
         results = _stubResultsFor(q, _draft.preferredLanguage);
       }
@@ -113,8 +115,11 @@ class _SubtitlePickerScreenState
       if (svc.isAvailable) {
         body = await svc.fetchSrt(sub.fileId, lang: sub.language);
       } else {
-        // Stub: pretend to download a simple 3-cue SRT so the overlay
-        // has something to render in dev builds.
+        // No-key fallback — pretend to download a simple 3-cue SRT so
+        // the overlay has something to render in dev / free-tier builds
+        // when `Env.openSubtitlesKey` is empty. The real download path
+        // lives in `OpenSubtitlesClient.downloadByFileId` and is taken
+        // automatically once the key is configured.
         await Future<void>.delayed(const Duration(milliseconds: 500));
         body = _stubSrtFor(sub);
       }

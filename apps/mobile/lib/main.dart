@@ -9,6 +9,8 @@ import 'package:awatv_mobile/src/desktop/system_tray.dart';
 import 'package:awatv_mobile/src/shared/ads/awatv_ads.dart';
 import 'package:awatv_mobile/src/shared/background_playback/audio_session_config.dart';
 import 'package:awatv_mobile/src/shared/background_playback/background_playback_controller.dart';
+import 'package:awatv_mobile/src/shared/billing/billing_providers.dart';
+import 'package:awatv_mobile/src/shared/billing/revenuecat_client.dart';
 import 'package:awatv_mobile/src/shared/notifications/notifications_provider.dart';
 import 'package:awatv_mobile/src/shared/observability/awatv_observability.dart';
 import 'package:awatv_mobile/src/shared/profiles/profile_controller.dart';
@@ -165,6 +167,13 @@ Future<void> main() async {
     }
   }
 
+  // RevenueCat — wire up StoreKit / Play Billing for the paywall. No-op
+  // on web/desktop/TV (no native SDK) and silently degrades when the
+  // public RC key is missing from `.env`. Fire-and-forget: a slow RC
+  // probe must never delay the first frame, and the paywall reads
+  // `AwatvBilling.isInitialised` before showing the CTA.
+  unawaited(AwatvBilling.instance.initialise());
+
   // Desktop only: take over the OS window before runApp so the first
   // frame already has the right size and (on macOS) a hidden titlebar.
   // Pure no-op on iOS / Android / web.
@@ -211,6 +220,18 @@ Future<void> main() async {
     // Worst case: profile-scoped boxes don't open. Fav/history fall
     // back to the legacy global boxes; the picker just renders empty
     // until the user creates a profile manually.
+  }
+
+  // Mount the billing↔auth identity sync listener. It binds RC's
+  // appUserId to the Supabase user id whenever auth flips, so the
+  // RC → webhook → Supabase chain lands the entitlement on the right
+  // row. Reading the provider once is enough to attach the listener
+  // (Riverpod keepAlive keeps it mounted for the rest of the session).
+  try {
+    container.read(billingBootstrapProvider);
+  } on Object {
+    // Listener can't error in build, but be defensive — boot must
+    // never crash here.
   }
 
   // Local notifications: register the OS channel + tap callback. We do

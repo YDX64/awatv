@@ -78,7 +78,10 @@ class OpenSubtitlesClient {
     Dio? dio,
     String? userAgent,
   })  : _dio = dio ?? _defaultDio(),
-        _userAgent = userAgent ?? 'AWAtv v0.1';
+        // OpenSubtitles asks every integration to identify itself with a
+        // real product version in the User-Agent — keep this in lockstep
+        // with `pubspec.yaml` (`version:` field) on every release bump.
+        _userAgent = userAgent ?? 'AWAtv v0.5.8';
 
   static const String _base = 'https://api.opensubtitles.com/api/v1';
 

@@ -186,5 +186,19 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- External player deep-link targets. Android 11+ (API 30)
+             ships package visibility filtering by default — without
+             these <package> entries Intent.resolveActivity() and
+             url_launcher's `canLaunchUrl` both return false even when
+             the app IS installed. Each package id mirrors the URI
+             builders in docs/streas-port/player-spec.md § 1.2.
+
+               * org.videolan.vlc            — VLC for Android.
+               * com.mxtech.videoplayer.pro  — MX Player Pro (paid).
+               * com.mxtech.videoplayer.ad   — MX Player Free (ad-funded).
+             -->
+        <package android:name="org.videolan.vlc" />
+        <package android:name="com.mxtech.videoplayer.pro" />
+        <package android:name="com.mxtech.videoplayer.ad" />
     </queries>
 </manifest>

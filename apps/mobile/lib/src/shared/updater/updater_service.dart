@@ -387,7 +387,27 @@ class UpdaterService extends _$UpdaterService {
       final installed = await _findInstalledMacosApp();
       if (installed != null) {
         await Process.run('xattr', <String>['-dr', 'com.apple.quarantine', installed]);
-        await Process.run('open', <String>['-n', installed]);
+        // v0.5.2/v0.5.3 race fix — `Process.run('open', ['-n', installed])`
+        // followed immediately by `exit(0)` sometimes lost the relaunched
+        // app to a Launch Services race (the parent process died before
+        // `open` had handed the launch request off, so LS aborted the
+        // child).
+        //
+        //   * `-n` — force a fresh instance even if a stale AWAtv is
+        //     already running (otherwise we'd just refocus the old copy).
+        //   * `-W` — make `open` *wait* for the new app to register
+        //     itself with LS before returning. Without this the parent
+        //     could exit while LS was still resolving the bundle.
+        //   * `ProcessStartMode.detached` — let `open` (and the new app
+        //     it launches) survive the parent's `exit(0)` further down
+        //     in `installUpdate`. Without `detached` macOS would tear
+        //     the relaunch process down with the rest of the parent's
+        //     process group.
+        await Process.start(
+          'open',
+          <String>['-n', '-W', installed],
+          mode: ProcessStartMode.detached,
+        );
       }
       return;
     }

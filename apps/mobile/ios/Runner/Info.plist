@@ -191,5 +191,27 @@
 	-->
 	<key>NSUserTrackingUsageDescription</key>
 	<string>AWAtv reklamlari sana daha alakali gostermek icin bu izni ister. Reddetsen bile uygulama calisir; sadece reklamlar daha az hedeflenmis olur.</string>
+
+	<!--
+	  External player deep-link allow-list. iOS 9+ requires every URL
+	  scheme that the app calls `canOpenURL:` against to be enumerated
+	  here; missing entries cause `canOpenURL` to return NO even when
+	  the app is installed, which makes url_launcher refuse to open the
+	  link. The schemes below mirror docs/streas-port/player-spec.md
+	  § 1.2 — the deep-link contract the upstream Streas RN app uses.
+
+	    * vlc-x-callback — VLC for mobile (VideoLAN). Used by
+	      ExternalPlayer.vlc on iOS.
+	    * nplayer-       — nPlayer (Newin Inc.). Used by
+	      ExternalPlayer.nPlayer on iOS.
+	    * vlc            — Legacy VLC scheme, kept for older versions
+	      that still respond to plain `vlc://` URIs.
+	-->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>vlc-x-callback</string>
+		<string>nplayer-</string>
+		<string>vlc</string>
+	</array>
 </dict>
 </plist>

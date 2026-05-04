@@ -4,6 +4,44 @@
 
 ---
 
+## v0.5.11 — UX: success snackbars after auth + Supabase email-autoconfirm
+
+**Released:** 2026-05-04 · **Tag:** [`awatv-v0.5.11`](https://github.com/YDX64/awatv/releases/tag/awatv-v0.5.11) · **Commit:** `df6f1af`
+
+### Why
+
+User reported two friction points after the v0.5.x rollout:
+
+1. **Email confirmation hop.** Supabase's `mailer_autoconfirm` was off and the project's `site_url` was the default `http://localhost:3000`. New signups landed with an unusable confirmation link pointing at a dev address. User wanted the extra step removed entirely — auth-via-password should create an active session immediately.
+
+2. **Silent button.** After tapping "Giriş yap" / "Kayıt ol" the screen jumped without any acknowledgement that the click had landed. On a slow uplink this was indistinguishable from "did it crash, did it submit twice?".
+
+### Backend (applied via Supabase Management API)
+
+```
+PATCH /v1/projects/ukulkbthsgkmihjcpzek/config/auth
+  mailer_autoconfirm: false  →  true
+  site_url: http://localhost:3000  →  https://awatv.pages.dev
+  uri_allow_list: ""  →  https://awatv.pages.dev/**,
+                         io.supabase.awatv://login-callback,
+                         com.awatv.mobile://login-callback,
+                         com.awatv.awatvMobile://login-callback
+```
+
+New signups now bypass the confirmation email entirely; the signUp call returns an active session synchronously and the auth controller's listener fires `AuthSignedIn` on the same tick.
+
+Pending users from before the toggle: 0 (verified via `SELECT count(*) FROM auth.users WHERE email_confirmed_at IS NULL`). Database was effectively empty since the old confirmation flow had blocked every signup attempt.
+
+### Client diffs (3 files)
+
+`apps/mobile/lib/src/features/auth/login_screen.dart`: 2-second SnackBar "Giriş başarılı — ana ekrana yönlendiriliyorsun…" right before `context.go(next)`. ScaffoldMessenger lives above the router so the toast persists across the route push.
+
+`apps/mobile/lib/src/features/auth/signup_screen.dart`: 3-second SnackBar "Hesabın oluşturuldu, hoş geldin {name}! Ana ekrana götürüyorum…" right before the redirect.
+
+`apps/mobile/lib/src/features/onboarding/wizard_screen.dart`: Auth-step listener now surfaces "Hesabın oluşturuldu — devam ediliyor…" / "Giriş başarılı — devam ediliyor…" depending on `_AuthMode` before the wizard auto-advances. Best-effort: pulls `ScaffoldMessenger.maybeOf` so a missing messenger doesn't break the advance.
+
+---
+
 ## v0.5.10 — patch: url_launcher explicit dep + cloud_sync null-check cleanup
 
 **Released:** 2026-05-04 · **Tag:** [`awatv-v0.5.10`](https://github.com/YDX64/awatv/releases/tag/awatv-v0.5.10) · **Commit:** `38281e9`

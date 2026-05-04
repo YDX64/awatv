@@ -4,6 +4,22 @@
 
 ---
 
+## v0.5.10 — patch: url_launcher explicit dep + cloud_sync null-check cleanup
+
+**Released:** 2026-05-04 · **Tag:** [`awatv-v0.5.10`](https://github.com/YDX64/awatv/releases/tag/awatv-v0.5.10) · **Commit:** `38281e9`
+
+Two small post-Phase-3 fixes that surfaced after v0.5.9 shipped.
+
+1. **`url_launcher` declared as direct dep** in `apps/mobile/pubspec.yaml`. Was transitively resolved through `supabase_flutter`'s tree. Agent B (v0.5.9 external player) flagged this as brittle — a future supabase upgrade dropping the transitive dep would silently break the external-player picker. Now pinned at `^6.3.2`.
+
+2. **`cloud_sync_engine.dart` null-check cleanup** — 5 `unnecessary_non_null_assertion` warnings + 1 `invalid_null_aware_operator` warning originated from the v0.4.x white-screen LateInitializationError fix. After `_client` was promoted to non-nullable via method-entry guards, the analyser correctly flagged every `!` and `?.` as redundant. Removed.
+
+   Net: 6 lines changed, 0 behavioural diff (the null-checks were already proven unreachable by flow analysis).
+
+Lint after: 0 errors, 0 warnings, 95 info-only style hints.
+
+---
+
 ## v0.5.9 — Phase 3 feature gaps closed
 
 **Released:** 2026-05-04 · **Tag:** [`awatv-v0.5.9`](https://github.com/YDX64/awatv/releases/tag/awatv-v0.5.9) · **Commits:** `b328d5d` + `d61d594`

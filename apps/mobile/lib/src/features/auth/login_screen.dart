@@ -78,6 +78,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             password: pw,
           );
       if (!mounted) return;
+      // Surface a brief success toast before navigating so the user
+      // gets explicit confirmation that the credentials worked. The
+      // toast persists across the route push thanks to ScaffoldMessenger
+      // living above the router.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          duration: Duration(seconds: 2),
+          content: Text('Giriş başarılı — ana ekrana yönlendiriliyorsun…'),
+        ),
+      );
       final next = widget.next ?? resolvePostLoginDestination(ref);
       context.go(next);
     } on AuthBackendNotConfiguredException catch (e) {

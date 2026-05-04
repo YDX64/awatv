@@ -103,6 +103,21 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         // created and the user can edit later from Account screen.
       }
       if (!mounted) return;
+      // Explicit success notification — user clicked "Kaydı tamamla"
+      // and now needs to know the account was created and what's next.
+      // The Supabase project has `mailer_autoconfirm` ON (set via
+      // Management API on 2026-05-04) so signup creates an active
+      // session immediately — no email confirmation step. The toast
+      // confirms that and persists across the route push since the
+      // ScaffoldMessenger lives above the go_router shell.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 3),
+          content: Text(
+            'Hesabın oluşturuldu, hoş geldin $name! Ana ekrana götürüyorum…',
+          ),
+        ),
+      );
       context.go(resolvePostLoginDestination(ref));
     } on AuthBackendNotConfiguredException catch (e) {
       if (!mounted) return;

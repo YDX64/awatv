@@ -1229,13 +1229,29 @@ class _StepAuthState extends ConsumerState<_StepAuth> {
 
     // Auto-advance once auth state flips to signed-in. We listen rather
     // than build-watch so a sign-out somewhere else doesn't trigger an
-    // unwanted state change here.
+    // unwanted state change here. Surfaces a brief success snackbar so
+    // the user gets explicit confirmation that the click landed before
+    // the wizard auto-progresses.
     ref.listen<AsyncValue<AuthState>>(
       authControllerProvider,
       (AsyncValue<AuthState>? prev, AsyncValue<AuthState> next) {
         if (_advancedOnce) return;
-        if (next.valueOrNull is AuthSignedIn) {
+        final s = next.valueOrNull;
+        if (s is AuthSignedIn) {
           _advancedOnce = true;
+          // Best-effort toast — ScaffoldMessenger may be missing on
+          // some test harnesses; the wizard still advances either way.
+          final messenger = ScaffoldMessenger.maybeOf(context);
+          messenger?.showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 2),
+              content: Text(
+                _mode == _AuthMode.signUp
+                    ? 'Hesabın oluşturuldu — devam ediliyor…'
+                    : 'Giriş başarılı — devam ediliyor…',
+              ),
+            ),
+          );
           widget.onNext();
         }
       },

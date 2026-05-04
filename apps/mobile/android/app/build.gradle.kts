@@ -13,6 +13,14 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications 17.x (and a few other Flutter
+        // plugins) call into java.time.* and other Java 8+ APIs that
+        // weren't backported to Android < 26 (API 26 = Android 8.0).
+        // Core library desugaring lets the toolchain emit those
+        // classes into the APK so we keep the existing minSdk
+        // (currently 21 = Lollipop) without dropping the package.
+        // See https://developer.android.com/studio/write/java8-support
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -41,4 +49,11 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// Required when `isCoreLibraryDesugaringEnabled = true` above. Pinned
+// to 2.0.4 because that's the minimum that flutter_local_notifications
+// 17.x's bundled stubs are happy with on AGP 8.x.
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

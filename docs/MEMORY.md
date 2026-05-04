@@ -2,7 +2,7 @@
 
 > **Single source of truth** for picking up the project after a context break, subscription pause, or new contributor onboarding. Read this first; everything else cross-references back here.
 
-Last updated: 2026-05-04. Current ship version: **v0.5.7** ([release page](https://github.com/YDX64/awatv/releases/tag/awatv-v0.5.7)).
+Last updated: 2026-05-04. Current ship version: **v0.5.9** ([release page](https://github.com/YDX64/awatv/releases/tag/awatv-v0.5.9)).
 
 ---
 

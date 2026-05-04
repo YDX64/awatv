@@ -4,6 +4,78 @@
 
 ---
 
+## v0.5.9 — Phase 3 feature gaps closed
+
+**Released:** 2026-05-04 · **Tag:** [`awatv-v0.5.9`](https://github.com/YDX64/awatv/releases/tag/awatv-v0.5.9) · **Commits:** `b328d5d` + `d61d594`
+
+Four parallel agents shipped the Phase 3 backlog: real RevenueCat client wiring, VLC/MX/nPlayer external-player launchers, TMDB cast + similar-movies API integration, and a cleanup pass.
+
+### Agent A — RevenueCat client + purchase flow
+
+`apps/mobile/lib/src/shared/billing/revenuecat_client.dart` (NEW): `AwatvBilling` singleton wrapping `purchases_flutter` v8. Public API: `AwatvProductIds.{monthly,yearly,lifetime}` constants, `initialise()` (idempotent, no-op on web/desktop/TV), `setAppUserId / clearAppUserId` (caches bound user), `getCurrentOffering / getOfferings / findPackageForProduct`, `purchaseProduct(productId)` returning sealed `PurchaseOutcome` (Success / Cancelled / Failure), `restorePurchases()` returning `RestoreOutcome`, `_humaniseError` mapping every `PurchasesErrorCode` to TR copy.
+
+`apps/mobile/lib/src/shared/billing/billing_providers.dart` (NEW): Riverpod providers including `billingIdentitySyncProvider` that listens to `authControllerProvider` and calls `setAppUserId` on AuthSignedIn / `clearAppUserId` on AuthGuest, with `fireImmediately: true` so cold-start sessions bind on first frame.
+
+`main.dart`: `unawaited(AwatvBilling.instance.initialise())` after Supabase init + `container.read(billingBootstrapProvider)` to mount the auth listener.
+
+`premium_screen.dart`: `_activate()` calls real `AwatvBilling.purchaseProduct(productId)` with full sealed-outcome switch. `_restorePurchases()` calls real `restorePurchases()`. `simulateActivate` reachable ONLY via hidden 5x long-press on plan tile within 4s, gated by `kDebugMode`. Production builds reject the debug shortcut entirely.
+
+### Agent B — External player deep-link
+
+`external_player_launcher.dart` (NEW): per-platform URI builders for VLC / MX Player Pro+Free / nPlayer. Header forwarding via Android intent extras `S.User-Agent` / `S.Referer`.
+
+`external_player_picker_sheet.dart` (NEW): bottom sheet with per-row tile (icon + name + tagline + chevron/spinner). Filters players by platform support.
+
+`player_screen.dart`: `_onExternalPlayerRequested` replaces TODO with real flow. On launch failure shows TR "X yuklu degil — Indir" snackbar with App Store / Play Store deep-link.
+
+`ios/Runner/Info.plist`: `LSApplicationQueriesSchemes` with `vlc-x-callback`, `vlc`, `nplayer-`.
+
+`android/app/src/main/AndroidManifest.xml`: `<queries>` block extended with `org.videolan.vlc` + 2 MX packages (Android 11+ visibility).
+
+### Agent C — TMDB cast + crew + similar movies
+
+`packages/awatv_core/lib/src/models/tmdb_credits.dart` (NEW): `TmdbCastMember`, `TmdbCrewMember`, `TmdbCredits` plain Dart with manual JSON parsing.
+
+`tmdb_client.dart`: + `profileUrl(path)` w185 helper, + `credits(tmdbId, {isMovie})` (top-8 cast, top-4 crew filtered to Director/Writer/Screenplay/Story), + `similarTmdbIds(tmdbId, {isMovie, limit})`.
+
+`metadata_service.dart`: + `credits()` and `similarTmdbIds()` with 24h Hive-backed TTL via existing `AwatvStorage.putMetadataJson`.
+
+`apps/mobile/lib/src/features/vod/vod_credits_provider.dart` (NEW): `vodCreditsProvider` + `vodSimilarTmdbIdsProvider` as `FutureProvider.autoDispose.family<…, int?>` with 1h `keepAlive`.
+
+`apps/mobile/lib/src/features/vod/cast_detail_screen.dart` (NEW): `/cast/:id` no-op stub.
+
+`vod_detail_screen.dart`: `_CastRow` becomes `ConsumerWidget` reading `vodCreditsProvider`. Loading: 6-circle skeleton; error/empty: hides row entirely. Each `_CastAvatar`: 60-px ClipOval(CachedNetworkImage), tap → `/cast/:id?name=…`. `_SimilarRow` merges TMDB recommendations with local genre-overlap scoring: top-5 TMDB-owned-locally + top-5 genre-overlap, deduped.
+
+### Agent D — Cleanups + race fix
+
+`apps/mobile/web/privacy.html`: `privacy@awatv.app` → `support@awatv.com` (4 occurrences) + TODO comment header.
+
+`opensubtitles_client.dart`: User-Agent `'AWAtv v0.1'` → `'AWAtv v0.5.8'`.
+
+`updater_service.dart`: `_installMacos` race fix. `Process.run('open', ['-n', appPath])` → `Process.start('open', ['-n', '-W', appPath], mode: ProcessStartMode.detached)`. The `-W` makes `open` wait, `detached` makes it survive the parent's exit, `-n` forces a fresh instance. Fixes the v0.5.2/v0.5.3 "app closed but didn't relaunch" Launch Services race.
+
+### Fix-up commit (`d61d594`)
+
+Initial v0.5.9 commit accidentally staged `/dist/` (190 MB of binaries) plus `/supabase/.temp/`. Added both to `.gitignore` + `git rm --cached`. Future commits won't include them.
+
+### What works after this release
+
+- Real RC purchase flow on iOS / Android (StoreKit / Play Billing wired; webhook → Supabase realtime → premium UX flips < 1s)
+- External player deep-link from player chrome (VLC / MX / nPlayer)
+- TMDB cast + crew avatars on VOD detail (live data)
+- Similar movies merge TMDB recommendations with local catalog
+- Privacy email replaced
+- macOS auto-update relaunch race fixed (no more "closed but didn't reopen")
+
+### Known limitations (deferred)
+
+- Apple TV — see `docs/APPLE_TV_NOTES.md` (Universal Purchase target / WebView wrapper paths)
+- Web auto-deploy — `CLOUDFLARE_API_TOKEN` secret still missing
+- `/cast/:id` route is a stub — Phase 4 fills filmography
+- `url_launcher` not declared as direct dep in pubspec; imports tagged with `// ignore: depend_on_referenced_packages`. Should add explicitly to remove the brittle transitive resolution
+
+---
+
 ## v0.5.8 — Streas Phase 2 + freemium economy + anti-tamper premium
 
 **Released:** 2026-05-04 · **Tag:** [`awatv-v0.5.8`](https://github.com/YDX64/awatv/releases/tag/awatv-v0.5.8) · **Commit:** `e98cffc`

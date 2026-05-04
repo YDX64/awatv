@@ -65,3 +65,9 @@ coverage/
 
 # Build artifacts and release tarballs — use GitHub releases instead of committing
 awatv-web-*.tar.gz
+
+# Local build artifacts (binaries staged for GitHub Release)
+/dist/
+
+# Supabase CLI temp / local-link state
+/supabase/.temp/
